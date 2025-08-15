@@ -1,0 +1,7 @@
+### Teste do endpoint OpenAI
+POST http://localhost:3000/openai
+Content-Type: application/json
+
+{
+  "prompt": "Olá, quem é você?"
+}

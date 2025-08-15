@@ -1,67 +1,71 @@
 {
-  "name": "xcopilot-extension",
-  "displayName": "xCopilot",
-  "description": "Extensão VS Code para interação com o backend xCopilot",
-  "version": "0.0.1",
-  "publisher": "xr00tlabx",
-  "engines": {
-    "vscode": "^1.85.0"
-  },
-  "categories": ["Other"],
-  "activationEvents": [
-    "onView:xcopilotPanel",
-    "onCommand:xcopilot.ask"
-  ],
-  "main": "dist/extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "xcopilot.ask",
-        "title": "xCopilot: Perguntar"
-      }
+    "name": "xcopilot-extension",
+    "displayName": "xCopilot",
+    "description": "Extensão VS Code para interação com o backend xCopilot",
+    "version": "0.0.1",
+    "publisher": "xr00tlabx",
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Other"
     ],
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "xcopilot",
-          "title": "xCopilot",
-          "icon": "media/icon.svg"
+    "activationEvents": [],
+    "main": "dist/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "xcopilot.ask",
+                "title": "xCopilot: Perguntar"
+            },
+            {
+                "command": "xcopilot.test",
+                "title": "xCopilot: Teste"
+            }
+        ],
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "xcopilot",
+                    "title": "xCopilot",
+                    "icon": "media/icon.svg"
+                }
+            ]
+        },
+        "views": {
+            "xcopilot": [
+                {
+                    "id": "xcopilotPanel",
+                    "name": "Assistente",
+                    "type": "webview"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "xCopilot",
+            "properties": {
+                "xcopilot.backendUrl": {
+                    "type": "string",
+                    "default": "http://localhost:3000/openai",
+                    "description": "Endpoint do backend xCopilot para geração de respostas"
+                }
+            }
         }
-      ]
     },
-    "views": {
-      "xcopilot": [
-        {
-          "id": "xcopilotPanel",
-          "name": "Assistente"
-        }
-      ]
+    "scripts": {
+        "vscode:prepublish": "npm run build",
+        "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --platform=node --external:vscode --format=cjs",
+        "watch": "npm run build -- --watch",
+        "dev": "npm run build -- --watch",
+        "package": "vsce package"
     },
-    "configuration": {
-      "title": "xCopilot",
-      "properties": {
-        "xcopilot.backendUrl": {
-          "type": "string",
-          "default": "http://localhost:3000/openai",
-          "description": "Endpoint do backend xCopilot para geração de respostas"
-        }
-      }
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "@types/vscode": "^1.85.0",
+        "esbuild": "^0.20.0",
+        "typescript": "^5.4.0"
+    },
+    "dependencies": {
+        "node-fetch": "^3.3.2"
     }
-  },
-  "scripts": {
-    "vscode:prepublish": "npm run build",
-    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --platform=node --external:vscode --format=cjs",
-    "watch": "npm run build -- --watch",
-  "dev": "npm run build -- --watch",
-    "package": "vsce package"
-  },
-  "devDependencies": {
-    "@types/node": "^20.0.0",
-    "@types/vscode": "^1.85.0",
-    "esbuild": "^0.20.0",
-    "typescript": "^5.4.0"
-  },
-  "dependencies": {
-    "node-fetch": "^3.3.2"
-  }
 }

@@ -6,7 +6,9 @@ yarn-debug.log*
 yarn-error.log*
 
 # VS Code
-.vscode/
+# Manter extensões recomendadas versionadas
+.vscode/*
+!.vscode/extensions.json
 
 # Logs
 logs/

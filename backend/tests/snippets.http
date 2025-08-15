@@ -1,0 +1,12 @@
+### Indexar snippet
+POST http://localhost:3000/snippets
+Content-Type: application/json
+
+{
+  "id": "ex1",
+  "content": "function soma(a,b){return a+b}",
+  "language": "javascript"
+}
+
+### Buscar snippet
+GET http://localhost:3000/snippets/search?q=function

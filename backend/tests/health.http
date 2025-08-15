@@ -1,0 +1,5 @@
+### Healthcheck
+GET http://localhost:3000/health
+
+### Config
+GET http://localhost:3000/config

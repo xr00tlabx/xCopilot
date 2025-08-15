@@ -1,0 +1,7 @@
+### Teste de erro de autenticação OpenAI
+POST http://localhost:3000/openai
+Content-Type: application/json
+
+{
+  "prompt": "Teste de autenticação"
+}
