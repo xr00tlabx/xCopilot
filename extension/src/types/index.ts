@@ -17,6 +17,10 @@ export interface ChatMessage {
 
 export interface ExtensionConfig {
     backendUrl: string;
+    enableAutoContext: boolean;
+    maxHistoryItems: number;
+    enableGitIntegration: boolean;
+    customTemplates: PromptTemplate[];
 }
 
 export interface BackendError {
@@ -47,4 +51,28 @@ export interface PromptTemplate {
     prompt: string;
     requiresSelection: boolean;
     supportedFileTypes?: string[];
+    isCustom?: boolean;
+}
+
+export interface ConversationEntry {
+    id: string;
+    timestamp: Date;
+    userMessage: string;
+    aiResponse: string;
+    context?: CodeContext;
+    fileName?: string;
+    fileType?: string;
+}
+
+export interface ConversationHistory {
+    entries: ConversationEntry[];
+    lastUpdated: Date;
+}
+
+export interface GitInfo {
+    currentBranch?: string;
+    hasUncommittedChanges: boolean;
+    lastCommitMessage?: string;
+    changedFiles: string[];
+    diff?: string;
 }

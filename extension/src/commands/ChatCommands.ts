@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
+import { CodeContextService, PromptTemplateService } from '../services';
 import { Logger } from '../utils';
 import { ChatWebviewProvider } from '../views';
-import { CodeContextService, PromptTemplateService } from '../services';
 
 /**
  * Gerenciador de comandos da extensão xCopilot
@@ -56,6 +56,31 @@ export class ChatCommands {
             await this.handleOpenChatCommand();
         });
 
+        // Comando para pesquisar histórico
+        const searchHistoryCommand = vscode.commands.registerCommand('xcopilot.searchHistory', async () => {
+            await this.handleSearchHistoryCommand();
+        });
+
+        // Comando para exportar histórico
+        const exportHistoryCommand = vscode.commands.registerCommand('xcopilot.exportHistory', async () => {
+            await this.handleExportHistoryCommand();
+        });
+
+        // Comando para limpar histórico
+        const clearHistoryCommand = vscode.commands.registerCommand('xcopilot.clearHistory', async () => {
+            await this.handleClearHistoryCommand();
+        });
+
+        // Comando para gerar commit message
+        const generateCommitCommand = vscode.commands.registerCommand('xcopilot.generateCommit', async () => {
+            await this.handleGenerateCommitCommand();
+        });
+
+        // Comando para analisar diff
+        const analyzeDiffCommand = vscode.commands.registerCommand('xcopilot.analyzeDiff', async () => {
+            await this.handleAnalyzeDiffCommand();
+        });
+
         // Adicionar aos subscriptions
         context.subscriptions.push(
             askCommand, 
@@ -64,7 +89,12 @@ export class ChatCommands {
             analyzeFileCommand,
             findBugsCommand,
             testCommand, 
-            openChatCommand
+            openChatCommand,
+            searchHistoryCommand,
+            exportHistoryCommand,
+            clearHistoryCommand,
+            generateCommitCommand,
+            analyzeDiffCommand
         );
         Logger.info('All commands registered successfully');
     }
@@ -273,6 +303,124 @@ export class ChatCommands {
         } catch (error) {
             Logger.error('Error in find bugs command:', error);
             vscode.window.showErrorMessage('Erro ao procurar bugs');
+        }
+    }
+
+    /**
+     * Pesquisar no histórico de conversas
+     */
+    private async handleSearchHistoryCommand(): Promise<void> {
+        try {
+            const searchTerm = await vscode.window.showInputBox({
+                prompt: 'Digite o termo para pesquisar no histórico',
+                placeHolder: 'Ex: função, error, typescript...'
+            });
+
+            if (!searchTerm) {
+                return;
+            }
+
+            // Abrir a view primeiro
+            await vscode.commands.executeCommand('workbench.view.extension.xcopilot');
+            
+            if (!this.chatProvider.isActive()) {
+                vscode.window.showWarningMessage('View xCopilot ainda não inicializada.');
+                return;
+            }
+
+            await this.chatProvider.searchHistory(searchTerm);
+            Logger.info(`History search executed for: ${searchTerm}`);
+        } catch (error) {
+            Logger.error('Error in search history command:', error);
+            vscode.window.showErrorMessage('Erro ao pesquisar histórico');
+        }
+    }
+
+    /**
+     * Exportar histórico para arquivo
+     */
+    private async handleExportHistoryCommand(): Promise<void> {
+        try {
+            const uri = await vscode.window.showSaveDialog({
+                filters: {
+                    'Markdown': ['md'],
+                    'Todos os arquivos': ['*']
+                },
+                defaultUri: vscode.Uri.file('xcopilot-history.md')
+            });
+
+            if (!uri) {
+                return;
+            }
+
+            await this.chatProvider.exportHistory(uri.fsPath);
+            vscode.window.showInformationMessage(`Histórico exportado para: ${uri.fsPath}`);
+            Logger.info(`History exported to: ${uri.fsPath}`);
+        } catch (error) {
+            Logger.error('Error in export history command:', error);
+            vscode.window.showErrorMessage('Erro ao exportar histórico');
+        }
+    }
+
+    /**
+     * Limpar histórico de conversas
+     */
+    private async handleClearHistoryCommand(): Promise<void> {
+        try {
+            const confirmation = await vscode.window.showWarningMessage(
+                'Tem certeza que deseja limpar todo o histórico de conversas?',
+                { modal: true },
+                'Sim, limpar'
+            );
+
+            if (confirmation === 'Sim, limpar') {
+                await this.chatProvider.clearHistory();
+                vscode.window.showInformationMessage('Histórico limpo com sucesso');
+                Logger.info('History cleared');
+            }
+        } catch (error) {
+            Logger.error('Error in clear history command:', error);
+            vscode.window.showErrorMessage('Erro ao limpar histórico');
+        }
+    }
+
+    /**
+     * Gerar mensagem de commit baseada nas mudanças
+     */
+    private async handleGenerateCommitCommand(): Promise<void> {
+        try {
+            await vscode.commands.executeCommand('workbench.view.extension.xcopilot');
+            
+            if (!this.chatProvider.isActive()) {
+                vscode.window.showWarningMessage('View xCopilot ainda não inicializada.');
+                return;
+            }
+
+            await this.chatProvider.generateCommitMessage();
+            Logger.info('Generate commit command executed');
+        } catch (error) {
+            Logger.error('Error in generate commit command:', error);
+            vscode.window.showErrorMessage('Erro ao gerar mensagem de commit');
+        }
+    }
+
+    /**
+     * Analisar diferenças do arquivo atual
+     */
+    private async handleAnalyzeDiffCommand(): Promise<void> {
+        try {
+            await vscode.commands.executeCommand('workbench.view.extension.xcopilot');
+            
+            if (!this.chatProvider.isActive()) {
+                vscode.window.showWarningMessage('View xCopilot ainda não inicializada.');
+                return;
+            }
+
+            await this.chatProvider.analyzeDiff();
+            Logger.info('Analyze diff command executed');
+        } catch (error) {
+            Logger.error('Error in analyze diff command:', error);
+            vscode.window.showErrorMessage('Erro ao analisar diferenças');
         }
     }
 }

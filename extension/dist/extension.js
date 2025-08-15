@@ -5102,43 +5102,10 @@ __export(extension_exports, {
 module.exports = __toCommonJS(extension_exports);
 
 // src/ExtensionManager.ts
-var vscode4 = __toESM(require("vscode"));
+var vscode6 = __toESM(require("vscode"));
 
 // src/commands/ChatCommands.ts
-var vscode3 = __toESM(require("vscode"));
-
-// src/utils/Logger.ts
-var Logger = class {
-  static {
-    this.outputChannel = null;
-  }
-  static init(outputChannel) {
-    this.outputChannel = outputChannel;
-  }
-  static info(message, ...args) {
-    const log = `[INFO] ${message}`;
-    console.log(log, ...args);
-    this.outputChannel?.appendLine(log);
-  }
-  static error(message, error) {
-    const log = `[ERROR] ${message}`;
-    console.error(log, error);
-    this.outputChannel?.appendLine(log);
-    if (error) {
-      this.outputChannel?.appendLine(JSON.stringify(error, null, 2));
-    }
-  }
-  static warn(message, ...args) {
-    const log = `[WARN] ${message}`;
-    console.warn(log, ...args);
-    this.outputChannel?.appendLine(log);
-  }
-  static debug(message, ...args) {
-    const log = `[DEBUG] ${message}`;
-    console.log(log, ...args);
-    this.outputChannel?.appendLine(log);
-  }
-};
+var vscode4 = __toESM(require("vscode"));
 
 // node_modules/node-fetch/src/index.js
 var import_node_http2 = __toESM(require("node:http"), 1);
@@ -6421,6 +6388,39 @@ function fixResponseChunkedTransferBadEnding(request, errorCallback) {
   });
 }
 
+// src/utils/Logger.ts
+var Logger = class {
+  static {
+    this.outputChannel = null;
+  }
+  static init(outputChannel) {
+    this.outputChannel = outputChannel;
+  }
+  static info(message, ...args) {
+    const log = `[INFO] ${message}`;
+    console.log(log, ...args);
+    this.outputChannel?.appendLine(log);
+  }
+  static error(message, error) {
+    const log = `[ERROR] ${message}`;
+    console.error(log, error);
+    this.outputChannel?.appendLine(log);
+    if (error) {
+      this.outputChannel?.appendLine(JSON.stringify(error, null, 2));
+    }
+  }
+  static warn(message, ...args) {
+    const log = `[WARN] ${message}`;
+    console.warn(log, ...args);
+    this.outputChannel?.appendLine(log);
+  }
+  static debug(message, ...args) {
+    const log = `[DEBUG] ${message}`;
+    console.log(log, ...args);
+    this.outputChannel?.appendLine(log);
+  }
+};
+
 // src/services/ConfigurationService.ts
 var vscode = __toESM(require("vscode"));
 var ConfigurationService = class _ConfigurationService {
@@ -6438,7 +6438,11 @@ var ConfigurationService = class _ConfigurationService {
   getConfig() {
     const config = vscode.workspace.getConfiguration("xcopilot");
     return {
-      backendUrl: config.get("backendUrl") || "http://localhost:3000"
+      backendUrl: config.get("backendUrl") || "http://localhost:3000",
+      enableAutoContext: config.get("enableAutoContext") ?? true,
+      maxHistoryItems: config.get("maxHistoryItems") || 100,
+      enableGitIntegration: config.get("enableGitIntegration") ?? true,
+      customTemplates: config.get("customTemplates") || []
     };
   }
   /**
@@ -6887,6 +6891,370 @@ var PromptTemplateService = class _PromptTemplateService {
   }
 };
 
+// src/services/ConversationHistoryService.ts
+var ConversationHistoryService = class _ConversationHistoryService {
+  constructor(context) {
+    this.storageKey = "xcopilot.conversationHistory";
+    this.maxEntries = 100;
+    this.context = context;
+    this.history = this.loadHistory();
+  }
+  static getInstance(context) {
+    if (!_ConversationHistoryService.instance && context) {
+      _ConversationHistoryService.instance = new _ConversationHistoryService(context);
+    }
+    return _ConversationHistoryService.instance;
+  }
+  /**
+   * Adiciona nova entrada ao histórico
+   */
+  addEntry(userMessage, aiResponse, context) {
+    const entry = {
+      id: this.generateId(),
+      timestamp: /* @__PURE__ */ new Date(),
+      userMessage,
+      aiResponse,
+      context,
+      fileName: context?.fileName,
+      fileType: context?.fileType
+    };
+    this.history.entries.unshift(entry);
+    if (this.history.entries.length > this.maxEntries) {
+      this.history.entries = this.history.entries.slice(0, this.maxEntries);
+    }
+    this.history.lastUpdated = /* @__PURE__ */ new Date();
+    this.saveHistory();
+    Logger.info(`Added conversation entry: ${entry.id}`);
+  }
+  /**
+   * Busca no histórico por texto
+   */
+  search(query, limit = 20) {
+    const lowerQuery = query.toLowerCase();
+    return this.history.entries.filter(
+      (entry) => entry.userMessage.toLowerCase().includes(lowerQuery) || entry.aiResponse.toLowerCase().includes(lowerQuery) || entry.fileName?.toLowerCase().includes(lowerQuery)
+    ).slice(0, limit);
+  }
+  /**
+   * Busca por tipo de arquivo
+   */
+  searchByFileType(fileType, limit = 20) {
+    return this.history.entries.filter((entry) => entry.fileType === fileType).slice(0, limit);
+  }
+  /**
+   * Busca por arquivo específico
+   */
+  searchByFileName(fileName, limit = 20) {
+    return this.history.entries.filter((entry) => entry.fileName === fileName).slice(0, limit);
+  }
+  /**
+   * Obtém entradas recentes
+   */
+  getRecent(limit = 10) {
+    return this.history.entries.slice(0, limit);
+  }
+  /**
+   * Obtém entrada por ID
+   */
+  getById(id) {
+    return this.history.entries.find((entry) => entry.id === id);
+  }
+  /**
+   * Remove entrada do histórico
+   */
+  removeEntry(id) {
+    const index = this.history.entries.findIndex((entry) => entry.id === id);
+    if (index > -1) {
+      this.history.entries.splice(index, 1);
+      this.saveHistory();
+      Logger.info(`Removed conversation entry: ${id}`);
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Limpa todo o histórico
+   */
+  clearHistory() {
+    this.history = {
+      entries: [],
+      lastUpdated: /* @__PURE__ */ new Date()
+    };
+    this.saveHistory();
+    Logger.info("Conversation history cleared");
+  }
+  /**
+   * Exporta histórico para JSON
+   */
+  exportToJson() {
+    return JSON.stringify(this.history, null, 2);
+  }
+  /**
+   * Exporta histórico formatado em Markdown
+   */
+  exportToMarkdown() {
+    let markdown = "# Hist\xF3rico de Conversas xCopilot\n\n";
+    markdown += `*Exportado em: ${(/* @__PURE__ */ new Date()).toLocaleString()}*
+
+`;
+    this.history.entries.forEach((entry, index) => {
+      markdown += `## Conversa ${index + 1}
+
+`;
+      markdown += `**Data:** ${entry.timestamp.toLocaleString()}
+
+`;
+      if (entry.fileName) {
+        markdown += `**Arquivo:** ${entry.fileName}
+
+`;
+      }
+      markdown += `**Pergunta:**
+${entry.userMessage}
+
+`;
+      markdown += `**Resposta:**
+${entry.aiResponse}
+
+`;
+      if (entry.context?.selectedText) {
+        markdown += `**C\xF3digo analisado:**
+\`\`\`${entry.fileType || ""}
+${entry.context.selectedText}
+\`\`\`
+
+`;
+      }
+      markdown += "---\n\n";
+    });
+    return markdown;
+  }
+  /**
+   * Obtém estatísticas do histórico
+   */
+  getStats() {
+    const byFileType = {};
+    const byFileName = {};
+    this.history.entries.forEach((entry) => {
+      if (entry.fileType) {
+        byFileType[entry.fileType] = (byFileType[entry.fileType] || 0) + 1;
+      }
+      if (entry.fileName) {
+        byFileName[entry.fileName] = (byFileName[entry.fileName] || 0) + 1;
+      }
+    });
+    const timestamps = this.history.entries.map((e2) => e2.timestamp);
+    return {
+      totalEntries: this.history.entries.length,
+      byFileType,
+      byFileName,
+      oldestEntry: timestamps.length > 0 ? new Date(Math.min(...timestamps.map((t2) => t2.getTime()))) : void 0,
+      newestEntry: timestamps.length > 0 ? new Date(Math.max(...timestamps.map((t2) => t2.getTime()))) : void 0
+    };
+  }
+  /**
+   * Carrega histórico do storage
+   */
+  loadHistory() {
+    try {
+      const stored = this.context.globalState.get(this.storageKey);
+      if (stored) {
+        stored.entries = stored.entries.map((entry) => ({
+          ...entry,
+          timestamp: new Date(entry.timestamp)
+        }));
+        stored.lastUpdated = new Date(stored.lastUpdated);
+        Logger.info(`Loaded ${stored.entries.length} conversation entries`);
+        return stored;
+      }
+    } catch (error) {
+      Logger.error("Error loading conversation history:", error);
+    }
+    return {
+      entries: [],
+      lastUpdated: /* @__PURE__ */ new Date()
+    };
+  }
+  /**
+   * Salva histórico no storage
+   */
+  saveHistory() {
+    try {
+      this.context.globalState.update(this.storageKey, this.history);
+    } catch (error) {
+      Logger.error("Error saving conversation history:", error);
+    }
+  }
+  /**
+   * Gera ID único para entrada
+   */
+  generateId() {
+    return `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+};
+
+// src/services/GitIntegrationService.ts
+var vscode3 = __toESM(require("vscode"));
+var GitIntegrationService = class _GitIntegrationService {
+  constructor() {
+    this.isInitialized = false;
+    this.initializeGitExtension();
+  }
+  static getInstance() {
+    if (!_GitIntegrationService.instance) {
+      _GitIntegrationService.instance = new _GitIntegrationService();
+    }
+    return _GitIntegrationService.instance;
+  }
+  /**
+   * Inicializa a extensão do Git (sem throw de erro)
+   */
+  async initializeGitExtension() {
+    try {
+      const gitExtension = vscode3.extensions.getExtension("vscode.git");
+      if (gitExtension) {
+        if (!gitExtension.isActive) {
+          await gitExtension.activate();
+        }
+        this.gitExtension = gitExtension.exports?.getAPI?.(1);
+        if (this.gitExtension) {
+          this.isInitialized = true;
+          Logger.info("Git extension initialized successfully");
+        } else {
+          Logger.warn("Git API not available - Git features will be disabled");
+        }
+      } else {
+        Logger.warn("Git extension not found - Git features will be disabled");
+      }
+    } catch (error) {
+      Logger.warn("Git extension not available - Git features will be disabled");
+      this.gitExtension = void 0;
+    }
+  }
+  /**
+   * Verifica se o Git está disponível
+   */
+  isGitAvailable() {
+    try {
+      return this.isInitialized && !!this.gitExtension;
+    } catch (error) {
+      return false;
+    }
+  }
+  /**
+   * Obtém informações do Git para o workspace atual
+   */
+  async getGitInfo() {
+    if (!this.isGitAvailable()) {
+      return null;
+    }
+    try {
+      const workspaceFolders = vscode3.workspace.workspaceFolders;
+      if (!workspaceFolders?.length) {
+        return null;
+      }
+      const repository = this.gitExtension.getRepository(workspaceFolders[0].uri);
+      if (!repository) {
+        return null;
+      }
+      const gitInfo = {
+        currentBranch: repository.state.HEAD?.name || "unknown",
+        hasUncommittedChanges: (repository.state.workingTreeChanges?.length || 0) > 0 || (repository.state.indexChanges?.length || 0) > 0,
+        lastCommitMessage: repository.state.HEAD?.commit?.message || "",
+        changedFiles: [
+          ...repository.state.workingTreeChanges?.map((c) => c.uri.fsPath) || [],
+          ...repository.state.indexChanges?.map((c) => c.uri.fsPath) || []
+        ],
+        diff: void 0
+        // Simplificado por enquanto
+      };
+      return gitInfo;
+    } catch (error) {
+      Logger.error("Error getting Git info:", error);
+      return null;
+    }
+  }
+  /**
+   * Obtém diff do arquivo atual (versão simplificada)
+   */
+  async getCurrentFileDiff() {
+    if (!this.isGitAvailable()) {
+      return null;
+    }
+    try {
+      const editor = vscode3.window.activeTextEditor;
+      if (!editor) {
+        return null;
+      }
+      const fileName = editor.document.fileName;
+      const isModified = editor.document.isDirty;
+      return isModified ? `File modified: ${fileName}` : null;
+    } catch (error) {
+      Logger.error("Error getting file diff:", error);
+      return null;
+    }
+  }
+  /**
+   * Gera sugestão de mensagem de commit baseada nas mudanças
+   */
+  async generateCommitMessage(changedFiles, diff) {
+    try {
+      const fileTypes = this.analyzeFileTypes(changedFiles);
+      const changeScope = this.analyzeChangeScope(changedFiles);
+      let type = "feat";
+      if (changedFiles.some((f3) => f3.includes("test") || f3.includes("spec"))) {
+        type = "test";
+      } else if (changedFiles.some((f3) => f3.includes("doc") || f3.includes("README"))) {
+        type = "docs";
+      } else if (changedFiles.some((f3) => f3.includes("fix") || f3.includes("bug"))) {
+        type = "fix";
+      } else if (changedFiles.some((f3) => f3.includes("style") || f3.includes("css"))) {
+        type = "style";
+      }
+      const scope = changeScope.length > 0 ? `(${changeScope.join(", ")})` : "";
+      const fileTypesList = fileTypes.length > 0 ? ` - ${fileTypes.join(", ")}` : "";
+      return `${type}${scope}: update ${changedFiles.length} file(s)${fileTypesList}`;
+    } catch (error) {
+      Logger.error("Error generating commit message:", error);
+      return "feat: update files";
+    }
+  }
+  /**
+   * Analisa tipos de arquivos modificados
+   */
+  analyzeFileTypes(files) {
+    try {
+      const types3 = /* @__PURE__ */ new Set();
+      files.forEach((file) => {
+        const ext = file.split(".").pop()?.toLowerCase();
+        if (ext) {
+          types3.add(ext);
+        }
+      });
+      return Array.from(types3).slice(0, 3);
+    } catch (error) {
+      return [];
+    }
+  }
+  /**
+   * Analisa escopo das mudanças
+   */
+  analyzeChangeScope(files) {
+    try {
+      const scopes = /* @__PURE__ */ new Set();
+      files.forEach((file) => {
+        const parts = file.split("/");
+        if (parts.length > 1) {
+          scopes.add(parts[parts.length - 2]);
+        }
+      });
+      return Array.from(scopes).slice(0, 2);
+    } catch (error) {
+      return [];
+    }
+  }
+};
+
 // src/commands/ChatCommands.ts
 var ChatCommands = class {
   constructor(chatProvider) {
@@ -6898,26 +7266,41 @@ var ChatCommands = class {
    * Registra todos os comandos da extensão
    */
   registerCommands(context) {
-    const askCommand = vscode3.commands.registerCommand("xcopilot.ask", async () => {
+    const askCommand = vscode4.commands.registerCommand("xcopilot.ask", async () => {
       await this.handleAskCommand();
     });
-    const explainCommand = vscode3.commands.registerCommand("xcopilot.explainCode", async () => {
+    const explainCommand = vscode4.commands.registerCommand("xcopilot.explainCode", async () => {
       await this.handleExplainCodeCommand();
     });
-    const templateCommand = vscode3.commands.registerCommand("xcopilot.useTemplate", async () => {
+    const templateCommand = vscode4.commands.registerCommand("xcopilot.useTemplate", async () => {
       await this.handleTemplateCommand();
     });
-    const analyzeFileCommand = vscode3.commands.registerCommand("xcopilot.analyzeFile", async () => {
+    const analyzeFileCommand = vscode4.commands.registerCommand("xcopilot.analyzeFile", async () => {
       await this.handleAnalyzeFileCommand();
     });
-    const findBugsCommand = vscode3.commands.registerCommand("xcopilot.findBugs", async () => {
+    const findBugsCommand = vscode4.commands.registerCommand("xcopilot.findBugs", async () => {
       await this.handleFindBugsCommand();
     });
-    const testCommand = vscode3.commands.registerCommand("xcopilot.test", () => {
+    const testCommand = vscode4.commands.registerCommand("xcopilot.test", () => {
       this.handleTestCommand();
     });
-    const openChatCommand = vscode3.commands.registerCommand("xcopilot.openChat", async () => {
+    const openChatCommand = vscode4.commands.registerCommand("xcopilot.openChat", async () => {
       await this.handleOpenChatCommand();
+    });
+    const searchHistoryCommand = vscode4.commands.registerCommand("xcopilot.searchHistory", async () => {
+      await this.handleSearchHistoryCommand();
+    });
+    const exportHistoryCommand = vscode4.commands.registerCommand("xcopilot.exportHistory", async () => {
+      await this.handleExportHistoryCommand();
+    });
+    const clearHistoryCommand = vscode4.commands.registerCommand("xcopilot.clearHistory", async () => {
+      await this.handleClearHistoryCommand();
+    });
+    const generateCommitCommand = vscode4.commands.registerCommand("xcopilot.generateCommit", async () => {
+      await this.handleGenerateCommitCommand();
+    });
+    const analyzeDiffCommand = vscode4.commands.registerCommand("xcopilot.analyzeDiff", async () => {
+      await this.handleAnalyzeDiffCommand();
     });
     context.subscriptions.push(
       askCommand,
@@ -6926,7 +7309,12 @@ var ChatCommands = class {
       analyzeFileCommand,
       findBugsCommand,
       testCommand,
-      openChatCommand
+      openChatCommand,
+      searchHistoryCommand,
+      exportHistoryCommand,
+      clearHistoryCommand,
+      generateCommitCommand,
+      analyzeDiffCommand
     );
     Logger.info("All commands registered successfully");
   }
@@ -6935,8 +7323,8 @@ var ChatCommands = class {
    */
   async handleAskCommand() {
     try {
-      await vscode3.commands.executeCommand("workbench.view.extension.xcopilot");
-      const prompt = await vscode3.window.showInputBox({
+      await vscode4.commands.executeCommand("workbench.view.extension.xcopilot");
+      const prompt = await vscode4.window.showInputBox({
         placeHolder: "Pergunte ao xCopilot",
         prompt: "Digite sua pergunta para o xCopilot"
       });
@@ -6944,21 +7332,21 @@ var ChatCommands = class {
         return;
       }
       if (!this.chatProvider.isActive()) {
-        vscode3.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada. Tente novamente em alguns segundos.");
+        vscode4.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada. Tente novamente em alguns segundos.");
         return;
       }
       await this.chatProvider.askQuestion(prompt);
       Logger.info(`Question sent via command: ${prompt}`);
     } catch (error) {
       Logger.error("Error in ask command:", error);
-      vscode3.window.showErrorMessage(`Erro ao executar comando: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+      vscode4.window.showErrorMessage(`Erro ao executar comando: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
   }
   /**
    * Lida com o comando de teste
    */
   handleTestCommand() {
-    vscode3.window.showInformationMessage("xCopilot est\xE1 funcionando!");
+    vscode4.window.showInformationMessage("xCopilot est\xE1 funcionando!");
     Logger.info("Test command executed");
   }
   /**
@@ -6966,11 +7354,11 @@ var ChatCommands = class {
    */
   async handleOpenChatCommand() {
     try {
-      await vscode3.commands.executeCommand("workbench.view.extension.xcopilot");
+      await vscode4.commands.executeCommand("workbench.view.extension.xcopilot");
       Logger.info("Chat opened via command");
     } catch (error) {
       Logger.error("Error opening chat:", error);
-      vscode3.window.showErrorMessage("Erro ao abrir o chat do xCopilot");
+      vscode4.window.showErrorMessage("Erro ao abrir o chat do xCopilot");
     }
   }
   /**
@@ -6978,18 +7366,18 @@ var ChatCommands = class {
    */
   async handleExplainCodeCommand() {
     try {
-      await vscode3.commands.executeCommand("workbench.view.extension.xcopilot");
+      await vscode4.commands.executeCommand("workbench.view.extension.xcopilot");
       if (!this.contextService.hasUsefulContext()) {
-        vscode3.window.showWarningMessage("Nenhum arquivo aberto para an\xE1lise.");
+        vscode4.window.showWarningMessage("Nenhum arquivo aberto para an\xE1lise.");
         return;
       }
       const context = this.contextService.getCurrentContext();
       if (!context?.selectedText) {
-        vscode3.window.showWarningMessage("Selecione o c\xF3digo que deseja explicar.");
+        vscode4.window.showWarningMessage("Selecione o c\xF3digo que deseja explicar.");
         return;
       }
       if (!this.chatProvider.isActive()) {
-        vscode3.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
+        vscode4.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
         return;
       }
       const template = this.templateService.getTemplateById("explain-code");
@@ -6999,7 +7387,7 @@ var ChatCommands = class {
       }
     } catch (error) {
       Logger.error("Error in explain code command:", error);
-      vscode3.window.showErrorMessage("Erro ao explicar c\xF3digo");
+      vscode4.window.showErrorMessage("Erro ao explicar c\xF3digo");
     }
   }
   /**
@@ -7013,7 +7401,7 @@ var ChatCommands = class {
         stats?.hasSelection
       );
       if (templates.length === 0) {
-        vscode3.window.showInformationMessage("Nenhum template dispon\xEDvel para o contexto atual.");
+        vscode4.window.showInformationMessage("Nenhum template dispon\xEDvel para o contexto atual.");
         return;
       }
       const items = templates.map((template) => ({
@@ -7022,30 +7410,30 @@ var ChatCommands = class {
         detail: template.requiresSelection ? "(Requer sele\xE7\xE3o de c\xF3digo)" : "(An\xE1lise geral)",
         template
       }));
-      const selected = await vscode3.window.showQuickPick(items, {
+      const selected = await vscode4.window.showQuickPick(items, {
         placeHolder: "Escolha um template para usar",
         matchOnDescription: true
       });
       if (!selected) {
         return;
       }
-      await vscode3.commands.executeCommand("workbench.view.extension.xcopilot");
+      await vscode4.commands.executeCommand("workbench.view.extension.xcopilot");
       if (selected.template.requiresSelection) {
         const context = this.contextService.getCurrentContext();
         if (!context?.selectedText) {
-          vscode3.window.showWarningMessage("Este template requer que voc\xEA selecione c\xF3digo primeiro.");
+          vscode4.window.showWarningMessage("Este template requer que voc\xEA selecione c\xF3digo primeiro.");
           return;
         }
       }
       if (!this.chatProvider.isActive()) {
-        vscode3.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
+        vscode4.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
         return;
       }
       await this.chatProvider.askQuestionWithContext(selected.template.prompt);
       Logger.info(`Template command executed: ${selected.template.id}`);
     } catch (error) {
       Logger.error("Error in template command:", error);
-      vscode3.window.showErrorMessage("Erro ao usar template");
+      vscode4.window.showErrorMessage("Erro ao usar template");
     }
   }
   /**
@@ -7053,13 +7441,13 @@ var ChatCommands = class {
    */
   async handleAnalyzeFileCommand() {
     try {
-      await vscode3.commands.executeCommand("workbench.view.extension.xcopilot");
+      await vscode4.commands.executeCommand("workbench.view.extension.xcopilot");
       if (!this.contextService.hasUsefulContext()) {
-        vscode3.window.showWarningMessage("Nenhum arquivo aberto para an\xE1lise.");
+        vscode4.window.showWarningMessage("Nenhum arquivo aberto para an\xE1lise.");
         return;
       }
       if (!this.chatProvider.isActive()) {
-        vscode3.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
+        vscode4.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
         return;
       }
       const template = this.templateService.getTemplateById("code-review");
@@ -7069,7 +7457,7 @@ var ChatCommands = class {
       }
     } catch (error) {
       Logger.error("Error in analyze file command:", error);
-      vscode3.window.showErrorMessage("Erro ao analisar arquivo");
+      vscode4.window.showErrorMessage("Erro ao analisar arquivo");
     }
   }
   /**
@@ -7077,18 +7465,18 @@ var ChatCommands = class {
    */
   async handleFindBugsCommand() {
     try {
-      await vscode3.commands.executeCommand("workbench.view.extension.xcopilot");
+      await vscode4.commands.executeCommand("workbench.view.extension.xcopilot");
       if (!this.contextService.hasUsefulContext()) {
-        vscode3.window.showWarningMessage("Nenhum arquivo aberto para an\xE1lise.");
+        vscode4.window.showWarningMessage("Nenhum arquivo aberto para an\xE1lise.");
         return;
       }
       const context = this.contextService.getCurrentContext();
       if (!context?.selectedText) {
-        vscode3.window.showWarningMessage("Selecione o c\xF3digo que deseja analisar para bugs.");
+        vscode4.window.showWarningMessage("Selecione o c\xF3digo que deseja analisar para bugs.");
         return;
       }
       if (!this.chatProvider.isActive()) {
-        vscode3.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
+        vscode4.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
         return;
       }
       const template = this.templateService.getTemplateById("find-bugs");
@@ -7098,10 +7486,114 @@ var ChatCommands = class {
       }
     } catch (error) {
       Logger.error("Error in find bugs command:", error);
-      vscode3.window.showErrorMessage("Erro ao procurar bugs");
+      vscode4.window.showErrorMessage("Erro ao procurar bugs");
+    }
+  }
+  /**
+   * Pesquisar no histórico de conversas
+   */
+  async handleSearchHistoryCommand() {
+    try {
+      const searchTerm = await vscode4.window.showInputBox({
+        prompt: "Digite o termo para pesquisar no hist\xF3rico",
+        placeHolder: "Ex: fun\xE7\xE3o, error, typescript..."
+      });
+      if (!searchTerm) {
+        return;
+      }
+      await vscode4.commands.executeCommand("workbench.view.extension.xcopilot");
+      if (!this.chatProvider.isActive()) {
+        vscode4.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
+        return;
+      }
+      await this.chatProvider.searchHistory(searchTerm);
+      Logger.info(`History search executed for: ${searchTerm}`);
+    } catch (error) {
+      Logger.error("Error in search history command:", error);
+      vscode4.window.showErrorMessage("Erro ao pesquisar hist\xF3rico");
+    }
+  }
+  /**
+   * Exportar histórico para arquivo
+   */
+  async handleExportHistoryCommand() {
+    try {
+      const uri = await vscode4.window.showSaveDialog({
+        filters: {
+          "Markdown": ["md"],
+          "Todos os arquivos": ["*"]
+        },
+        defaultUri: vscode4.Uri.file("xcopilot-history.md")
+      });
+      if (!uri) {
+        return;
+      }
+      await this.chatProvider.exportHistory(uri.fsPath);
+      vscode4.window.showInformationMessage(`Hist\xF3rico exportado para: ${uri.fsPath}`);
+      Logger.info(`History exported to: ${uri.fsPath}`);
+    } catch (error) {
+      Logger.error("Error in export history command:", error);
+      vscode4.window.showErrorMessage("Erro ao exportar hist\xF3rico");
+    }
+  }
+  /**
+   * Limpar histórico de conversas
+   */
+  async handleClearHistoryCommand() {
+    try {
+      const confirmation = await vscode4.window.showWarningMessage(
+        "Tem certeza que deseja limpar todo o hist\xF3rico de conversas?",
+        { modal: true },
+        "Sim, limpar"
+      );
+      if (confirmation === "Sim, limpar") {
+        await this.chatProvider.clearHistory();
+        vscode4.window.showInformationMessage("Hist\xF3rico limpo com sucesso");
+        Logger.info("History cleared");
+      }
+    } catch (error) {
+      Logger.error("Error in clear history command:", error);
+      vscode4.window.showErrorMessage("Erro ao limpar hist\xF3rico");
+    }
+  }
+  /**
+   * Gerar mensagem de commit baseada nas mudanças
+   */
+  async handleGenerateCommitCommand() {
+    try {
+      await vscode4.commands.executeCommand("workbench.view.extension.xcopilot");
+      if (!this.chatProvider.isActive()) {
+        vscode4.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
+        return;
+      }
+      await this.chatProvider.generateCommitMessage();
+      Logger.info("Generate commit command executed");
+    } catch (error) {
+      Logger.error("Error in generate commit command:", error);
+      vscode4.window.showErrorMessage("Erro ao gerar mensagem de commit");
+    }
+  }
+  /**
+   * Analisar diferenças do arquivo atual
+   */
+  async handleAnalyzeDiffCommand() {
+    try {
+      await vscode4.commands.executeCommand("workbench.view.extension.xcopilot");
+      if (!this.chatProvider.isActive()) {
+        vscode4.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
+        return;
+      }
+      await this.chatProvider.analyzeDiff();
+      Logger.info("Analyze diff command executed");
+    } catch (error) {
+      Logger.error("Error in analyze diff command:", error);
+      vscode4.window.showErrorMessage("Erro ao analisar diferen\xE7as");
     }
   }
 };
+
+// src/views/ChatWebviewProvider.ts
+var vscode5 = __toESM(require("vscode"));
 
 // src/views/WebviewHtml.ts
 function getChatHtml() {
@@ -7708,9 +8200,11 @@ function getChatHtml() {
 
 // src/views/ChatWebviewProvider.ts
 var ChatWebviewProvider = class {
-  constructor() {
+  constructor(context) {
     this.backendService = BackendService.getInstance();
     this.contextService = CodeContextService.getInstance();
+    this.historyService = ConversationHistoryService.getInstance(context);
+    this.gitService = GitIntegrationService.getInstance();
   }
   /**
    * Resolve a webview view
@@ -7746,12 +8240,15 @@ var ChatWebviewProvider = class {
         }
         const answer = await this.backendService.askQuestion(finalPrompt);
         this.sendMessage({ type: "answer", text: answer });
+        this.historyService.addEntry(message.prompt, answer, context || void 0);
       } catch (error) {
         Logger.error("Error calling backend:", error);
+        const errorMessage = `Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`;
         this.sendMessage({
           type: "answer",
-          text: `Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`
+          text: errorMessage
         });
+        this.historyService.addEntry(message.prompt, errorMessage);
       }
     }
   }
@@ -7835,17 +8332,159 @@ var ChatWebviewProvider = class {
   getView() {
     return this.view;
   }
+  /**
+   * Pesquisar no histórico de conversas
+   */
+  async searchHistory(searchTerm) {
+    try {
+      const results = await this.historyService.search(searchTerm);
+      if (results.length === 0) {
+        this.sendMessage({
+          type: "answer",
+          text: `Nenhuma conversa encontrada para "${searchTerm}"`
+        });
+        return;
+      }
+      let response = `**Encontradas ${results.length} conversas para "${searchTerm}":**
+
+`;
+      results.forEach((entry, index) => {
+        const date = new Date(entry.timestamp).toLocaleString("pt-BR");
+        response += `**${index + 1}. ${date}**
+`;
+        response += `**Pergunta:** ${entry.userMessage}
+`;
+        response += `**Resposta:** ${entry.aiResponse.substring(0, 100)}...
+
+`;
+      });
+      this.sendMessage({
+        type: "answer",
+        text: response
+      });
+    } catch (error) {
+      Logger.error("Error searching history:", error);
+      this.sendMessage({
+        type: "answer",
+        text: "Erro ao pesquisar no hist\xF3rico"
+      });
+    }
+  }
+  /**
+   * Exportar histórico para arquivo
+   */
+  async exportHistory(filePath) {
+    try {
+      const markdownContent = this.historyService.exportToMarkdown();
+      await vscode5.workspace.fs.writeFile(vscode5.Uri.file(filePath), Buffer.from(markdownContent, "utf8"));
+      this.sendMessage({
+        type: "answer",
+        text: `Hist\xF3rico exportado com sucesso para: ${filePath}`
+      });
+    } catch (error) {
+      Logger.error("Error exporting history:", error);
+      throw error;
+    }
+  }
+  /**
+   * Limpar histórico de conversas
+   */
+  async clearHistory() {
+    try {
+      this.historyService.clearHistory();
+      this.sendMessage({
+        type: "answer",
+        text: "Hist\xF3rico limpo com sucesso"
+      });
+    } catch (error) {
+      Logger.error("Error clearing history:", error);
+      throw error;
+    }
+  }
+  /**
+   * Gerar mensagem de commit baseada nas mudanças
+   */
+  async generateCommitMessage() {
+    try {
+      this.sendMessage({ type: "answer", text: "Analisando mudan\xE7as do Git..." });
+      const gitInfo = await this.gitService.getGitInfo();
+      if (!gitInfo || gitInfo.changedFiles.length === 0) {
+        this.sendMessage({
+          type: "answer",
+          text: "Nenhuma mudan\xE7a encontrada no reposit\xF3rio Git"
+        });
+        return;
+      }
+      const commitMessage = await this.gitService.generateCommitMessage(gitInfo.changedFiles, gitInfo.diff);
+      this.sendMessage({
+        type: "answer",
+        text: `**Mensagem de commit sugerida:**
+
+\`\`\`
+${commitMessage}
+\`\`\``
+      });
+    } catch (error) {
+      Logger.error("Error generating commit message:", error);
+      this.sendMessage({
+        type: "answer",
+        text: "Erro ao gerar mensagem de commit. Verifique se voc\xEA est\xE1 em um reposit\xF3rio Git."
+      });
+    }
+  }
+  /**
+   * Analisar diferenças do arquivo atual
+   */
+  async analyzeDiff() {
+    try {
+      const activeEditor = vscode5.window.activeTextEditor;
+      if (!activeEditor) {
+        this.sendMessage({
+          type: "answer",
+          text: "Nenhum arquivo ativo para analisar"
+        });
+        return;
+      }
+      this.sendMessage({ type: "answer", text: "Analisando diferen\xE7as do arquivo..." });
+      const diff = await this.gitService.getCurrentFileDiff();
+      if (!diff) {
+        this.sendMessage({
+          type: "answer",
+          text: "Nenhuma mudan\xE7a encontrada no arquivo atual"
+        });
+        return;
+      }
+      const prompt = `Analise as seguintes mudan\xE7as no arquivo e explique o que foi alterado:
+
+\`\`\`diff
+${diff}
+\`\`\``;
+      const analysis = await this.backendService.askQuestion(prompt);
+      this.sendMessage({
+        type: "answer",
+        text: analysis
+      });
+      this.historyService.addEntry(
+        "An\xE1lise de diferen\xE7as do arquivo atual",
+        analysis,
+        this.contextService.getCurrentContext() || void 0
+      );
+    } catch (error) {
+      Logger.error("Error analyzing diff:", error);
+      this.sendMessage({
+        type: "answer",
+        text: "Erro ao analisar diferen\xE7as. Verifique se voc\xEA est\xE1 em um reposit\xF3rio Git."
+      });
+    }
+  }
 };
 
 // src/ExtensionManager.ts
 var ExtensionManager = class {
   constructor() {
-    this.outputChannel = vscode4.window.createOutputChannel("xCopilot");
+    this.outputChannel = vscode6.window.createOutputChannel("xCopilot");
     Logger.init(this.outputChannel);
     this.configService = ConfigurationService.getInstance();
-    this.chatProvider = new ChatWebviewProvider();
-    this.chatCommands = new ChatCommands(this.chatProvider);
-    Logger.info("ExtensionManager initialized");
   }
   /**
    * Ativa a extensão
@@ -7853,6 +8492,8 @@ var ExtensionManager = class {
   activate(context) {
     Logger.info("\u{1F680} xCopilot extension is now active!");
     try {
+      this.chatProvider = new ChatWebviewProvider(context);
+      this.chatCommands = new ChatCommands(this.chatProvider);
       this.registerWebviewProvider(context);
       this.chatCommands.registerCommands(context);
       this.setupConfigurationWatcher(context);
@@ -7860,7 +8501,7 @@ var ExtensionManager = class {
       Logger.info("\u2705 Extension activation completed successfully");
     } catch (error) {
       Logger.error("\u274C CRITICAL ERROR during extension activation:", error);
-      vscode4.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+      vscode6.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
   }
   /**
@@ -7868,7 +8509,7 @@ var ExtensionManager = class {
    */
   registerWebviewProvider(context) {
     Logger.info("\u{1F4DD} Registering WebviewViewProvider for xcopilotPanel...");
-    const disposable = vscode4.window.registerWebviewViewProvider(
+    const disposable = vscode6.window.registerWebviewViewProvider(
       "xcopilotPanel",
       this.chatProvider,
       {
@@ -7885,7 +8526,7 @@ var ExtensionManager = class {
    */
   setupConfigurationWatcher(context) {
     const configWatcher = this.configService.onConfigurationChanged(() => {
-      vscode4.window.showInformationMessage("URL do backend xCopilot atualizada.");
+      vscode6.window.showInformationMessage("URL do backend xCopilot atualizada.");
     });
     context.subscriptions.push(configWatcher);
     Logger.info("Configuration watcher setup completed");

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ChatCommands } from './commands';
-import { ConfigurationService, CodeContextService, PromptTemplateService } from './services';
+import { ConfigurationService } from './services';
 import { Logger } from './utils';
 import { ChatWebviewProvider } from './views';
 
@@ -8,8 +8,8 @@ import { ChatWebviewProvider } from './views';
  * Classe principal da extensão xCopilot
  */
 export class ExtensionManager {
-    private chatProvider: ChatWebviewProvider;
-    private chatCommands: ChatCommands;
+    private chatProvider!: ChatWebviewProvider;
+    private chatCommands!: ChatCommands;
     private configService: ConfigurationService;
     private outputChannel: vscode.OutputChannel;
 
@@ -20,10 +20,6 @@ export class ExtensionManager {
 
         // Inicializar serviços
         this.configService = ConfigurationService.getInstance();
-        this.chatProvider = new ChatWebviewProvider();
-        this.chatCommands = new ChatCommands(this.chatProvider);
-
-        Logger.info('ExtensionManager initialized');
     }
 
     /**
@@ -33,6 +29,10 @@ export class ExtensionManager {
         Logger.info('🚀 xCopilot extension is now active!');
 
         try {
+            // Inicializar providers com contexto
+            this.chatProvider = new ChatWebviewProvider(context);
+            this.chatCommands = new ChatCommands(this.chatProvider);
+
             // Registrar o provider da webview
             this.registerWebviewProvider(context);
 

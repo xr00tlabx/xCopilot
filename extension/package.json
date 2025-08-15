@@ -59,6 +59,26 @@
             {
                 "command": "xcopilot.test",
                 "title": "xCopilot: Teste"
+            },
+            {
+                "command": "xcopilot.searchHistory",
+                "title": "xCopilot: Pesquisar Histórico"
+            },
+            {
+                "command": "xcopilot.exportHistory",
+                "title": "xCopilot: Exportar Histórico"
+            },
+            {
+                "command": "xcopilot.clearHistory",
+                "title": "xCopilot: Limpar Histórico"
+            },
+            {
+                "command": "xcopilot.generateCommit",
+                "title": "xCopilot: Gerar Commit"
+            },
+            {
+                "command": "xcopilot.analyzeDiff",
+                "title": "xCopilot: Analisar Diff"
             }
         ],
         "viewsContainers": {

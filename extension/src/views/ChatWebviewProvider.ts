@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BackendService, CodeContextService } from '../services';
+import { BackendService, CodeContextService, ConversationHistoryService, GitIntegrationService } from '../services';
 import { ChatMessage } from '../types';
 import { Logger } from '../utils';
 import { getChatHtml } from './WebviewHtml';
@@ -11,10 +11,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     private view: vscode.WebviewView | undefined;
     private backendService: BackendService;
     private contextService: CodeContextService;
+    private historyService: ConversationHistoryService;
+    private gitService: GitIntegrationService;
 
-    constructor() {
+    constructor(context: vscode.ExtensionContext) {
         this.backendService = BackendService.getInstance();
         this.contextService = CodeContextService.getInstance();
+        this.historyService = ConversationHistoryService.getInstance(context);
+        this.gitService = GitIntegrationService.getInstance();
     }
 
     /**
@@ -66,12 +70,20 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
 
                 const answer = await this.backendService.askQuestion(finalPrompt);
                 this.sendMessage({ type: 'answer', text: answer });
+
+                // Salvar no histórico
+                this.historyService.addEntry(message.prompt, answer, context || undefined);
+
             } catch (error) {
                 Logger.error('Error calling backend:', error);
+                const errorMessage = `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
                 this.sendMessage({
                     type: 'answer',
-                    text: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+                    text: errorMessage
                 });
+
+                // Salvar erro no histórico também
+                this.historyService.addEntry(message.prompt, errorMessage);
             }
         }
     }
@@ -169,5 +181,151 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
      */
     getView(): vscode.WebviewView | undefined {
         return this.view;
+    }
+
+    /**
+     * Pesquisar no histórico de conversas
+     */
+    async searchHistory(searchTerm: string): Promise<void> {
+        try {
+            const results = await this.historyService.search(searchTerm);
+            if (results.length === 0) {
+                this.sendMessage({
+                    type: 'answer',
+                    text: `Nenhuma conversa encontrada para "${searchTerm}"`
+                });
+                return;
+            }
+
+            let response = `**Encontradas ${results.length} conversas para "${searchTerm}":**\n\n`;
+            results.forEach((entry, index) => {
+                const date = new Date(entry.timestamp).toLocaleString('pt-BR');
+                response += `**${index + 1}. ${date}**\n`;
+                response += `**Pergunta:** ${entry.userMessage}\n`;
+                response += `**Resposta:** ${entry.aiResponse.substring(0, 100)}...\n\n`;
+            });
+
+            this.sendMessage({
+                type: 'answer',
+                text: response
+            });
+        } catch (error) {
+            Logger.error('Error searching history:', error);
+            this.sendMessage({
+                type: 'answer',
+                text: 'Erro ao pesquisar no histórico'
+            });
+        }
+    }
+
+    /**
+     * Exportar histórico para arquivo
+     */
+    async exportHistory(filePath: string): Promise<void> {
+        try {
+            const markdownContent = this.historyService.exportToMarkdown();
+            await vscode.workspace.fs.writeFile(vscode.Uri.file(filePath), Buffer.from(markdownContent, 'utf8'));
+            this.sendMessage({
+                type: 'answer',
+                text: `Histórico exportado com sucesso para: ${filePath}`
+            });
+        } catch (error) {
+            Logger.error('Error exporting history:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Limpar histórico de conversas
+     */
+    async clearHistory(): Promise<void> {
+        try {
+            this.historyService.clearHistory();
+            this.sendMessage({
+                type: 'answer',
+                text: 'Histórico limpo com sucesso'
+            });
+        } catch (error) {
+            Logger.error('Error clearing history:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Gerar mensagem de commit baseada nas mudanças
+     */
+    async generateCommitMessage(): Promise<void> {
+        try {
+            this.sendMessage({ type: 'answer', text: 'Analisando mudanças do Git...' });
+            
+            const gitInfo = await this.gitService.getGitInfo();
+            if (!gitInfo || gitInfo.changedFiles.length === 0) {
+                this.sendMessage({
+                    type: 'answer',
+                    text: 'Nenhuma mudança encontrada no repositório Git'
+                });
+                return;
+            }
+
+            const commitMessage = await this.gitService.generateCommitMessage(gitInfo.changedFiles, gitInfo.diff);
+            this.sendMessage({
+                type: 'answer',
+                text: `**Mensagem de commit sugerida:**\n\n\`\`\`\n${commitMessage}\n\`\`\``
+            });
+        } catch (error) {
+            Logger.error('Error generating commit message:', error);
+            this.sendMessage({
+                type: 'answer',
+                text: 'Erro ao gerar mensagem de commit. Verifique se você está em um repositório Git.'
+            });
+        }
+    }
+
+    /**
+     * Analisar diferenças do arquivo atual
+     */
+    async analyzeDiff(): Promise<void> {
+        try {
+            const activeEditor = vscode.window.activeTextEditor;
+            if (!activeEditor) {
+                this.sendMessage({
+                    type: 'answer',
+                    text: 'Nenhum arquivo ativo para analisar'
+                });
+                return;
+            }
+
+            this.sendMessage({ type: 'answer', text: 'Analisando diferenças do arquivo...' });
+            
+            const diff = await this.gitService.getCurrentFileDiff();
+            if (!diff) {
+                this.sendMessage({
+                    type: 'answer',
+                    text: 'Nenhuma mudança encontrada no arquivo atual'
+                });
+                return;
+            }
+
+            const prompt = `Analise as seguintes mudanças no arquivo e explique o que foi alterado:\n\n\`\`\`diff\n${diff}\n\`\`\``;
+            const analysis = await this.backendService.askQuestion(prompt);
+            
+            this.sendMessage({
+                type: 'answer',
+                text: analysis
+            });
+
+            // Salvar no histórico
+            this.historyService.addEntry(
+                'Análise de diferenças do arquivo atual',
+                analysis,
+                this.contextService.getCurrentContext() || undefined
+            );
+        } catch (error) {
+            Logger.error('Error analyzing diff:', error);
+            this.sendMessage({
+                type: 'answer',
+                text: 'Erro ao analisar diferenças. Verifique se você está em um repositório Git.'
+            });
+        }
     }
 }
