@@ -5102,10 +5102,10 @@ __export(extension_exports, {
 module.exports = __toCommonJS(extension_exports);
 
 // src/ExtensionManager.ts
-var vscode3 = __toESM(require("vscode"));
+var vscode4 = __toESM(require("vscode"));
 
 // src/commands/ChatCommands.ts
-var vscode = __toESM(require("vscode"));
+var vscode3 = __toESM(require("vscode"));
 
 // src/utils/Logger.ts
 var Logger = class {
@@ -5137,72 +5137,6 @@ var Logger = class {
     const log = `[DEBUG] ${message}`;
     console.log(log, ...args);
     this.outputChannel?.appendLine(log);
-  }
-};
-
-// src/commands/ChatCommands.ts
-var ChatCommands = class {
-  constructor(chatProvider) {
-    this.chatProvider = chatProvider;
-  }
-  /**
-   * Registra todos os comandos da extensão
-   */
-  registerCommands(context) {
-    const askCommand = vscode.commands.registerCommand("xcopilot.ask", async () => {
-      await this.handleAskCommand();
-    });
-    const testCommand = vscode.commands.registerCommand("xcopilot.test", () => {
-      this.handleTestCommand();
-    });
-    const openChatCommand = vscode.commands.registerCommand("xcopilot.openChat", async () => {
-      await this.handleOpenChatCommand();
-    });
-    context.subscriptions.push(askCommand, testCommand, openChatCommand);
-    Logger.info("All commands registered successfully");
-  }
-  /**
-   * Lida com o comando xcopilot.ask
-   */
-  async handleAskCommand() {
-    try {
-      await vscode.commands.executeCommand("workbench.view.extension.xcopilot");
-      const prompt = await vscode.window.showInputBox({
-        placeHolder: "Pergunte ao xCopilot",
-        prompt: "Digite sua pergunta para o xCopilot"
-      });
-      if (!prompt) {
-        return;
-      }
-      if (!this.chatProvider.isActive()) {
-        vscode.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada. Tente novamente em alguns segundos.");
-        return;
-      }
-      await this.chatProvider.askQuestion(prompt);
-      Logger.info(`Question sent via command: ${prompt}`);
-    } catch (error) {
-      Logger.error("Error in ask command:", error);
-      vscode.window.showErrorMessage(`Erro ao executar comando: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
-    }
-  }
-  /**
-   * Lida com o comando de teste
-   */
-  handleTestCommand() {
-    vscode.window.showInformationMessage("xCopilot est\xE1 funcionando!");
-    Logger.info("Test command executed");
-  }
-  /**
-   * Lida com o comando para abrir o chat
-   */
-  async handleOpenChatCommand() {
-    try {
-      await vscode.commands.executeCommand("workbench.view.extension.xcopilot");
-      Logger.info("Chat opened via command");
-    } catch (error) {
-      Logger.error("Error opening chat:", error);
-      vscode.window.showErrorMessage("Erro ao abrir o chat do xCopilot");
-    }
   }
 };
 
@@ -6488,7 +6422,7 @@ function fixResponseChunkedTransferBadEnding(request, errorCallback) {
 }
 
 // src/services/ConfigurationService.ts
-var vscode2 = __toESM(require("vscode"));
+var vscode = __toESM(require("vscode"));
 var ConfigurationService = class _ConfigurationService {
   constructor() {
   }
@@ -6502,7 +6436,7 @@ var ConfigurationService = class _ConfigurationService {
    * Obtém a configuração atual da extensão
    */
   getConfig() {
-    const config = vscode2.workspace.getConfiguration("xcopilot");
+    const config = vscode.workspace.getConfiguration("xcopilot");
     return {
       backendUrl: config.get("backendUrl") || "http://localhost:3000"
     };
@@ -6526,7 +6460,7 @@ var ConfigurationService = class _ConfigurationService {
    * Monitora mudanças na configuração
    */
   onConfigurationChanged(callback) {
-    return vscode2.workspace.onDidChangeConfiguration((e2) => {
+    return vscode.workspace.onDidChangeConfiguration((e2) => {
       if (e2.affectsConfiguration("xcopilot.backendUrl")) {
         Logger.info("Backend URL configuration changed");
         callback();
@@ -6592,6 +6526,579 @@ var BackendService = class _BackendService {
       return !response.startsWith("Erro");
     } catch {
       return false;
+    }
+  }
+};
+
+// src/services/CodeContextService.ts
+var vscode2 = __toESM(require("vscode"));
+var CodeContextService = class _CodeContextService {
+  constructor() {
+  }
+  static getInstance() {
+    if (!_CodeContextService.instance) {
+      _CodeContextService.instance = new _CodeContextService();
+    }
+    return _CodeContextService.instance;
+  }
+  /**
+   * Captura o contexto atual do editor
+   */
+  getCurrentContext(includeFullFile = false) {
+    const editor = vscode2.window.activeTextEditor;
+    if (!editor) {
+      Logger.warn("No active editor found");
+      return null;
+    }
+    const document = editor.document;
+    const selection = editor.selection;
+    const context = {
+      fileName: this.getFileName(document),
+      fileType: this.getFileType(document),
+      cursorPosition: {
+        line: selection.active.line,
+        character: selection.active.character
+      }
+    };
+    if (!selection.isEmpty) {
+      context.selectedText = document.getText(selection);
+      context.lineNumbers = {
+        start: selection.start.line + 1,
+        end: selection.end.line + 1
+      };
+      Logger.debug(`Selected text: ${context.selectedText.length} characters`);
+    }
+    if (includeFullFile) {
+      context.fullFileContent = document.getText();
+      Logger.debug(`Full file content: ${context.fullFileContent.length} characters`);
+    }
+    Logger.info(`Context captured for ${context.fileName} (${context.fileType})`);
+    return context;
+  }
+  /**
+   * Captura contexto com texto selecionado ou contexto ao redor do cursor
+   */
+  getContextWithFallback(lines = 10) {
+    const editor = vscode2.window.activeTextEditor;
+    if (!editor) {
+      return null;
+    }
+    const context = this.getCurrentContext();
+    if (!context) {
+      return null;
+    }
+    const document = editor.document;
+    const selection = editor.selection;
+    if (selection.isEmpty) {
+      const currentLine = selection.active.line;
+      const startLine = Math.max(0, currentLine - Math.floor(lines / 2));
+      const endLine = Math.min(document.lineCount - 1, currentLine + Math.floor(lines / 2));
+      const range = new vscode2.Range(startLine, 0, endLine, document.lineAt(endLine).text.length);
+      context.selectedText = document.getText(range);
+      context.lineNumbers = {
+        start: startLine + 1,
+        end: endLine + 1
+      };
+      Logger.debug(`Fallback context: lines ${startLine + 1}-${endLine + 1}`);
+    }
+    return context;
+  }
+  /**
+   * Obtém o nome do arquivo sem o caminho completo
+   */
+  getFileName(document) {
+    if (document.isUntitled) {
+      return `Untitled-${document.languageId}`;
+    }
+    const path = document.fileName;
+    const segments = path.split(/[\\\/]/);
+    return segments[segments.length - 1];
+  }
+  /**
+   * Obtém o tipo de arquivo baseado na extensão e linguagem
+   */
+  getFileType(document) {
+    return document.languageId;
+  }
+  /**
+   * Formata o contexto para envio ao backend
+   */
+  formatContextForPrompt(context, userPrompt) {
+    let formattedPrompt = userPrompt;
+    if (context.fileName) {
+      formattedPrompt += `
+
+**Arquivo:** ${context.fileName}`;
+    }
+    if (context.fileType) {
+      formattedPrompt += `
+**Tipo:** ${context.fileType}`;
+    }
+    if (context.selectedText) {
+      const lineInfo = context.lineNumbers ? ` (linhas ${context.lineNumbers.start}-${context.lineNumbers.end})` : "";
+      formattedPrompt += `
+
+**C\xF3digo selecionado${lineInfo}:**
+\`\`\`${context.fileType}
+${context.selectedText}
+\`\`\``;
+    }
+    if (context.fullFileContent && !context.selectedText) {
+      formattedPrompt += `
+
+**Conte\xFAdo completo do arquivo:**
+\`\`\`${context.fileType}
+${context.fullFileContent}
+\`\`\``;
+    }
+    return formattedPrompt;
+  }
+  /**
+   * Verifica se há contexto útil disponível
+   */
+  hasUsefulContext() {
+    const editor = vscode2.window.activeTextEditor;
+    return editor !== void 0;
+  }
+  /**
+   * Obtém estatísticas do contexto atual
+   */
+  getContextStats() {
+    const editor = vscode2.window.activeTextEditor;
+    if (!editor) {
+      return null;
+    }
+    return {
+      fileName: this.getFileName(editor.document),
+      fileType: this.getFileType(editor.document),
+      hasSelection: !editor.selection.isEmpty,
+      linesInFile: editor.document.lineCount
+    };
+  }
+};
+
+// src/services/PromptTemplateService.ts
+var PromptTemplateService = class _PromptTemplateService {
+  constructor() {
+    this.templates = [];
+    this.initializeTemplates();
+  }
+  static getInstance() {
+    if (!_PromptTemplateService.instance) {
+      _PromptTemplateService.instance = new _PromptTemplateService();
+    }
+    return _PromptTemplateService.instance;
+  }
+  /**
+   * Inicializa os templates padrão
+   */
+  initializeTemplates() {
+    this.templates = [
+      // Templates gerais
+      {
+        id: "explain-code",
+        title: "\u{1F50D} Explicar C\xF3digo",
+        description: "Explica o que o c\xF3digo selecionado faz",
+        prompt: "Explique detalhadamente o que este c\xF3digo faz, como funciona e qual \xE9 seu prop\xF3sito:",
+        requiresSelection: true
+      },
+      {
+        id: "find-bugs",
+        title: "\u{1F41B} Encontrar Bugs",
+        description: "Analisa o c\xF3digo em busca de poss\xEDveis bugs",
+        prompt: "Analise este c\xF3digo em busca de bugs, problemas de l\xF3gica, edge cases n\xE3o tratados e poss\xEDveis melhorias:",
+        requiresSelection: true
+      },
+      {
+        id: "optimize",
+        title: "\u26A1 Otimizar Performance",
+        description: "Sugere otimiza\xE7\xF5es de performance",
+        prompt: "Analise este c\xF3digo e sugira otimiza\xE7\xF5es de performance, melhorias de algoritmo e boas pr\xE1ticas:",
+        requiresSelection: true
+      },
+      {
+        id: "add-comments",
+        title: "\u{1F4DD} Adicionar Coment\xE1rios",
+        description: "Adiciona coment\xE1rios explicativos ao c\xF3digo",
+        prompt: "Adicione coment\xE1rios explicativos detalhados a este c\xF3digo, mantendo o c\xF3digo original:",
+        requiresSelection: true
+      },
+      {
+        id: "write-tests",
+        title: "\u{1F9EA} Escrever Testes",
+        description: "Cria testes unit\xE1rios para o c\xF3digo",
+        prompt: "Escreva testes unit\xE1rios abrangentes para este c\xF3digo, incluindo casos de teste positivos, negativos e edge cases:",
+        requiresSelection: true
+      },
+      {
+        id: "refactor",
+        title: "\u{1F504} Refatorar C\xF3digo",
+        description: "Refatora o c\xF3digo para melhor legibilidade",
+        prompt: "Refatore este c\xF3digo para melhorar legibilidade, manutenibilidade e ader\xEAncia \xE0s boas pr\xE1ticas:",
+        requiresSelection: true
+      },
+      // Templates específicos para JavaScript/TypeScript
+      {
+        id: "add-types",
+        title: "\u{1F3F7}\uFE0F Adicionar Tipos TypeScript",
+        description: "Adiciona tipagem TypeScript ao c\xF3digo",
+        prompt: "Converta este c\xF3digo JavaScript para TypeScript, adicionando tipos apropriados e interfaces:",
+        requiresSelection: true,
+        supportedFileTypes: ["javascript", "typescript"]
+      },
+      {
+        id: "async-await",
+        title: "\u23F3 Converter para Async/Await",
+        description: "Converte Promises para async/await",
+        prompt: "Converta este c\xF3digo que usa Promises para async/await, mantendo o tratamento de erros:",
+        requiresSelection: true,
+        supportedFileTypes: ["javascript", "typescript"]
+      },
+      // Templates para Python
+      {
+        id: "add-docstrings",
+        title: "\u{1F4D6} Adicionar Docstrings",
+        description: "Adiciona docstrings no formato Google/Sphinx",
+        prompt: "Adicione docstrings detalhadas no formato Google a este c\xF3digo Python:",
+        requiresSelection: true,
+        supportedFileTypes: ["python"]
+      },
+      {
+        id: "type-hints",
+        title: "\u{1F3AF} Adicionar Type Hints",
+        description: "Adiciona type hints ao c\xF3digo Python",
+        prompt: "Adicione type hints apropriadas a este c\xF3digo Python, incluindo imports necess\xE1rios:",
+        requiresSelection: true,
+        supportedFileTypes: ["python"]
+      },
+      // Templates para análise de arquivo completo
+      {
+        id: "code-review",
+        title: "\u{1F440} Review Completo",
+        description: "Faz um review completo do arquivo",
+        prompt: "Fa\xE7a um code review completo deste arquivo, analisando estrutura, padr\xF5es, poss\xEDveis melhorias e problemas:",
+        requiresSelection: false
+      },
+      {
+        id: "security-audit",
+        title: "\u{1F512} Auditoria de Seguran\xE7a",
+        description: "Analisa vulnerabilidades de seguran\xE7a",
+        prompt: "Fa\xE7a uma auditoria de seguran\xE7a deste c\xF3digo, identificando vulnerabilidades e sugerindo corre\xE7\xF5es:",
+        requiresSelection: false
+      },
+      // Templates para Git/Commit
+      {
+        id: "commit-message",
+        title: "\u{1F4DD} Mensagem de Commit",
+        description: "Sugere mensagem de commit baseada nas mudan\xE7as",
+        prompt: "Baseado nas mudan\xE7as no c\xF3digo, sugira uma mensagem de commit clara e descritiva seguindo conven\xE7\xF5es:",
+        requiresSelection: true
+      }
+    ];
+    Logger.info(`Initialized ${this.templates.length} prompt templates`);
+  }
+  /**
+   * Obtém templates compatíveis com o tipo de arquivo atual
+   */
+  getTemplatesForFileType(fileType) {
+    if (!fileType) {
+      return this.templates.filter((t2) => !t2.supportedFileTypes);
+    }
+    return this.templates.filter(
+      (template) => !template.supportedFileTypes || template.supportedFileTypes.includes(fileType)
+    );
+  }
+  /**
+   * Obtém templates que requerem seleção de código
+   */
+  getSelectionRequiredTemplates(fileType) {
+    return this.getTemplatesForFileType(fileType).filter((t2) => t2.requiresSelection);
+  }
+  /**
+   * Obtém templates que funcionam sem seleção
+   */
+  getNoSelectionTemplates(fileType) {
+    return this.getTemplatesForFileType(fileType).filter((t2) => !t2.requiresSelection);
+  }
+  /**
+   * Busca template por ID
+   */
+  getTemplateById(id) {
+    return this.templates.find((t2) => t2.id === id);
+  }
+  /**
+   * Obtém sugestões de templates baseadas no contexto
+   */
+  getSuggestedTemplates(fileType, hasSelection = false) {
+    const availableTemplates = this.getTemplatesForFileType(fileType);
+    if (hasSelection) {
+      return [
+        ...availableTemplates.filter((t2) => t2.requiresSelection),
+        ...availableTemplates.filter((t2) => !t2.requiresSelection)
+      ].slice(0, 6);
+    } else {
+      return availableTemplates.filter((t2) => !t2.requiresSelection).slice(0, 4);
+    }
+  }
+  /**
+   * Adiciona template customizado
+   */
+  addCustomTemplate(template) {
+    this.templates.push(template);
+    Logger.info(`Added custom template: ${template.title}`);
+  }
+  /**
+   * Remove template customizado
+   */
+  removeCustomTemplate(id) {
+    const index = this.templates.findIndex((t2) => t2.id === id);
+    if (index > -1) {
+      this.templates.splice(index, 1);
+      Logger.info(`Removed template: ${id}`);
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Obtém estatísticas dos templates
+   */
+  getTemplateStats() {
+    const byFileType = {};
+    let requireSelection = 0;
+    let general = 0;
+    this.templates.forEach((template) => {
+      if (template.requiresSelection) {
+        requireSelection++;
+      }
+      if (!template.supportedFileTypes) {
+        general++;
+      } else {
+        template.supportedFileTypes.forEach((type) => {
+          byFileType[type] = (byFileType[type] || 0) + 1;
+        });
+      }
+    });
+    return {
+      total: this.templates.length,
+      byFileType,
+      requireSelection,
+      general
+    };
+  }
+};
+
+// src/commands/ChatCommands.ts
+var ChatCommands = class {
+  constructor(chatProvider) {
+    this.chatProvider = chatProvider;
+    this.contextService = CodeContextService.getInstance();
+    this.templateService = PromptTemplateService.getInstance();
+  }
+  /**
+   * Registra todos os comandos da extensão
+   */
+  registerCommands(context) {
+    const askCommand = vscode3.commands.registerCommand("xcopilot.ask", async () => {
+      await this.handleAskCommand();
+    });
+    const explainCommand = vscode3.commands.registerCommand("xcopilot.explainCode", async () => {
+      await this.handleExplainCodeCommand();
+    });
+    const templateCommand = vscode3.commands.registerCommand("xcopilot.useTemplate", async () => {
+      await this.handleTemplateCommand();
+    });
+    const analyzeFileCommand = vscode3.commands.registerCommand("xcopilot.analyzeFile", async () => {
+      await this.handleAnalyzeFileCommand();
+    });
+    const findBugsCommand = vscode3.commands.registerCommand("xcopilot.findBugs", async () => {
+      await this.handleFindBugsCommand();
+    });
+    const testCommand = vscode3.commands.registerCommand("xcopilot.test", () => {
+      this.handleTestCommand();
+    });
+    const openChatCommand = vscode3.commands.registerCommand("xcopilot.openChat", async () => {
+      await this.handleOpenChatCommand();
+    });
+    context.subscriptions.push(
+      askCommand,
+      explainCommand,
+      templateCommand,
+      analyzeFileCommand,
+      findBugsCommand,
+      testCommand,
+      openChatCommand
+    );
+    Logger.info("All commands registered successfully");
+  }
+  /**
+   * Lida com o comando xcopilot.ask
+   */
+  async handleAskCommand() {
+    try {
+      await vscode3.commands.executeCommand("workbench.view.extension.xcopilot");
+      const prompt = await vscode3.window.showInputBox({
+        placeHolder: "Pergunte ao xCopilot",
+        prompt: "Digite sua pergunta para o xCopilot"
+      });
+      if (!prompt) {
+        return;
+      }
+      if (!this.chatProvider.isActive()) {
+        vscode3.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada. Tente novamente em alguns segundos.");
+        return;
+      }
+      await this.chatProvider.askQuestion(prompt);
+      Logger.info(`Question sent via command: ${prompt}`);
+    } catch (error) {
+      Logger.error("Error in ask command:", error);
+      vscode3.window.showErrorMessage(`Erro ao executar comando: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+    }
+  }
+  /**
+   * Lida com o comando de teste
+   */
+  handleTestCommand() {
+    vscode3.window.showInformationMessage("xCopilot est\xE1 funcionando!");
+    Logger.info("Test command executed");
+  }
+  /**
+   * Lida com o comando para abrir o chat
+   */
+  async handleOpenChatCommand() {
+    try {
+      await vscode3.commands.executeCommand("workbench.view.extension.xcopilot");
+      Logger.info("Chat opened via command");
+    } catch (error) {
+      Logger.error("Error opening chat:", error);
+      vscode3.window.showErrorMessage("Erro ao abrir o chat do xCopilot");
+    }
+  }
+  /**
+   * Lida com o comando para explicar código selecionado
+   */
+  async handleExplainCodeCommand() {
+    try {
+      await vscode3.commands.executeCommand("workbench.view.extension.xcopilot");
+      if (!this.contextService.hasUsefulContext()) {
+        vscode3.window.showWarningMessage("Nenhum arquivo aberto para an\xE1lise.");
+        return;
+      }
+      const context = this.contextService.getCurrentContext();
+      if (!context?.selectedText) {
+        vscode3.window.showWarningMessage("Selecione o c\xF3digo que deseja explicar.");
+        return;
+      }
+      if (!this.chatProvider.isActive()) {
+        vscode3.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
+        return;
+      }
+      const template = this.templateService.getTemplateById("explain-code");
+      if (template) {
+        await this.chatProvider.askQuestionWithContext(template.prompt);
+        Logger.info("Explain code command executed");
+      }
+    } catch (error) {
+      Logger.error("Error in explain code command:", error);
+      vscode3.window.showErrorMessage("Erro ao explicar c\xF3digo");
+    }
+  }
+  /**
+   * Lida com o comando de templates
+   */
+  async handleTemplateCommand() {
+    try {
+      const stats = this.contextService.getContextStats();
+      const templates = this.templateService.getSuggestedTemplates(
+        stats?.fileType,
+        stats?.hasSelection
+      );
+      if (templates.length === 0) {
+        vscode3.window.showInformationMessage("Nenhum template dispon\xEDvel para o contexto atual.");
+        return;
+      }
+      const items = templates.map((template) => ({
+        label: template.title,
+        description: template.description,
+        detail: template.requiresSelection ? "(Requer sele\xE7\xE3o de c\xF3digo)" : "(An\xE1lise geral)",
+        template
+      }));
+      const selected = await vscode3.window.showQuickPick(items, {
+        placeHolder: "Escolha um template para usar",
+        matchOnDescription: true
+      });
+      if (!selected) {
+        return;
+      }
+      await vscode3.commands.executeCommand("workbench.view.extension.xcopilot");
+      if (selected.template.requiresSelection) {
+        const context = this.contextService.getCurrentContext();
+        if (!context?.selectedText) {
+          vscode3.window.showWarningMessage("Este template requer que voc\xEA selecione c\xF3digo primeiro.");
+          return;
+        }
+      }
+      if (!this.chatProvider.isActive()) {
+        vscode3.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
+        return;
+      }
+      await this.chatProvider.askQuestionWithContext(selected.template.prompt);
+      Logger.info(`Template command executed: ${selected.template.id}`);
+    } catch (error) {
+      Logger.error("Error in template command:", error);
+      vscode3.window.showErrorMessage("Erro ao usar template");
+    }
+  }
+  /**
+   * Lida com o comando de análise de arquivo completo
+   */
+  async handleAnalyzeFileCommand() {
+    try {
+      await vscode3.commands.executeCommand("workbench.view.extension.xcopilot");
+      if (!this.contextService.hasUsefulContext()) {
+        vscode3.window.showWarningMessage("Nenhum arquivo aberto para an\xE1lise.");
+        return;
+      }
+      if (!this.chatProvider.isActive()) {
+        vscode3.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
+        return;
+      }
+      const template = this.templateService.getTemplateById("code-review");
+      if (template) {
+        await this.chatProvider.askQuestionWithContext(template.prompt, true);
+        Logger.info("Analyze file command executed");
+      }
+    } catch (error) {
+      Logger.error("Error in analyze file command:", error);
+      vscode3.window.showErrorMessage("Erro ao analisar arquivo");
+    }
+  }
+  /**
+   * Lida com o comando para encontrar bugs
+   */
+  async handleFindBugsCommand() {
+    try {
+      await vscode3.commands.executeCommand("workbench.view.extension.xcopilot");
+      if (!this.contextService.hasUsefulContext()) {
+        vscode3.window.showWarningMessage("Nenhum arquivo aberto para an\xE1lise.");
+        return;
+      }
+      const context = this.contextService.getCurrentContext();
+      if (!context?.selectedText) {
+        vscode3.window.showWarningMessage("Selecione o c\xF3digo que deseja analisar para bugs.");
+        return;
+      }
+      if (!this.chatProvider.isActive()) {
+        vscode3.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada.");
+        return;
+      }
+      const template = this.templateService.getTemplateById("find-bugs");
+      if (template) {
+        await this.chatProvider.askQuestionWithContext(template.prompt);
+        Logger.info("Find bugs command executed");
+      }
+    } catch (error) {
+      Logger.error("Error in find bugs command:", error);
+      vscode3.window.showErrorMessage("Erro ao procurar bugs");
     }
   }
 };
@@ -7203,6 +7710,7 @@ function getChatHtml() {
 var ChatWebviewProvider = class {
   constructor() {
     this.backendService = BackendService.getInstance();
+    this.contextService = CodeContextService.getInstance();
   }
   /**
    * Resolve a webview view
@@ -7230,7 +7738,13 @@ var ChatWebviewProvider = class {
       Logger.info(`Processing ask request: ${message.prompt}`);
       this.sendMessage({ type: "answer", text: "Pensando..." });
       try {
-        const answer = await this.backendService.askQuestion(message.prompt);
+        const context = this.contextService.getContextWithFallback(10);
+        let finalPrompt = message.prompt;
+        if (context && this.contextService.hasUsefulContext()) {
+          finalPrompt = this.contextService.formatContextForPrompt(context, message.prompt);
+          Logger.debug(`Added context to prompt for ${context.fileName}`);
+        }
+        const answer = await this.backendService.askQuestion(finalPrompt);
         this.sendMessage({ type: "answer", text: answer });
       } catch (error) {
         Logger.error("Error calling backend:", error);
@@ -7270,6 +7784,46 @@ var ChatWebviewProvider = class {
     }
   }
   /**
+   * Envia uma pergunta com contexto específico
+   */
+  async askQuestionWithContext(prompt, includeFullFile = false) {
+    if (!this.view) {
+      throw new Error("Webview n\xE3o est\xE1 inicializada");
+    }
+    Logger.info(`Sending question with context: ${prompt}`);
+    this.sendMessage({ type: "answer", text: "Analisando contexto..." });
+    try {
+      const context = includeFullFile ? this.contextService.getCurrentContext(true) : this.contextService.getContextWithFallback(10);
+      let finalPrompt = prompt;
+      if (context) {
+        finalPrompt = this.contextService.formatContextForPrompt(context, prompt);
+        Logger.debug(`Context added for ${context.fileName}`);
+      } else {
+        Logger.warn("No context available");
+        this.sendMessage({ type: "answer", text: "Nenhum arquivo aberto para an\xE1lise de contexto." });
+        return;
+      }
+      const answer = await this.backendService.askQuestion(finalPrompt);
+      this.sendMessage({ type: "answer", text: answer });
+    } catch (error) {
+      Logger.error("Error in context question:", error);
+      this.sendMessage({
+        type: "answer",
+        text: `Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`
+      });
+    }
+  }
+  /**
+   * Obtém informações de contexto atual
+   */
+  getContextInfo() {
+    const stats = this.contextService.getContextStats();
+    if (!stats) {
+      return "Nenhum arquivo aberto";
+    }
+    return `\u{1F4C1} ${stats.fileName} (${stats.fileType}) - ${stats.linesInFile} linhas${stats.hasSelection ? " - Texto selecionado" : ""}`;
+  }
+  /**
    * Verifica se a webview está ativa
    */
   isActive() {
@@ -7286,7 +7840,7 @@ var ChatWebviewProvider = class {
 // src/ExtensionManager.ts
 var ExtensionManager = class {
   constructor() {
-    this.outputChannel = vscode3.window.createOutputChannel("xCopilot");
+    this.outputChannel = vscode4.window.createOutputChannel("xCopilot");
     Logger.init(this.outputChannel);
     this.configService = ConfigurationService.getInstance();
     this.chatProvider = new ChatWebviewProvider();
@@ -7306,7 +7860,7 @@ var ExtensionManager = class {
       Logger.info("\u2705 Extension activation completed successfully");
     } catch (error) {
       Logger.error("\u274C CRITICAL ERROR during extension activation:", error);
-      vscode3.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+      vscode4.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
   }
   /**
@@ -7314,7 +7868,7 @@ var ExtensionManager = class {
    */
   registerWebviewProvider(context) {
     Logger.info("\u{1F4DD} Registering WebviewViewProvider for xcopilotPanel...");
-    const disposable = vscode3.window.registerWebviewViewProvider(
+    const disposable = vscode4.window.registerWebviewViewProvider(
       "xcopilotPanel",
       this.chatProvider,
       {
@@ -7331,7 +7885,7 @@ var ExtensionManager = class {
    */
   setupConfigurationWatcher(context) {
     const configWatcher = this.configService.onConfigurationChanged(() => {
-      vscode3.window.showInformationMessage("URL do backend xCopilot atualizada.");
+      vscode4.window.showInformationMessage("URL do backend xCopilot atualizada.");
     });
     context.subscriptions.push(configWatcher);
     Logger.info("Configuration watcher setup completed");

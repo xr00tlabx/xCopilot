@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ChatCommands } from './commands';
-import { ConfigurationService } from './services';
+import { ConfigurationService, CodeContextService, PromptTemplateService } from './services';
 import { Logger } from './utils';
 import { ChatWebviewProvider } from './views';
 

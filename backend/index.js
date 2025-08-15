@@ -49,6 +49,7 @@ app.post('/openai', async (req, res) => {
     }
 });
 
+
 // Indexar snippet
 app.post('/snippets', async (req, res) => {
     const { id, content, language } = req.body || {};

@@ -10,14 +10,20 @@ class OpenAIError extends Error {
     }
 }
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let client;
+function getClient() {
+    if (!client) {
+        if (!process.env.OPENAI_API_KEY) {
+            throw new OpenAIError('OPENAI_API_KEY não definida', 500, 'NO_API_KEY');
+        }
+        client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    }
+    return client;
+}
 
 async function gerarResposta(prompt) {
-    if (!process.env.OPENAI_API_KEY) {
-        throw new OpenAIError('OPENAI_API_KEY não definida', 500, 'NO_API_KEY');
-    }
     try {
-        const completion = await client.chat.completions.create({
+        const completion = await getClient().chat.completions.create({
             model: 'gpt-3.5-turbo',
             messages: [{ role: 'user', content: prompt }]
         });

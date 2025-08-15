@@ -1,13 +1,35 @@
 {
     "name": "xcopilot-extension",
     "displayName": "xCopilot",
-    "description": "Extensão VS Code para interação com o backend xCopilot",
-    "version": "0.0.1",
+    "description": "Extensão VS Code para interação com o backend xCopilot - Assistente de AI para desenvolvimento",
+    "version": "0.1.0",
     "publisher": "xr00tlabx",
+    "author": {
+        "name": "xr00tlabx",
+        "email": "contact@xr00tlabx.com"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/xr00tlabx/xCopilot.git"
+    },
+    "bugs": {
+        "url": "https://github.com/xr00tlabx/xCopilot/issues"
+    },
+    "homepage": "https://github.com/xr00tlabx/xCopilot#readme",
+    "keywords": [
+        "ai",
+        "assistant",
+        "copilot",
+        "chat",
+        "openai",
+        "development"
+    ],
     "engines": {
         "vscode": "^1.85.0"
     },
     "categories": [
+        "Machine Learning",
         "Other"
     ],
     "activationEvents": [],
@@ -17,6 +39,22 @@
             {
                 "command": "xcopilot.ask",
                 "title": "xCopilot: Perguntar"
+            },
+            {
+                "command": "xcopilot.explainCode",
+                "title": "xCopilot: Explicar Código"
+            },
+            {
+                "command": "xcopilot.useTemplate",
+                "title": "xCopilot: Usar Template"
+            },
+            {
+                "command": "xcopilot.analyzeFile",
+                "title": "xCopilot: Analisar Arquivo"
+            },
+            {
+                "command": "xcopilot.findBugs",
+                "title": "xCopilot: Encontrar Bugs"
             },
             {
                 "command": "xcopilot.test",
@@ -38,6 +76,35 @@
                     "id": "xcopilotPanel",
                     "name": "Assistente",
                     "type": "webview"
+                }
+            ]
+        },
+        "menus": {
+            "editor/context": [
+                {
+                    "command": "xcopilot.explainCode",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot@1"
+                },
+                {
+                    "command": "xcopilot.findBugs",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot@2"
+                },
+                {
+                    "command": "xcopilot.useTemplate",
+                    "group": "xcopilot@3"
+                },
+                {
+                    "command": "xcopilot.analyzeFile",
+                    "group": "xcopilot@4"
+                }
+            ],
+            "explorer/context": [
+                {
+                    "command": "xcopilot.analyzeFile",
+                    "when": "resourceExtname =~ /\\.(js|ts|py|java|cpp|c|cs|php|go|rs|rb|swift|kt)$/",
+                    "group": "xcopilot@1"
                 }
             ]
         },

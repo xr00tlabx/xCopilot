@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { BackendService } from '../services/BackendService';
+import { BackendService, CodeContextService } from '../services';
 import { ChatMessage } from '../types';
-import { Logger } from '../utils/Logger';
+import { Logger } from '../utils';
 import { getChatHtml } from './WebviewHtml';
 
 /**
@@ -10,9 +10,11 @@ import { getChatHtml } from './WebviewHtml';
 export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     private view: vscode.WebviewView | undefined;
     private backendService: BackendService;
+    private contextService: CodeContextService;
 
     constructor() {
         this.backendService = BackendService.getInstance();
+        this.contextService = CodeContextService.getInstance();
     }
 
     /**
@@ -53,7 +55,16 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
             this.sendMessage({ type: 'answer', text: 'Pensando...' });
 
             try {
-                const answer = await this.backendService.askQuestion(message.prompt);
+                // Capturar contexto automaticamente se disponível
+                const context = this.contextService.getContextWithFallback(10);
+                let finalPrompt = message.prompt;
+
+                if (context && this.contextService.hasUsefulContext()) {
+                    finalPrompt = this.contextService.formatContextForPrompt(context, message.prompt);
+                    Logger.debug(`Added context to prompt for ${context.fileName}`);
+                }
+
+                const answer = await this.backendService.askQuestion(finalPrompt);
                 this.sendMessage({ type: 'answer', text: answer });
             } catch (error) {
                 Logger.error('Error calling backend:', error);
@@ -95,6 +106,55 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
                 text: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
             });
         }
+    }
+
+    /**
+     * Envia uma pergunta com contexto específico
+     */
+    async askQuestionWithContext(prompt: string, includeFullFile: boolean = false): Promise<void> {
+        if (!this.view) {
+            throw new Error('Webview não está inicializada');
+        }
+
+        Logger.info(`Sending question with context: ${prompt}`);
+        this.sendMessage({ type: 'answer', text: 'Analisando contexto...' });
+
+        try {
+            const context = includeFullFile ? 
+                this.contextService.getCurrentContext(true) : 
+                this.contextService.getContextWithFallback(10);
+
+            let finalPrompt = prompt;
+            if (context) {
+                finalPrompt = this.contextService.formatContextForPrompt(context, prompt);
+                Logger.debug(`Context added for ${context.fileName}`);
+            } else {
+                Logger.warn('No context available');
+                this.sendMessage({ type: 'answer', text: 'Nenhum arquivo aberto para análise de contexto.' });
+                return;
+            }
+
+            const answer = await this.backendService.askQuestion(finalPrompt);
+            this.sendMessage({ type: 'answer', text: answer });
+        } catch (error) {
+            Logger.error('Error in context question:', error);
+            this.sendMessage({
+                type: 'answer',
+                text: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+            });
+        }
+    }
+
+    /**
+     * Obtém informações de contexto atual
+     */
+    getContextInfo(): string {
+        const stats = this.contextService.getContextStats();
+        if (!stats) {
+            return 'Nenhum arquivo aberto';
+        }
+
+        return `📁 ${stats.fileName} (${stats.fileType}) - ${stats.linesInFile} linhas${stats.hasSelection ? ' - Texto selecionado' : ''}`;
     }
 
     /**

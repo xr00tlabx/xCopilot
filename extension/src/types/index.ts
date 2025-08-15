@@ -12,6 +12,7 @@ export interface ChatMessage {
     type: 'ask' | 'answer';
     prompt?: string;
     text?: string;
+    context?: CodeContext;
 }
 
 export interface ExtensionConfig {
@@ -22,4 +23,28 @@ export interface BackendError {
     status: number;
     message: string;
     code?: string;
+}
+
+export interface CodeContext {
+    selectedText?: string;
+    fileName?: string;
+    fileType?: string;
+    lineNumbers?: {
+        start: number;
+        end: number;
+    };
+    fullFileContent?: string;
+    cursorPosition?: {
+        line: number;
+        character: number;
+    };
+}
+
+export interface PromptTemplate {
+    id: string;
+    title: string;
+    description: string;
+    prompt: string;
+    requiresSelection: boolean;
+    supportedFileTypes?: string[];
 }

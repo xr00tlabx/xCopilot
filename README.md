@@ -21,6 +21,7 @@ Este projeto tem como objetivo desenvolver uma solução de assistente de progra
 2. Clone o repositório
 3. Instale as dependências com `npm install` nas pastas relevantes
 4. Siga as instruções do arquivo `.github/copilot-instructions.md`
+5. Defina variáveis de ambiente no arquivo `backend/.env` (copie de `.env.example`).
 
 ## Roadmap
 Veja as issues do projeto para acompanhar o desenvolvimento.

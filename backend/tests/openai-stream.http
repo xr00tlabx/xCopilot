@@ -1,0 +1,6 @@
+### Teste streaming OpenAI (SSE)
+POST http://localhost:3000/openai/stream
+Content-Type: application/json
+Accept: text/event-stream
+
+{ "prompt": "Liste 5 linguagens de programação" }
