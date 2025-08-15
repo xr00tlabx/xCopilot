@@ -1,7 +1,8 @@
 import fetch from 'node-fetch';
 import * as vscode from 'vscode';
 
-let panel: vscode.WebviewPanel | undefined;
+// Mantém referência à webview view (activity bar)
+let currentView: vscode.WebviewView | undefined;
 
 async function askBackend(prompt: string): Promise<string> {
   const endpoint = vscode.workspace.getConfiguration('xcopilot').get<string>('backendUrl') || 'http://localhost:3000/openai';
@@ -11,7 +12,7 @@ async function askBackend(prompt: string): Promise<string> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt })
     });
-    const data = await res.json();
+  const data: any = await res.json();
     if (!res.ok) {
       return `Erro: ${data.error || res.statusText}`;
     }
@@ -21,18 +22,7 @@ async function askBackend(prompt: string): Promise<string> {
   }
 }
 
-function ensurePanel(context: vscode.ExtensionContext) {
-  if (panel) { return panel; }
-  panel = vscode.window.createWebviewPanel(
-    'xcopilotPanel',
-    'xCopilot Assistente',
-    vscode.ViewColumn.Beside,
-    { enableScripts: true }
-  );
-  panel.onDidDispose(() => { panel = undefined; });
-  panel.webview.html = getHtml();
-  return panel;
-}
+// Remove uso de WebviewPanel isolado; usamos somente WebviewViewProvider.
 
 function getHtml() {
   return `<!DOCTYPE html>
@@ -63,38 +53,34 @@ window.addEventListener('message', ev => {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  // View provider para criar a aba lateral de forma declarativa
   const provider: vscode.WebviewViewProvider = {
-    resolveWebviewView(webviewView: vscode.WebviewView) {
-      webviewView.webview.options = { enableScripts: true };
-      webviewView.webview.html = getHtml();
-      webviewView.webview.onDidReceiveMessage(async (msg) => {
+    resolveWebviewView(view: vscode.WebviewView) {
+      currentView = view;
+      view.webview.options = { enableScripts: true };
+      view.webview.html = getHtml();
+      view.webview.onDidReceiveMessage(async (msg) => {
         if (msg.type === 'ask' && msg.prompt) {
-          webviewView.webview.postMessage({ type: 'answer', text: 'Pensando...' });
+          view.webview.postMessage({ type: 'answer', text: 'Pensando...' });
           const answer = await askBackend(msg.prompt);
-            webviewView.webview.postMessage({ type: 'answer', text: answer });
+          view.webview.postMessage({ type: 'answer', text: answer });
         }
       });
     }
   };
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider('xcopilotPanel', provider)
-  );
+  context.subscriptions.push(vscode.window.registerWebviewViewProvider('xcopilotPanel', provider));
 
-  // Comando que foca a view e abre input rápido caso queira
-  context.subscriptions.push(
-    vscode.commands.registerCommand('xcopilot.ask', async () => {
-      await vscode.commands.executeCommand('workbench.view.extension.xcopilot');
-      const quick = await vscode.window.showInputBox({ placeHolder: 'Pergunte ao xCopilot' });
-      if (!quick) return;
-      // Encontrar view se já criada
-      const p = ensurePanel(context);
-      p.reveal();
-      p.webview.postMessage({ type: 'answer', text: 'Pensando...' });
-      const answer = await askBackend(quick);
-      p.webview.postMessage({ type: 'answer', text: answer });
-    })
-  );
+  context.subscriptions.push(vscode.commands.registerCommand('xcopilot.ask', async () => {
+    await vscode.commands.executeCommand('workbench.view.extension.xcopilot');
+    const quick = await vscode.window.showInputBox({ placeHolder: 'Pergunte ao xCopilot' });
+    if (!quick) return;
+    if (!currentView) {
+      vscode.window.showWarningMessage('View xCopilot ainda não inicializada. Clique no ícone e tente novamente.');
+      return;
+    }
+    currentView.webview.postMessage({ type: 'answer', text: 'Pensando...' });
+    const answer = await askBackend(quick);
+    currentView.webview.postMessage({ type: 'answer', text: answer });
+  }));
 
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
     if (e.affectsConfiguration('xcopilot.backendUrl')) {
@@ -104,5 +90,5 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-  panel?.dispose();
+  currentView = undefined;
 }
