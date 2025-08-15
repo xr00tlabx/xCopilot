@@ -1,5 +1,5 @@
-import * as vscode from 'vscode';
 import fetch from 'node-fetch';
+import * as vscode from 'vscode';
 
 let panel: vscode.WebviewPanel | undefined;
 
@@ -63,24 +63,38 @@ window.addEventListener('message', ev => {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+  // View provider para criar a aba lateral de forma declarativa
+  const provider: vscode.WebviewViewProvider = {
+    resolveWebviewView(webviewView: vscode.WebviewView) {
+      webviewView.webview.options = { enableScripts: true };
+      webviewView.webview.html = getHtml();
+      webviewView.webview.onDidReceiveMessage(async (msg) => {
+        if (msg.type === 'ask' && msg.prompt) {
+          webviewView.webview.postMessage({ type: 'answer', text: 'Pensando...' });
+          const answer = await askBackend(msg.prompt);
+            webviewView.webview.postMessage({ type: 'answer', text: answer });
+        }
+      });
+    }
+  };
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('xcopilotPanel', provider)
+  );
+
+  // Comando que foca a view e abre input rápido caso queira
   context.subscriptions.push(
     vscode.commands.registerCommand('xcopilot.ask', async () => {
-      const prompt = await vscode.window.showInputBox({ prompt: 'Pergunte ao xCopilot' });
-      if (!prompt) { return; }
+      await vscode.commands.executeCommand('workbench.view.extension.xcopilot');
+      const quick = await vscode.window.showInputBox({ placeHolder: 'Pergunte ao xCopilot' });
+      if (!quick) return;
+      // Encontrar view se já criada
       const p = ensurePanel(context);
       p.reveal();
       p.webview.postMessage({ type: 'answer', text: 'Pensando...' });
-      const answer = await askBackend(prompt);
+      const answer = await askBackend(quick);
       p.webview.postMessage({ type: 'answer', text: answer });
     })
   );
-
-  if (!panel) {
-    ensurePanel(context);
-  }
-
-  // Mensagens do webview
-  context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(() => {}));
 
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
     if (e.affectsConfiguration('xcopilot.backendUrl')) {
