@@ -5101,6 +5101,111 @@ __export(extension_exports, {
 });
 module.exports = __toCommonJS(extension_exports);
 
+// src/ExtensionManager.ts
+var vscode3 = __toESM(require("vscode"));
+
+// src/commands/ChatCommands.ts
+var vscode = __toESM(require("vscode"));
+
+// src/utils/Logger.ts
+var Logger = class {
+  static {
+    this.outputChannel = null;
+  }
+  static init(outputChannel) {
+    this.outputChannel = outputChannel;
+  }
+  static info(message, ...args) {
+    const log = `[INFO] ${message}`;
+    console.log(log, ...args);
+    this.outputChannel?.appendLine(log);
+  }
+  static error(message, error) {
+    const log = `[ERROR] ${message}`;
+    console.error(log, error);
+    this.outputChannel?.appendLine(log);
+    if (error) {
+      this.outputChannel?.appendLine(JSON.stringify(error, null, 2));
+    }
+  }
+  static warn(message, ...args) {
+    const log = `[WARN] ${message}`;
+    console.warn(log, ...args);
+    this.outputChannel?.appendLine(log);
+  }
+  static debug(message, ...args) {
+    const log = `[DEBUG] ${message}`;
+    console.log(log, ...args);
+    this.outputChannel?.appendLine(log);
+  }
+};
+
+// src/commands/ChatCommands.ts
+var ChatCommands = class {
+  constructor(chatProvider) {
+    this.chatProvider = chatProvider;
+  }
+  /**
+   * Registra todos os comandos da extensão
+   */
+  registerCommands(context) {
+    const askCommand = vscode.commands.registerCommand("xcopilot.ask", async () => {
+      await this.handleAskCommand();
+    });
+    const testCommand = vscode.commands.registerCommand("xcopilot.test", () => {
+      this.handleTestCommand();
+    });
+    const openChatCommand = vscode.commands.registerCommand("xcopilot.openChat", async () => {
+      await this.handleOpenChatCommand();
+    });
+    context.subscriptions.push(askCommand, testCommand, openChatCommand);
+    Logger.info("All commands registered successfully");
+  }
+  /**
+   * Lida com o comando xcopilot.ask
+   */
+  async handleAskCommand() {
+    try {
+      await vscode.commands.executeCommand("workbench.view.extension.xcopilot");
+      const prompt = await vscode.window.showInputBox({
+        placeHolder: "Pergunte ao xCopilot",
+        prompt: "Digite sua pergunta para o xCopilot"
+      });
+      if (!prompt) {
+        return;
+      }
+      if (!this.chatProvider.isActive()) {
+        vscode.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada. Tente novamente em alguns segundos.");
+        return;
+      }
+      await this.chatProvider.askQuestion(prompt);
+      Logger.info(`Question sent via command: ${prompt}`);
+    } catch (error) {
+      Logger.error("Error in ask command:", error);
+      vscode.window.showErrorMessage(`Erro ao executar comando: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+    }
+  }
+  /**
+   * Lida com o comando de teste
+   */
+  handleTestCommand() {
+    vscode.window.showInformationMessage("xCopilot est\xE1 funcionando!");
+    Logger.info("Test command executed");
+  }
+  /**
+   * Lida com o comando para abrir o chat
+   */
+  async handleOpenChatCommand() {
+    try {
+      await vscode.commands.executeCommand("workbench.view.extension.xcopilot");
+      Logger.info("Chat opened via command");
+    } catch (error) {
+      Logger.error("Error opening chat:", error);
+      vscode.window.showErrorMessage("Erro ao abrir o chat do xCopilot");
+    }
+  }
+};
+
 // node_modules/node-fetch/src/index.js
 var import_node_http2 = __toESM(require("node:http"), 1);
 var import_node_https = __toESM(require("node:https"), 1);
@@ -6382,40 +6487,117 @@ function fixResponseChunkedTransferBadEnding(request, errorCallback) {
   });
 }
 
-// src/extension.ts
-var vscode = __toESM(require("vscode"));
-var currentView;
-async function askBackend(prompt) {
-  const endpoint = vscode.workspace.getConfiguration("xcopilot").get("backendUrl") || "http://localhost:3000/openai";
-  console.log(`Calling backend at: ${endpoint}`);
-  try {
-    console.log(`Sending request with prompt: ${prompt}`);
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      },
-      body: JSON.stringify({ prompt })
-    });
-    console.log(`Response status: ${res.status}`);
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error(`Backend error: ${res.status} - ${errorText}`);
-      return `Erro HTTP ${res.status}: ${errorText || res.statusText}`;
-    }
-    const data = await res.json();
-    console.log("Backend response data:", data);
-    return data.resposta || data.response || JSON.stringify(data);
-  } catch (err) {
-    console.error("Network error:", err);
-    if (err.code === "ECONNREFUSED") {
-      return `Erro: N\xE3o foi poss\xEDvel conectar ao backend em ${endpoint}. Verifique se o servidor est\xE1 rodando.`;
-    }
-    return `Falha na requisi\xE7\xE3o: ${err.message}`;
+// src/services/ConfigurationService.ts
+var vscode2 = __toESM(require("vscode"));
+var ConfigurationService = class _ConfigurationService {
+  constructor() {
   }
-}
-function getHtml() {
+  static getInstance() {
+    if (!_ConfigurationService.instance) {
+      _ConfigurationService.instance = new _ConfigurationService();
+    }
+    return _ConfigurationService.instance;
+  }
+  /**
+   * Obtém a configuração atual da extensão
+   */
+  getConfig() {
+    const config = vscode2.workspace.getConfiguration("xcopilot");
+    return {
+      backendUrl: config.get("backendUrl") || "http://localhost:3000"
+    };
+  }
+  /**
+   * Obtém a URL do endpoint OpenAI do backend
+   */
+  getBackendUrl() {
+    const config = this.getConfig();
+    let base = config.backendUrl.trim();
+    if (base.endsWith("/")) {
+      base = base.slice(0, -1);
+    }
+    if (!/\/openai$/.test(base)) {
+      base += "/openai";
+    }
+    Logger.debug(`Backend URL configured: ${base}`);
+    return base;
+  }
+  /**
+   * Monitora mudanças na configuração
+   */
+  onConfigurationChanged(callback) {
+    return vscode2.workspace.onDidChangeConfiguration((e2) => {
+      if (e2.affectsConfiguration("xcopilot.backendUrl")) {
+        Logger.info("Backend URL configuration changed");
+        callback();
+      }
+    });
+  }
+};
+
+// src/services/BackendService.ts
+var BackendService = class _BackendService {
+  constructor() {
+    this.configService = ConfigurationService.getInstance();
+  }
+  static getInstance() {
+    if (!_BackendService.instance) {
+      _BackendService.instance = new _BackendService();
+    }
+    return _BackendService.instance;
+  }
+  /**
+   * Envia uma pergunta para o backend e retorna a resposta
+   */
+  async askQuestion(prompt) {
+    const endpoint = this.configService.getBackendUrl();
+    Logger.info(`Sending request to backend: ${endpoint}`);
+    Logger.debug(`Prompt: ${prompt}`);
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({ prompt })
+      });
+      Logger.debug(`Response status: ${response.status}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        const error = {
+          status: response.status,
+          message: errorText || response.statusText
+        };
+        Logger.error(`Backend error: ${error.status} - ${error.message}`);
+        return `Erro HTTP ${error.status}: ${error.message}`;
+      }
+      const data = await response.json();
+      Logger.debug("Backend response received successfully");
+      return data.resposta || data.response || JSON.stringify(data);
+    } catch (error) {
+      Logger.error("Network error:", error);
+      if (error.code === "ECONNREFUSED") {
+        return `Erro: N\xE3o foi poss\xEDvel conectar ao backend em ${endpoint}. Verifique se o servidor est\xE1 rodando.`;
+      }
+      return `Falha na requisi\xE7\xE3o: ${error.message}`;
+    }
+  }
+  /**
+   * Testa a conexão com o backend
+   */
+  async testConnection() {
+    try {
+      const response = await this.askQuestion("test");
+      return !response.startsWith("Erro");
+    } catch {
+      return false;
+    }
+  }
+};
+
+// src/views/WebviewHtml.ts
+function getChatHtml() {
   return `<!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -6443,6 +6625,7 @@ function getHtml() {
         }
 
         body {
+            padding:0px !important;
             font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
             background: var(--hacker-bg-primary);
             color: var(--hacker-text-primary);
@@ -6927,16 +7110,6 @@ function getHtml() {
         // Simple markdown parser
         function parseMarkdown(text) {
             return text
-                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-                .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-                .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-                .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')
-                .replace(/\\*(.*?)\\*/g, '<em>$1</em>')
-                .replace(/\\\`([^\\\`]+)\\\`/g, '<code>$1</code>')
-                .replace(/\\\`\\\`\\\`([\\s\\S]*?)\\\`\\\`\\\`/g, '<pre><code>$1</code></pre>')
-                .replace(/\\n/g, '<br>')
-                .replace(/^\\* (.*$)/gim, '<li>$1</li>')
-                .replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>');
         }
 
         // Auto-resize textarea
@@ -7025,77 +7198,175 @@ function getHtml() {
 </body>
 </html>`;
 }
-function activate(context) {
-  console.log("\u{1F680} xCopilot extension is now active!");
-  const provider = {
-    resolveWebviewView(view) {
-      console.log("\u2705 Webview view resolved successfully");
-      currentView = view;
-      view.webview.options = {
-        enableScripts: true,
-        localResourceRoots: []
-      };
-      console.log("\u{1F4C4} Setting HTML content...");
-      view.webview.html = getHtml();
-      view.webview.onDidReceiveMessage(async (msg) => {
-        console.log("\u{1F4E8} Received message:", msg);
-        if (msg.type === "ask" && msg.prompt) {
-          console.log("\u{1F916} Processing ask request:", msg.prompt);
-          view.webview.postMessage({ type: "answer", text: "Pensando..." });
-          try {
-            const answer = await askBackend(msg.prompt);
-            console.log("\u{1F4E4} Backend response:", answer);
-            view.webview.postMessage({ type: "answer", text: answer });
-          } catch (error) {
-            console.error("\u274C Error calling backend:", error);
-            view.webview.postMessage({
-              type: "answer",
-              text: `Erro ao comunicar com o backend: ${error}`
-            });
-          }
-        }
-      });
-      console.log("\u{1F3AF} Webview fully configured");
-    }
-  };
-  try {
-    console.log("\u{1F4DD} Registering WebviewViewProvider for xcopilotPanel...");
-    const disposable = vscode.window.registerWebviewViewProvider("xcopilotPanel", provider, {
-      webviewOptions: {
-        retainContextWhenHidden: true
-      }
-    });
-    context.subscriptions.push(disposable);
-    console.log("\u2705 WebviewViewProvider registered successfully!");
-  } catch (error) {
-    console.error("\u274C CRITICAL ERROR registering WebviewViewProvider:", error);
-    vscode.window.showErrorMessage(`Erro cr\xEDtico ao registrar xCopilot: ${error}`);
-    return;
+
+// src/views/ChatWebviewProvider.ts
+var ChatWebviewProvider = class {
+  constructor() {
+    this.backendService = BackendService.getInstance();
   }
-  context.subscriptions.push(vscode.commands.registerCommand("xcopilot.ask", async () => {
-    await vscode.commands.executeCommand("workbench.view.extension.xcopilot");
-    const quick = await vscode.window.showInputBox({ placeHolder: "Pergunte ao xCopilot" });
-    if (!quick)
-      return;
-    if (!currentView) {
-      vscode.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada. Clique no \xEDcone e tente novamente.");
-      return;
+  /**
+   * Resolve a webview view
+   */
+  resolveWebviewView(webviewView) {
+    Logger.info("Webview view resolved successfully");
+    this.view = webviewView;
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: []
+    };
+    Logger.debug("Setting HTML content...");
+    webviewView.webview.html = getChatHtml();
+    webviewView.webview.onDidReceiveMessage(async (message) => {
+      await this.handleMessage(message);
+    });
+    Logger.info("Webview fully configured");
+  }
+  /**
+   * Lida com mensagens recebidas da webview
+   */
+  async handleMessage(message) {
+    Logger.debug("Received message:", message);
+    if (message.type === "ask" && message.prompt) {
+      Logger.info(`Processing ask request: ${message.prompt}`);
+      this.sendMessage({ type: "answer", text: "Pensando..." });
+      try {
+        const answer = await this.backendService.askQuestion(message.prompt);
+        this.sendMessage({ type: "answer", text: answer });
+      } catch (error) {
+        Logger.error("Error calling backend:", error);
+        this.sendMessage({
+          type: "answer",
+          text: `Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`
+        });
+      }
     }
-    currentView.webview.postMessage({ type: "answer", text: "Pensando..." });
-    const answer = await askBackend(quick);
-    currentView.webview.postMessage({ type: "answer", text: answer });
-  }));
-  context.subscriptions.push(vscode.commands.registerCommand("xcopilot.test", () => {
-    vscode.window.showInformationMessage("xCopilot est\xE1 funcionando!");
-  }));
-  context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e2) => {
-    if (e2.affectsConfiguration("xcopilot.backendUrl")) {
-      vscode.window.showInformationMessage("URL do backend xCopilot atualizada.");
+  }
+  /**
+   * Envia uma mensagem para a webview
+   */
+  sendMessage(message) {
+    if (this.view) {
+      this.view.webview.postMessage(message);
     }
-  }));
+  }
+  /**
+   * Envia uma pergunta programaticamente para o chat
+   */
+  async askQuestion(prompt) {
+    if (!this.view) {
+      throw new Error("Webview n\xE3o est\xE1 inicializada");
+    }
+    Logger.info(`Sending programmatic question: ${prompt}`);
+    this.sendMessage({ type: "answer", text: "Pensando..." });
+    try {
+      const answer = await this.backendService.askQuestion(prompt);
+      this.sendMessage({ type: "answer", text: answer });
+    } catch (error) {
+      Logger.error("Error in programmatic question:", error);
+      this.sendMessage({
+        type: "answer",
+        text: `Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`
+      });
+    }
+  }
+  /**
+   * Verifica se a webview está ativa
+   */
+  isActive() {
+    return this.view !== void 0;
+  }
+  /**
+   * Obtém a instância da view (se disponível)
+   */
+  getView() {
+    return this.view;
+  }
+};
+
+// src/ExtensionManager.ts
+var ExtensionManager = class {
+  constructor() {
+    this.outputChannel = vscode3.window.createOutputChannel("xCopilot");
+    Logger.init(this.outputChannel);
+    this.configService = ConfigurationService.getInstance();
+    this.chatProvider = new ChatWebviewProvider();
+    this.chatCommands = new ChatCommands(this.chatProvider);
+    Logger.info("ExtensionManager initialized");
+  }
+  /**
+   * Ativa a extensão
+   */
+  activate(context) {
+    Logger.info("\u{1F680} xCopilot extension is now active!");
+    try {
+      this.registerWebviewProvider(context);
+      this.chatCommands.registerCommands(context);
+      this.setupConfigurationWatcher(context);
+      context.subscriptions.push(this.outputChannel);
+      Logger.info("\u2705 Extension activation completed successfully");
+    } catch (error) {
+      Logger.error("\u274C CRITICAL ERROR during extension activation:", error);
+      vscode3.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+    }
+  }
+  /**
+   * Registra o provider da webview
+   */
+  registerWebviewProvider(context) {
+    Logger.info("\u{1F4DD} Registering WebviewViewProvider for xcopilotPanel...");
+    const disposable = vscode3.window.registerWebviewViewProvider(
+      "xcopilotPanel",
+      this.chatProvider,
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
+      }
+    );
+    context.subscriptions.push(disposable);
+    Logger.info("\u2705 WebviewViewProvider registered successfully!");
+  }
+  /**
+   * Configura o monitoramento de mudanças na configuração
+   */
+  setupConfigurationWatcher(context) {
+    const configWatcher = this.configService.onConfigurationChanged(() => {
+      vscode3.window.showInformationMessage("URL do backend xCopilot atualizada.");
+    });
+    context.subscriptions.push(configWatcher);
+    Logger.info("Configuration watcher setup completed");
+  }
+  /**
+   * Desativa a extensão
+   */
+  deactivate() {
+    Logger.info("\u{1F504} xCopilot extension is being deactivated");
+    this.outputChannel.dispose();
+  }
+  /**
+   * Obtém a instância do provider do chat
+   */
+  getChatProvider() {
+    return this.chatProvider;
+  }
+  /**
+   * Obtém o output channel
+   */
+  getOutputChannel() {
+    return this.outputChannel;
+  }
+};
+
+// src/extension.ts
+var extensionManager;
+function activate(context) {
+  extensionManager = new ExtensionManager();
+  extensionManager.activate(context);
 }
 function deactivate() {
-  currentView = void 0;
+  if (extensionManager) {
+    extensionManager.deactivate();
+  }
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
