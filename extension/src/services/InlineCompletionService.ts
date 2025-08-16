@@ -2,6 +2,20 @@ import * as vscode from 'vscode';
 import { Logger } from '../utils/Logger';
 import { BackendService } from './BackendService';
 import { CodeContextService } from './CodeContextService';
+import { ConfigurationService } from './ConfigurationService';
+import { LRUCache } from '../utils/LRUCache';
+
+interface CompletionCacheKey {
+    textBefore: string;
+    textAfter: string;
+    language: string;
+    context: string;
+}
+
+interface CompletionCacheValue {
+    completion: string;
+    timestamp: number;
+}
 
 /**
  * Serviço para completions inline em tempo real (similar ao GitHub Copilot)
@@ -10,15 +24,26 @@ export class InlineCompletionService implements vscode.InlineCompletionItemProvi
     private static instance: InlineCompletionService;
     private backendService: BackendService;
     private contextService: CodeContextService;
+    private configService: ConfigurationService;
     private isEnabled = true;
     private disposables: vscode.Disposable[] = [];
     private lastRequestTime = 0;
-    private readonly throttleMs = 500; // Throttle requests
+    private throttleMs = 300; // Will be updated from config
+    private cache: LRUCache<string, CompletionCacheValue> = new LRUCache<string, CompletionCacheValue>(100);
+    private readonly cacheExpiryMs = 5 * 60 * 1000; // 5 minutes
+    private requestCount = 0;
+    private cacheHits = 0;
 
     private constructor() {
         this.backendService = BackendService.getInstance();
         this.contextService = CodeContextService.getInstance();
+        this.configService = ConfigurationService.getInstance();
+        
+        // Initialize with config values
+        this.updateFromConfig();
+        
         this.registerProviders();
+        this.setupConfigurationWatcher();
     }
 
     static getInstance(): InlineCompletionService {
@@ -45,6 +70,33 @@ export class InlineCompletionService implements vscode.InlineCompletionItemProvi
 
         this.disposables.push(provider);
         Logger.info('Inline completion provider registered');
+    }
+
+    /**
+     * Update settings from configuration
+     */
+    private updateFromConfig(): void {
+        const config = this.configService.getConfig();
+        this.isEnabled = config.inlineCompletion.enabled;
+        this.throttleMs = config.inlineCompletion.throttleMs;
+        
+        // Recreate cache with new size if needed
+        const newCacheSize = config.inlineCompletion.cacheSize;
+        if (!this.cache || this.cache.stats().capacity !== newCacheSize) {
+            this.cache = new LRUCache<string, CompletionCacheValue>(newCacheSize);
+        }
+        
+        Logger.info(`Inline completion config updated: enabled=${this.isEnabled}, throttle=${this.throttleMs}ms, cache=${newCacheSize}`);
+    }
+
+    /**
+     * Setup configuration change watcher
+     */
+    private setupConfigurationWatcher(): void {
+        const configDisposable = this.configService.onConfigurationChanged(() => {
+            this.updateFromConfig();
+        });
+        this.disposables.push(configDisposable);
     }
 
     /**
@@ -82,6 +134,23 @@ export class InlineCompletionService implements vscode.InlineCompletionItemProvi
                 return null;
             }
 
+            // Check cache first
+            const cacheKey = this.generateCacheKey(textBeforeCursor, textAfterCursor, document.languageId);
+            const cachedCompletion = this.getCachedCompletion(cacheKey);
+            
+            if (cachedCompletion) {
+                this.cacheHits++;
+                Logger.debug(`Cache hit! (${this.cacheHits}/${this.requestCount})`);
+                return [
+                    new vscode.InlineCompletionItem(
+                        cachedCompletion,
+                        new vscode.Range(position, position)
+                    )
+                ];
+            }
+
+            this.requestCount++;
+
             const completion = await this.generateInlineCompletion(
                 document,
                 position,
@@ -92,6 +161,9 @@ export class InlineCompletionService implements vscode.InlineCompletionItemProvi
             if (!completion || token.isCancellationRequested) {
                 return null;
             }
+
+            // Cache the result
+            this.setCachedCompletion(cacheKey, completion);
 
             return [
                 new vscode.InlineCompletionItem(
@@ -107,7 +179,7 @@ export class InlineCompletionService implements vscode.InlineCompletionItemProvi
     }
 
     /**
-     * Gera completion inline usando IA
+     * Gera completion inline usando IA otimizada
      */
     private async generateInlineCompletion(
         document: vscode.TextDocument,
@@ -117,10 +189,12 @@ export class InlineCompletionService implements vscode.InlineCompletionItemProvi
     ): Promise<string | null> {
         try {
             const context = this.contextService.getCurrentContext();
+            const config = this.configService.getConfig();
 
-            // Obter contexto ao redor da posição atual
-            const startLine = Math.max(0, position.line - 10);
-            const endLine = Math.min(document.lineCount - 1, position.line + 5);
+            // Obter contexto ao redor da posição atual (configurável)
+            const contextLines = Math.floor(config.inlineCompletion.maxContextLines / 2);
+            const startLine = Math.max(0, position.line - contextLines);
+            const endLine = Math.min(document.lineCount - 1, position.line + contextLines);
             const surroundingCode = document.getText(
                 new vscode.Range(startLine, 0, endLine, 0)
             );
@@ -136,46 +210,35 @@ Código ao redor:
 ${surroundingCode}
 \`\`\`
 
-Linha atual antes do cursor: "${textBefore}"
-Linha atual depois do cursor: "${textAfter}"
+Complete a linha atual:`;
 
-REGRAS:
-1. Complete apenas o que falta na linha atual
-2. Mantenha o estilo e padrões do código existente
-3. Se for início de função/método, complete a assinatura
-4. Se for dentro de função, complete a lógica
-5. Retorne APENAS o texto de completion, sem explicações
-6. Máximo 2 linhas de completion
-7. Se não tiver certeza, retorne uma completion simples
+            // Use optimized completion endpoint
+            const result = await this.backendService.requestCodeCompletion({
+                prompt,
+                context: surroundingCode,
+                language: document.languageId,
+                textBefore,
+                textAfter
+            });
 
-Completion:`;
+            Logger.debug(`Completion generated in ${result.duration}ms (cached: ${result.cached})`);
 
-            const response = await this.backendService.askQuestion(prompt);
-
-            if (!response) {
+            if (!result.completion) {
                 return null;
             }
-
-            // Limpar e processar a resposta
-            let completion = response.trim();
-
-            // Remover markdown se presente
-            completion = completion.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
-
-            // Pegar apenas as primeiras 2 linhas
-            const lines = completion.split('\n').slice(0, 2);
-            completion = lines.join('\n');
 
             // Validar que não é apenas repetição do texto existente
-            if (completion === textBefore || completion.length < 2) {
+            if (result.completion === textBefore || result.completion.length < 2) {
                 return null;
             }
 
-            return completion;
+            return result.completion;
 
         } catch (error) {
             Logger.error('Error generating inline completion:', error);
-            return null;
+            
+            // Fallback to simple completion if API fails
+            return this.generateFallbackCompletion(textBefore, document.languageId);
         }
     }
 
@@ -194,6 +257,79 @@ Completion:`;
     }
 
     /**
+     * Generates cache key for completion request
+     */
+    private generateCacheKey(textBefore: string, textAfter: string, language: string): string {
+        const key = `${language}:${textBefore.trim()}:${textAfter.trim()}`;
+        return Buffer.from(key).toString('base64').substring(0, 50); // Limit key length
+    }
+
+    /**
+     * Get cached completion if available and not expired
+     */
+    private getCachedCompletion(key: string): string | null {
+        const cached = this.cache.get(key);
+        if (!cached) {
+            return null;
+        }
+
+        // Check if expired
+        if (Date.now() - cached.timestamp > this.cacheExpiryMs) {
+            this.cache.set(key, cached); // Remove expired entry
+            return null;
+        }
+
+        return cached.completion;
+    }
+
+    /**
+     * Cache completion result
+     */
+    private setCachedCompletion(key: string, completion: string): void {
+        this.cache.set(key, {
+            completion,
+            timestamp: Date.now()
+        });
+    }
+
+    /**
+     * Generate simple fallback completion when API fails
+     */
+    private generateFallbackCompletion(textBefore: string, language: string): string | null {
+        const trimmed = textBefore.trim();
+        
+        // Simple pattern-based completions for common cases
+        if (language === 'javascript' || language === 'typescript') {
+            if (trimmed.endsWith('console.')) {
+                return 'log()';
+            }
+            if (trimmed.endsWith('function ')) {
+                return 'name() {\n    \n}';
+            }
+            if (trimmed.endsWith('const ')) {
+                return 'variable = ';
+            }
+            if (trimmed.endsWith('if (')) {
+                return 'condition) {\n    \n}';
+            }
+        }
+
+        if (language === 'python') {
+            if (trimmed.endsWith('def ')) {
+                return 'function_name():';
+            }
+            if (trimmed.endsWith('if ')) {
+                return 'condition:';
+            }
+            if (trimmed.endsWith('print(')) {
+                return '"")"';
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Habilita/desabilita o serviço
      */
     setEnabled(enabled: boolean): void {
@@ -209,6 +345,28 @@ Completion:`;
     }
 
     /**
+     * Get performance statistics
+     */
+    getStats(): { requestCount: number; cacheHits: number; cacheHitRate: number; cacheStats: any } {
+        return {
+            requestCount: this.requestCount,
+            cacheHits: this.cacheHits,
+            cacheHitRate: this.requestCount > 0 ? (this.cacheHits / this.requestCount) * 100 : 0,
+            cacheStats: this.cache.stats()
+        };
+    }
+
+    /**
+     * Clear completion cache
+     */
+    clearCache(): void {
+        this.cache.clear();
+        this.cacheHits = 0;
+        this.requestCount = 0;
+        Logger.info('Inline completion cache cleared');
+    }
+
+    /**
      * Obtém disposables para cleanup
      */
     getDisposables(): vscode.Disposable[] {
@@ -221,6 +379,7 @@ Completion:`;
     dispose(): void {
         this.disposables.forEach(d => d.dispose());
         this.disposables = [];
+        this.cache.clear();
         Logger.info('Inline completion service disposed');
     }
 }

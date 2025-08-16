@@ -6501,7 +6501,13 @@ var ConfigurationService = class _ConfigurationService {
   getConfig() {
     const config = vscode2.workspace.getConfiguration("xcopilot");
     return {
-      backendUrl: config.get("backendUrl") || "http://localhost:3000"
+      backendUrl: config.get("backendUrl") || "http://localhost:3000",
+      inlineCompletion: {
+        enabled: config.get("inlineCompletion.enabled") ?? true,
+        throttleMs: config.get("inlineCompletion.throttleMs") || 300,
+        cacheSize: config.get("inlineCompletion.cacheSize") || 100,
+        maxContextLines: config.get("inlineCompletion.maxContextLines") || 15
+      }
     };
   }
   /**
@@ -6524,8 +6530,8 @@ var ConfigurationService = class _ConfigurationService {
    */
   onConfigurationChanged(callback) {
     return vscode2.workspace.onDidChangeConfiguration((e2) => {
-      if (e2.affectsConfiguration("xcopilot.backendUrl")) {
-        Logger.info("Backend URL configuration changed");
+      if (e2.affectsConfiguration("xcopilot.backendUrl") || e2.affectsConfiguration("xcopilot.inlineCompletion")) {
+        Logger.info("Configuration changed");
         callback();
       }
     });
@@ -6589,6 +6595,39 @@ var BackendService = class _BackendService {
       return !response.startsWith("Erro");
     } catch {
       return false;
+    }
+  }
+  /**
+   * Solicita completion inline otimizada para código
+   */
+  async requestCodeCompletion(options) {
+    const backendUrl = this.configService.getBackendUrl();
+    const completionEndpoint = backendUrl.replace("/openai", "/api/completion");
+    Logger.debug(`Requesting code completion from: ${completionEndpoint}`);
+    try {
+      const response = await fetch(completionEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify(options)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        Logger.error(`Completion API error: ${response.status} - ${errorText}`);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      const data = await response.json();
+      Logger.debug(`Completion received in ${data.duration}ms`);
+      return {
+        completion: data.completion || "",
+        duration: data.duration || 0,
+        cached: data.cached || false
+      };
+    } catch (error) {
+      Logger.error("Completion request error:", error);
+      throw error;
     }
   }
 };
@@ -7618,16 +7657,88 @@ var vscode7 = __toESM(require("vscode"));
 
 // src/services/InlineCompletionService.ts
 var vscode8 = __toESM(require("vscode"));
+
+// src/utils/LRUCache.ts
+var LRUCache = class {
+  constructor(capacity = 100) {
+    this.capacity = capacity;
+    this.cache = /* @__PURE__ */ new Map();
+  }
+  /**
+   * Get value from cache
+   */
+  get(key) {
+    if (this.cache.has(key)) {
+      const value = this.cache.get(key);
+      this.cache.delete(key);
+      this.cache.set(key, value);
+      return value;
+    }
+    return void 0;
+  }
+  /**
+   * Set value in cache
+   */
+  set(key, value) {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.capacity) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey !== void 0) {
+        this.cache.delete(firstKey);
+      }
+    }
+    this.cache.set(key, value);
+  }
+  /**
+   * Check if key exists in cache
+   */
+  has(key) {
+    return this.cache.has(key);
+  }
+  /**
+   * Clear all cache entries
+   */
+  clear() {
+    this.cache.clear();
+  }
+  /**
+   * Get current cache size
+   */
+  size() {
+    return this.cache.size;
+  }
+  /**
+   * Get cache statistics
+   */
+  stats() {
+    return {
+      size: this.cache.size,
+      capacity: this.capacity,
+      utilization: this.cache.size / this.capacity * 100
+    };
+  }
+};
+
+// src/services/InlineCompletionService.ts
 var InlineCompletionService = class _InlineCompletionService {
-  // Throttle requests
   constructor() {
     this.isEnabled = true;
     this.disposables = [];
     this.lastRequestTime = 0;
-    this.throttleMs = 500;
+    this.throttleMs = 300;
+    // Will be updated from config
+    this.cache = new LRUCache(100);
+    this.cacheExpiryMs = 5 * 60 * 1e3;
+    // 5 minutes
+    this.requestCount = 0;
+    this.cacheHits = 0;
     this.backendService = BackendService.getInstance();
     this.contextService = CodeContextService.getInstance();
+    this.configService = ConfigurationService.getInstance();
+    this.updateFromConfig();
     this.registerProviders();
+    this.setupConfigurationWatcher();
   }
   static getInstance() {
     if (!_InlineCompletionService.instance) {
@@ -7662,6 +7773,28 @@ var InlineCompletionService = class _InlineCompletionService {
     Logger.info("Inline completion provider registered");
   }
   /**
+   * Update settings from configuration
+   */
+  updateFromConfig() {
+    const config = this.configService.getConfig();
+    this.isEnabled = config.inlineCompletion.enabled;
+    this.throttleMs = config.inlineCompletion.throttleMs;
+    const newCacheSize = config.inlineCompletion.cacheSize;
+    if (!this.cache || this.cache.stats().capacity !== newCacheSize) {
+      this.cache = new LRUCache(newCacheSize);
+    }
+    Logger.info(`Inline completion config updated: enabled=${this.isEnabled}, throttle=${this.throttleMs}ms, cache=${newCacheSize}`);
+  }
+  /**
+   * Setup configuration change watcher
+   */
+  setupConfigurationWatcher() {
+    const configDisposable = this.configService.onConfigurationChanged(() => {
+      this.updateFromConfig();
+    });
+    this.disposables.push(configDisposable);
+  }
+  /**
    * Implementação do VS Code InlineCompletionItemProvider
    */
   async provideInlineCompletionItems(document, position, context, token) {
@@ -7683,6 +7816,19 @@ var InlineCompletionService = class _InlineCompletionService {
       if (this.isInStringOrComment(textBeforeCursor)) {
         return null;
       }
+      const cacheKey = this.generateCacheKey(textBeforeCursor, textAfterCursor, document.languageId);
+      const cachedCompletion = this.getCachedCompletion(cacheKey);
+      if (cachedCompletion) {
+        this.cacheHits++;
+        Logger.debug(`Cache hit! (${this.cacheHits}/${this.requestCount})`);
+        return [
+          new vscode8.InlineCompletionItem(
+            cachedCompletion,
+            new vscode8.Range(position, position)
+          )
+        ];
+      }
+      this.requestCount++;
       const completion = await this.generateInlineCompletion(
         document,
         position,
@@ -7692,6 +7838,7 @@ var InlineCompletionService = class _InlineCompletionService {
       if (!completion || token.isCancellationRequested) {
         return null;
       }
+      this.setCachedCompletion(cacheKey, completion);
       return [
         new vscode8.InlineCompletionItem(
           completion,
@@ -7704,13 +7851,15 @@ var InlineCompletionService = class _InlineCompletionService {
     }
   }
   /**
-   * Gera completion inline usando IA
+   * Gera completion inline usando IA otimizada
    */
   async generateInlineCompletion(document, position, textBefore, textAfter) {
     try {
       const context = this.contextService.getCurrentContext();
-      const startLine = Math.max(0, position.line - 10);
-      const endLine = Math.min(document.lineCount - 1, position.line + 5);
+      const config = this.configService.getConfig();
+      const contextLines = Math.floor(config.inlineCompletion.maxContextLines / 2);
+      const startLine = Math.max(0, position.line - contextLines);
+      const endLine = Math.min(document.lineCount - 1, position.line + contextLines);
       const surroundingCode = document.getText(
         new vscode8.Range(startLine, 0, endLine, 0)
       );
@@ -7725,34 +7874,25 @@ C\xF3digo ao redor:
 ${surroundingCode}
 \`\`\`
 
-Linha atual antes do cursor: "${textBefore}"
-Linha atual depois do cursor: "${textAfter}"
-
-REGRAS:
-1. Complete apenas o que falta na linha atual
-2. Mantenha o estilo e padr\xF5es do c\xF3digo existente
-3. Se for in\xEDcio de fun\xE7\xE3o/m\xE9todo, complete a assinatura
-4. Se for dentro de fun\xE7\xE3o, complete a l\xF3gica
-5. Retorne APENAS o texto de completion, sem explica\xE7\xF5es
-6. M\xE1ximo 2 linhas de completion
-7. Se n\xE3o tiver certeza, retorne uma completion simples
-
-Completion:`;
-      const response = await this.backendService.askQuestion(prompt);
-      if (!response) {
+Complete a linha atual:`;
+      const result = await this.backendService.requestCodeCompletion({
+        prompt,
+        context: surroundingCode,
+        language: document.languageId,
+        textBefore,
+        textAfter
+      });
+      Logger.debug(`Completion generated in ${result.duration}ms (cached: ${result.cached})`);
+      if (!result.completion) {
         return null;
       }
-      let completion = response.trim();
-      completion = completion.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
-      const lines = completion.split("\n").slice(0, 2);
-      completion = lines.join("\n");
-      if (completion === textBefore || completion.length < 2) {
+      if (result.completion === textBefore || result.completion.length < 2) {
         return null;
       }
-      return completion;
+      return result.completion;
     } catch (error) {
       Logger.error("Error generating inline completion:", error);
-      return null;
+      return this.generateFallbackCompletion(textBefore, document.languageId);
     }
   }
   /**
@@ -7762,6 +7902,68 @@ Completion:`;
     const inString = (text.match(/"/g) || []).length % 2 === 1 || (text.match(/'/g) || []).length % 2 === 1 || (text.match(/`/g) || []).length % 2 === 1;
     const inComment = text.includes("//") || text.includes("/*") || text.includes("#");
     return inString || inComment;
+  }
+  /**
+   * Generates cache key for completion request
+   */
+  generateCacheKey(textBefore, textAfter, language) {
+    const key = `${language}:${textBefore.trim()}:${textAfter.trim()}`;
+    return Buffer.from(key).toString("base64").substring(0, 50);
+  }
+  /**
+   * Get cached completion if available and not expired
+   */
+  getCachedCompletion(key) {
+    const cached = this.cache.get(key);
+    if (!cached) {
+      return null;
+    }
+    if (Date.now() - cached.timestamp > this.cacheExpiryMs) {
+      this.cache.set(key, cached);
+      return null;
+    }
+    return cached.completion;
+  }
+  /**
+   * Cache completion result
+   */
+  setCachedCompletion(key, completion) {
+    this.cache.set(key, {
+      completion,
+      timestamp: Date.now()
+    });
+  }
+  /**
+   * Generate simple fallback completion when API fails
+   */
+  generateFallbackCompletion(textBefore, language) {
+    const trimmed = textBefore.trim();
+    if (language === "javascript" || language === "typescript") {
+      if (trimmed.endsWith("console.")) {
+        return "log()";
+      }
+      if (trimmed.endsWith("function ")) {
+        return "name() {\n    \n}";
+      }
+      if (trimmed.endsWith("const ")) {
+        return "variable = ";
+      }
+      if (trimmed.endsWith("if (")) {
+        return "condition) {\n    \n}";
+      }
+    }
+    if (language === "python") {
+      if (trimmed.endsWith("def ")) {
+        return "function_name():";
+      }
+      if (trimmed.endsWith("if ")) {
+        return "condition:";
+      }
+      if (trimmed.endsWith("print(")) {
+        return '"")"';
+      }
+    }
+    return null;
   }
   /**
    * Habilita/desabilita o serviço
@@ -7777,6 +7979,26 @@ Completion:`;
     return this.isEnabled;
   }
   /**
+   * Get performance statistics
+   */
+  getStats() {
+    return {
+      requestCount: this.requestCount,
+      cacheHits: this.cacheHits,
+      cacheHitRate: this.requestCount > 0 ? this.cacheHits / this.requestCount * 100 : 0,
+      cacheStats: this.cache.stats()
+    };
+  }
+  /**
+   * Clear completion cache
+   */
+  clearCache() {
+    this.cache.clear();
+    this.cacheHits = 0;
+    this.requestCount = 0;
+    Logger.info("Inline completion cache cleared");
+  }
+  /**
    * Obtém disposables para cleanup
    */
   getDisposables() {
@@ -7788,6 +8010,7 @@ Completion:`;
   dispose() {
     this.disposables.forEach((d) => d.dispose());
     this.disposables = [];
+    this.cache.clear();
     Logger.info("Inline completion service disposed");
   }
 };
@@ -10033,6 +10256,26 @@ var ExtensionManager = class {
         } else {
           vscode12.window.showWarningMessage("Selecione c\xF3digo para explicar no chat");
         }
+      }),
+      vscode12.commands.registerCommand("xcopilot.toggleInlineCompletion", () => {
+        const currentState = this.inlineCompletionService.isServiceEnabled();
+        this.inlineCompletionService.setEnabled(!currentState);
+        vscode12.window.showInformationMessage(
+          `Inline Completion ${!currentState ? "habilitado" : "desabilitado"}`
+        );
+      }),
+      vscode12.commands.registerCommand("xcopilot.clearCompletionCache", () => {
+        this.inlineCompletionService.clearCache();
+        vscode12.window.showInformationMessage("Cache de completions limpo");
+      }),
+      vscode12.commands.registerCommand("xcopilot.showCompletionStats", () => {
+        const stats = this.inlineCompletionService.getStats();
+        const message = `Estat\xEDsticas de Completion:
+Requisi\xE7\xF5es: ${stats.requestCount}
+Cache Hits: ${stats.cacheHits}
+Taxa de Cache: ${stats.cacheHitRate.toFixed(1)}%
+Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats.utilization.toFixed(1)}%)`;
+        vscode12.window.showInformationMessage(message);
       })
     ];
     context.subscriptions.push(...commands5);

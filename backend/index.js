@@ -31,7 +31,7 @@ app.get('/config', (_req, res) => {
 });
 
 // Endpoint para gerar resposta via OpenAI
-const { gerarResposta, OpenAIError } = require('./openai');
+const { gerarResposta, gerarCompletion, OpenAIError } = require('./openai');
 const { indexSnippet, searchSnippets } = require('./elasticsearch');
 app.post('/openai', async (req, res) => {
     const { prompt } = req.body;
@@ -41,6 +41,91 @@ app.post('/openai', async (req, res) => {
     try {
         const resposta = await gerarResposta(prompt);
         res.json({ resposta });
+    } catch (err) {
+        if (err instanceof OpenAIError) {
+            return res.status(err.status || 500).json({ error: err.message, code: err.code });
+        }
+        res.status(500).json({ error: 'Erro inesperado', detail: err.message });
+    }
+});
+
+// Otimized completion endpoint for inline code completion
+// Simple cache for completions
+const completionCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_SIZE = 1000;
+
+function getCachedCompletion(key) {
+    const cached = completionCache.get(key);
+    if (!cached) return null;
+    
+    if (Date.now() - cached.timestamp > CACHE_TTL) {
+        completionCache.delete(key);
+        return null;
+    }
+    
+    return cached.completion;
+}
+
+function setCachedCompletion(key, completion) {
+    // Clean old entries if cache is too big
+    if (completionCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = completionCache.keys().next().value;
+        completionCache.delete(firstKey);
+    }
+    
+    completionCache.set(key, {
+        completion,
+        timestamp: Date.now()
+    });
+}
+
+app.post('/api/completion', async (req, res) => {
+    const { context, language, prompt, textBefore, textAfter } = req.body;
+    
+    if (!prompt) {
+        return res.status(400).json({ error: 'Prompt é obrigatório.' });
+    }
+
+    try {
+        const startTime = Date.now();
+        
+        // Generate cache key
+        const cacheKey = `${language}:${textBefore}:${textAfter}`;
+        
+        // Check cache first
+        const cachedResult = getCachedCompletion(cacheKey);
+        if (cachedResult) {
+            const duration = Date.now() - startTime;
+            return res.json({ 
+                completion: cachedResult,
+                duration,
+                cached: true
+            });
+        }
+        
+        // Use specialized completion function for better performance
+        const completion = await gerarCompletion({
+            prompt,
+            context,
+            language,
+            textBefore,
+            textAfter,
+            maxTokens: 50, // Limit tokens for inline completion
+            temperature: 0.3 // Lower temperature for more predictable code
+        });
+        
+        // Cache the result
+        setCachedCompletion(cacheKey, completion);
+        
+        const duration = Date.now() - startTime;
+        
+        res.json({ 
+            completion,
+            duration,
+            cached: false
+        });
+        
     } catch (err) {
         if (err instanceof OpenAIError) {
             return res.status(err.status || 500).json({ error: err.message, code: err.code });

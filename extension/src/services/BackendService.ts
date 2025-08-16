@@ -78,4 +78,50 @@ export class BackendService {
             return false;
         }
     }
+
+    /**
+     * Solicita completion inline otimizada para código
+     */
+    async requestCodeCompletion(options: {
+        prompt: string;
+        context?: string;
+        language: string;
+        textBefore: string;
+        textAfter: string;
+    }): Promise<{ completion: string; duration: number; cached: boolean }> {
+        const backendUrl = this.configService.getBackendUrl();
+        const completionEndpoint = backendUrl.replace('/openai', '/api/completion');
+        
+        Logger.debug(`Requesting code completion from: ${completionEndpoint}`);
+
+        try {
+            const response = await fetch(completionEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(options)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                Logger.error(`Completion API error: ${response.status} - ${errorText}`);
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+
+            const data = await response.json() as any;
+            Logger.debug(`Completion received in ${data.duration}ms`);
+
+            return {
+                completion: data.completion || '',
+                duration: data.duration || 0,
+                cached: data.cached || false
+            };
+
+        } catch (error: any) {
+            Logger.error('Completion request error:', error);
+            throw error;
+        }
+    }
 }

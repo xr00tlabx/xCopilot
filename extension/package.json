@@ -147,6 +147,18 @@
                 "command": "xcopilot.openChatWithCode",
                 "title": "xCopilot: Abrir Chat com Código Selecionado",
                 "icon": "$(comment-discussion)"
+            },
+            {
+                "command": "xcopilot.toggleInlineCompletion",
+                "title": "xCopilot: Toggle Inline Completion"
+            },
+            {
+                "command": "xcopilot.clearCompletionCache",
+                "title": "xCopilot: Limpar Cache de Completions"
+            },
+            {
+                "command": "xcopilot.showCompletionStats",
+                "title": "xCopilot: Mostrar Estatísticas de Completion"
             }
         ],
         "viewsContainers": {
@@ -267,6 +279,32 @@
                     "type": "string",
                     "default": "http://localhost:3000/openai",
                     "description": "Endpoint do backend xCopilot para geração de respostas"
+                },
+                "xcopilot.inlineCompletion.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Habilita sugestões de código inline em tempo real"
+                },
+                "xcopilot.inlineCompletion.throttleMs": {
+                    "type": "number",
+                    "default": 300,
+                    "minimum": 100,
+                    "maximum": 2000,
+                    "description": "Tempo de espera mínimo entre solicitações (ms)"
+                },
+                "xcopilot.inlineCompletion.cacheSize": {
+                    "type": "number",
+                    "default": 100,
+                    "minimum": 10,
+                    "maximum": 500,
+                    "description": "Tamanho do cache para completions (número de itens)"
+                },
+                "xcopilot.inlineCompletion.maxContextLines": {
+                    "type": "number",
+                    "default": 15,
+                    "minimum": 5,
+                    "maximum": 50,
+                    "description": "Máximo de linhas de contexto para enviar à IA"
                 }
             }
         },
@@ -299,6 +337,11 @@
             {
                 "command": "xcopilot.openChat",
                 "key": "ctrl+shift+x",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.toggleInlineCompletion",
+                "key": "ctrl+alt+i",
                 "when": "editorTextFocus"
             }
         ]
