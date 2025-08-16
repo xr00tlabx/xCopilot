@@ -83,14 +83,14 @@ export class ExtensionManager {
             this.chatCommands.registerCommands(context);
             this.inlineCompletionCommands.registerCommands(context);
             this.refactoringService.registerCommands(context);
-            
+
             // Registrar Pattern Detection com proteção contra erros
             try {
                 this.patternDetectionService.registerCommands(context);
             } catch (error) {
                 Logger.warn('Pattern Detection Service disabled due to error:', error);
             }
-            
+
             this.registerCodeExplanationCommands(context);
             this.registerContextAwareCommands(context);
 
