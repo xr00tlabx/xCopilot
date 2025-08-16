@@ -173,6 +173,9 @@ export class GhostTextService implements vscode.InlineCompletionItemProvider {
         document: vscode.TextDocument,
         position: vscode.Position
     ): Promise<string | null> {
+        const line = document.lineAt(position);
+        const textBeforeCursor = line.text.substring(0, position.character);
+
         try {
             const context = this.contextService.getCurrentContext();
 
@@ -183,8 +186,6 @@ export class GhostTextService implements vscode.InlineCompletionItemProvider {
                 new vscode.Range(startLine, 0, endLine, 0)
             );
 
-            const line = document.lineAt(position);
-            const textBeforeCursor = line.text.substring(0, position.character);
             const textAfterCursor = line.text.substring(position.character);
 
             // Use optimized completion endpoint
