@@ -11240,10 +11240,12 @@ var ChatWebviewProvider = class {
   constructor(context) {
     this.context = context;
     this.backendService = BackendService.getInstance();
-    this.contextAwareService = ContextAwareService.getInstance();
-    this.contextAwareService.initialize(context).catch((error) => {
-      Logger.error("Failed to initialize ContextAwareService:", error);
-    });
+    this.contextAwareService = ContextAwareService.getInstance(context);
+    if (this.contextAwareService) {
+      this.contextAwareService.initialize().catch((error) => {
+        Logger.error("Failed to initialize ContextAwareService:", error);
+      });
+    }
   }
   /**
    * Resolve a webview view
@@ -11271,8 +11273,8 @@ var ChatWebviewProvider = class {
       Logger.info(`Processing context-aware ask request: ${message.prompt}`);
       this.sendMessage({ type: "answer", text: "Analisando contexto e pensando..." });
       try {
-        const enhancedContext = await this.contextAwareService.getEnhancedContext(message.prompt, true);
-        const answer = await this.sendContextAwareRequest(message.prompt, enhancedContext);
+        const conversationContext = await this.contextAwareService.getConversationContext(message.prompt);
+        const answer = await this.sendContextAwareRequest(message.prompt, conversationContext);
         this.sendMessage({ type: "answer", text: answer });
       } catch (error) {
         Logger.error("Error calling context-aware backend:", error);
@@ -12432,9 +12434,6 @@ var ExtensionManager = class {
   activate(context) {
     Logger.info("\u{1F680} xCopilot extension is now active!");
     try {
-      this.chatProvider = new ChatWebviewProvider(context);
-      this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
-      this.chatCommands = new ChatCommands(this.chatProvider);
       this.codeSuggestionsService = CodeSuggestionsService.getInstance();
       this.codeExplanationService = CodeExplanationService.getInstance();
       this.ghostTextService = GhostTextService.getInstance();
@@ -12444,6 +12443,9 @@ var ExtensionManager = class {
       this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance(context);
       this.semanticSearchService = SemanticSearchService.getInstance(context);
       this.contextAwareService = ContextAwareService.getInstance(context);
+      this.chatProvider = new ChatWebviewProvider(context);
+      this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
+      this.chatCommands = new ChatCommands(this.chatProvider);
       this.initializeContextAwareFeatures();
       this.registerWebviewProvider(context);
       this.chatCommands.registerCommands(context);

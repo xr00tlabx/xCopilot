@@ -17,12 +17,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
         this.backendService = BackendService.getInstance();
-        this.contextAwareService = ContextAwareService.getInstance();
+        this.contextAwareService = ContextAwareService.getInstance(context);
         
         // Initialize the context-aware service
-        this.contextAwareService.initialize(context).catch(error => {
-            Logger.error('Failed to initialize ContextAwareService:', error);
-        });
+        if (this.contextAwareService) {
+            this.contextAwareService.initialize().catch(error => {
+                Logger.error('Failed to initialize ContextAwareService:', error);
+            });
+        }
     }
 
     /**
@@ -63,11 +65,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
             this.sendMessage({ type: 'answer', text: 'Analisando contexto e pensando...' });
 
             try {
-                // Get enhanced context using ContextAwareService
-                const enhancedContext = await this.contextAwareService.getEnhancedContext(message.prompt, true);
+                // Get conversation context using ContextAwareService
+                const conversationContext = await this.contextAwareService.getConversationContext(message.prompt);
                 
                 // Send context-aware request to backend
-                const answer = await this.sendContextAwareRequest(message.prompt, enhancedContext);
+                const answer = await this.sendContextAwareRequest(message.prompt, conversationContext);
                 
                 this.sendMessage({ type: 'answer', text: answer });
             } catch (error) {
