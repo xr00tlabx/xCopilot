@@ -7,8 +7,8 @@ import {
     GhostTextService,
     InlineCompletionService,
     PatternDetectionService,
-    RefactoringService,
-    RefactoringCodeLensProvider
+    RefactoringCodeLensProvider,
+    RefactoringService
 } from './services';
 import { Logger } from './utils';
 import { ChatWebviewProvider, SidebarChatProvider } from './views';
