@@ -132,6 +132,7 @@ export interface InterfaceInfo {
     methods: MethodInfo[];
     isEmpty: boolean;
     line: number;
+    endLine?: number;
 }
 
 export interface ClassInfo {
@@ -142,6 +143,7 @@ export interface ClassInfo {
     methods: MethodInfo[];
     constructor?: MethodInfo;
     line: number;
+    endLine?: number;
 }
 
 export interface FunctionInfo {
@@ -152,6 +154,7 @@ export interface FunctionInfo {
     isExported: boolean;
     hasImplementation: boolean;
     line: number;
+    endLine?: number;
 }
 
 export interface PropertyInfo {

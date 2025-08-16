@@ -6047,6 +6047,7 @@ var ASTAnalysisService = class _ASTAnalysisService {
           }
         }
         if (braceLevel <= 0) {
+          currentInterface.endLine = i2;
           interfaces.push(currentInterface);
           currentInterface = null;
         }
@@ -6071,6 +6072,7 @@ var ASTAnalysisService = class _ASTAnalysisService {
           implements: classMatch[3] ? classMatch[3].split(",").map((i3) => i3.trim()) : void 0,
           properties: [],
           methods: [],
+          constructor: void 0,
           line: i2
         };
         braceLevel = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
@@ -6092,6 +6094,7 @@ var ASTAnalysisService = class _ASTAnalysisService {
           }
         }
         if (braceLevel <= 0) {
+          currentClass.endLine = i2;
           classes.push(currentClass);
           currentClass = null;
         }
@@ -6128,7 +6131,8 @@ var ASTAnalysisService = class _ASTAnalysisService {
           isAsync: line.includes("async"),
           isExported: line.includes("export"),
           hasImplementation: true,
-          line: i2
+          line: i2,
+          endLine: i2
         });
       }
     }
@@ -6205,8 +6209,8 @@ var ASTAnalysisService = class _ASTAnalysisService {
    * Extrai informações de um método
    */
   parseMethod(line) {
-    const methodMatch = line.match(/^(?:private|protected|public|static|abstract)?\s*(?:async\s+)?(\w+)\s*\((.*?)\)(?:\s*:\s*([^{;]+))?/);
-    if (methodMatch && !line.includes(":") && !line.includes("=")) {
+    const methodMatch = line.match(/^(?:(?:private|protected|public|static|abstract|readonly)\s+)*\s*(?:async\s+)?(\w+)\s*\(([^)]*)\)\s*(?::\s*([^{{;=]+))?\s*(?:\{|;)?/);
+    if (methodMatch) {
       return {
         name: methodMatch[1],
         parameters: this.parseParameters(methodMatch[2]),
@@ -6300,13 +6304,13 @@ var ASTAnalysisService = class _ASTAnalysisService {
       nearbySymbols: []
     };
     for (const cls of analysis.classes) {
-      if (cls.line <= line) {
+      if (cls.line <= line && (typeof cls.endLine === "undefined" || line <= cls.endLine)) {
         context.insideClass = cls.name;
         context.availableTypes.push(...cls.properties.map((p) => p.type).filter(Boolean));
       }
     }
     for (const func of analysis.functions) {
-      if (func.line <= line && func.line + 10 > line) {
+      if (func.line <= line && (typeof func.endLine === "undefined" || func.endLine >= line)) {
         context.insideFunction = func.name;
       }
     }
@@ -6432,7 +6436,7 @@ var MultilineCodeGenerationService = class _MultilineCodeGenerationService {
           selectedText: interfaceInfo.name
         },
         specification: `Implement interface ${interfaceInfo.name}`,
-        template: this.codeGeneration.getTemplate(`${language.substring(0, 2)}-interface`)
+        template: this.codeGeneration.getTemplate(`${_MultilineCodeGenerationService.languageCodeMap[language] || language}-interface`)
       };
       const result = await this.codeGeneration.generateCode(request);
       if (result.success) {
@@ -6743,7 +6747,7 @@ var MultilineCodeGenerationService = class _MultilineCodeGenerationService {
       }
       const commentsByFile = /* @__PURE__ */ new Map();
       comments.forEach((comment) => {
-        const file = "unknown";
+        const file = comment.file || "unknown";
         if (!commentsByFile.has(file)) {
           commentsByFile.set(file, []);
         }

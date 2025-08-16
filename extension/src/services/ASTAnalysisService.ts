@@ -3,7 +3,7 @@
  */
 
 import * as vscode from 'vscode';
-import { ASTAnalysis, InterfaceInfo, ClassInfo, FunctionInfo, PropertyInfo, MethodInfo, ParameterInfo } from '../types';
+import { ASTAnalysis, ClassInfo, FunctionInfo, InterfaceInfo, MethodInfo, ParameterInfo, PropertyInfo } from '../types';
 
 export class ASTAnalysisService {
     private static instance: ASTAnalysisService;
@@ -107,6 +107,7 @@ export class ASTAnalysisService {
 
                 // Fim da interface
                 if (braceLevel <= 0) {
+                    currentInterface.endLine = i;
                     interfaces.push(currentInterface);
                     currentInterface = null;
                 }
@@ -136,6 +137,7 @@ export class ASTAnalysisService {
                     implements: classMatch[3] ? classMatch[3].split(',').map(i => i.trim()) : undefined,
                     properties: [],
                     methods: [],
+                    constructor: undefined,
                     line: i
                 };
                 braceLevel = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
@@ -165,6 +167,7 @@ export class ASTAnalysisService {
 
                 // Fim da classe
                 if (braceLevel <= 0) {
+                    currentClass.endLine = i;
                     classes.push(currentClass);
                     currentClass = null;
                 }
@@ -208,7 +211,8 @@ export class ASTAnalysisService {
                     isAsync: line.includes('async'),
                     isExported: line.includes('export'),
                     hasImplementation: true,
-                    line: i
+                    line: i,
+                    endLine: i
                 });
             }
         }
@@ -307,9 +311,8 @@ export class ASTAnalysisService {
      * Extrai informações de um método
      */
     private parseMethod(line: string): MethodInfo | null {
-        const methodMatch = line.match(/^(?:private|protected|public|static|abstract)?\s*(?:async\s+)?(\w+)\s*\((.*?)\)(?:\s*:\s*([^{;]+))?/);
-        // Improved regex: handles multiple/optional modifiers, async, method name, params, return type
-        const methodMatch = line.match(/^(?:(?:private|protected|public|static|abstract|readonly)\s+)*\s*(?:async\s+)?(\w+)\s*\(([^)]*)\)\s*(?::\s*([^{;=]+))?\s*(?:{|;)?/);
+        // Regex: handles multiple/optional modifiers, async, method name, params, return type
+        const methodMatch = line.match(/^(?:(?:private|protected|public|static|abstract|readonly)\s+)*\s*(?:async\s+)?(\w+)\s*\(([^)]*)\)\s*(?::\s*([^{{;=]+))?\s*(?:\{|;)?/);
         if (methodMatch) {
             return {
                 name: methodMatch[1],
@@ -427,9 +430,8 @@ export class ASTAnalysisService {
 
         // Determina se está dentro de uma classe
         for (const cls of analysis.classes) {
-            if (cls.line <= line) {
-            if (cls.line <= line && line <= cls.endLine) {
-                // Verifica se ainda está dentro da classe (agora considerando o fim da classe)
+            if (cls.line <= line && (typeof cls.endLine === 'undefined' || line <= cls.endLine)) {
+            // Verifica se ainda está dentro da classe (considerando o fim da classe quando disponível)
                 context.insideClass = cls.name;
                 context.availableTypes.push(...cls.properties.map(p => p.type).filter(Boolean));
             }
@@ -437,7 +439,7 @@ export class ASTAnalysisService {
 
         // Determina se está dentro de uma função
         for (const func of analysis.functions) {
-            if (func.line <= line && func.endLine >= line) { // Verifica se está dentro dos limites reais da função
+            if (func.line <= line && (typeof func.endLine === 'undefined' || func.endLine >= line)) { // Verifica se está dentro dos limites reais da função
                 context.insideFunction = func.name;
             }
         }
