@@ -69,7 +69,20 @@ class ProjectMonitor {
         try {
             // Verificar se o backend está rodando
             try {
-                execSync('curl -f http://localhost:3000/health', { stdio: 'pipe' });
+                await new Promise((resolve, reject) => {
+                    const req = http.get('http://localhost:3000/health', (res) => {
+                        if (res.statusCode >= 200 && res.statusCode < 300) {
+                            resolve();
+                        } else {
+                            reject(new Error('Non-2xx status code: ' + res.statusCode));
+                        }
+                    });
+                    req.on('error', reject);
+                    req.setTimeout(5000, () => {
+                        req.abort();
+                        reject(new Error('Request timed out'));
+                    });
+                });
                 health.metrics.backend = 'online';
             } catch {
                 health.metrics.backend = 'offline';
