@@ -29,3 +29,9 @@ extension/dist/
 # Others
 backend/node_modules/
 extension/node_modules/
+
+# Test files and reports
+test-code-review*.js
+test-code-review-analyzer.js
+sample-review-report.md
+xcopilot-review-*.md

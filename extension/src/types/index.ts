@@ -206,9 +206,9 @@ export interface ProjectStructure {
     totalFiles: number;
     totalLines: number;
     directories: DirectoryInfo[];
-    mainFiles: string[];
-    configFiles: string[];
-    testFiles: string[];
+    mainFiles?: string[];
+    configFiles?: string[];
+    testFiles?: string[];
 }
 
 export interface DirectoryInfo {
@@ -221,35 +221,35 @@ export interface DirectoryInfo {
 export interface DependencyInfo {
     packageJson?: any;
     lockFile?: string;
-    dependencies: string[];
-    devDependencies: string[];
-    frameworks: string[];
-    languages: string[];
+    dependencies?: string[];
+    devDependencies?: string[];
+    frameworks?: string[];
+    languages?: string[];
 }
 
 export interface CodePattern {
-    type: 'class' | 'function' | 'constant' | 'import' | 'export';
+    type: 'class' | 'function' | 'constant' | 'import' | 'export' | string;
     pattern: string;
     frequency: number;
-    files: string[];
-    examples: string[];
+    files?: string[];
+    examples?: string[];
 }
 
 export interface ArchitectureInfo {
     pattern?: string; // MVC, Clean Architecture, etc.
-    frameworks: string[];
+    frameworks?: string[];
     buildTool?: string;
-    language: string;
+    language?: string;
     styleGuide?: CodeStyleGuide;
 }
 
 export interface CodeStyleGuide {
-    indentation: 'tabs' | 'spaces';
-    indentSize: number;
-    quotes: 'single' | 'double';
-    semicolons: boolean;
-    namingConvention: 'camelCase' | 'snake_case' | 'kebab-case' | 'PascalCase';
-    commonPatterns: string[];
+    indentation?: 'tabs' | 'spaces';
+    indentSize?: number;
+    quotes?: 'single' | 'double';
+    semicolons?: boolean;
+    namingConvention?: 'camelCase' | 'snake_case' | 'kebab-case' | 'PascalCase';
+    commonPatterns?: string[];
 }
 
 export interface FileTypeStats {
@@ -262,11 +262,11 @@ export interface FileTypeStats {
 
 export interface ContextualSuggestion {
     id: string;
-    type: 'refactor' | 'optimize' | 'test' | 'documentation' | 'pattern';
+    type: 'refactor' | 'optimize' | 'test' | 'documentation' | 'pattern' | string;
     title: string;
-    description: string;
-    relevance: number; // 0-1 score
-    context: string; // what makes this relevant
+    description?: string;
+    relevance?: number; // 0-1 score
+    context?: string; // what makes this relevant
     action?: string; // command to execute
 }
 
@@ -274,24 +274,24 @@ export interface ConversationContext {
     workspaceAnalysis?: WorkspaceAnalysis;
     currentFile?: CodeContext;
     gitInfo?: GitInfo;
-    recentConversations: ConversationEntry[];
-    relevantCode: string[];
-    suggestions: ContextualSuggestion[];
+    recentConversations?: ConversationEntry[];
+    relevantCode?: string[];
+    suggestions?: ContextualSuggestion[];
     memoryContext?: string; // RAG retrieved context
 }
 
 export interface SemanticSearchResult {
-    content: string;
-    similarity: number;
-    source: 'conversation' | 'code' | 'documentation';
-    metadata: any;
+    content?: string;
+    similarity?: number;
+    source?: 'conversation' | 'code' | 'documentation' | string;
+    metadata?: any;
 }
 
 export interface ContextAwareConfig {
-    enableWorkspaceAnalysis: boolean;
-    enableSemanticSearch: boolean;
-    maxContextSize: number;
-    analysisDepth: 'shallow' | 'medium' | 'deep';
-    memorySessions: number;
-    autoSuggestions: boolean;
+    enableWorkspaceAnalysis?: boolean;
+    enableSemanticSearch?: boolean;
+    maxContextSize?: number;
+    analysisDepth?: 'shallow' | 'medium' | 'deep';
+    memorySessions?: number;
+    autoSuggestions?: boolean;
 }

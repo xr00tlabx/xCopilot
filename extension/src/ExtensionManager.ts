@@ -16,9 +16,7 @@ import { WorkspaceAnalysisService } from './services/WorkspaceAnalysisService';
 import { Logger } from './utils';
 import { ChatWebviewProvider, SidebarChatProvider } from './views';
 
-/**
- * Classe principal da extensão xCopilot
- */
+// Single coherent implementation of ExtensionManager (defensive, minimal side-effects)
 export class ExtensionManager {
     private chatProvider!: ChatWebviewProvider;
     private sidebarChatProvider!: SidebarChatProvider;
@@ -37,25 +35,18 @@ export class ExtensionManager {
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
-        // Inicializar output channel
         this.outputChannel = vscode.window.createOutputChannel('xCopilot');
         Logger.init(this.outputChannel);
-
-        // Inicializar serviços
         this.configService = ConfigurationService.getInstance();
     }
 
-    /**
-     * Ativa a extensão
-     */
-    activate(context: vscode.ExtensionContext): void {
-        Logger.info('🚀 xCopilot extension is now active!');
-
+    async activate(context: vscode.ExtensionContext): Promise<void> {
+        Logger.info('xCopilot activate');
         try {
-            // Inicializar serviços que precisam do contexto primeiro
-            this.conversationHistoryService = ConversationHistoryService.getInstance(context);
+            // Core services
+            this.conversationHistoryService = ConversationHistoryService.getInstance?.(context);
 
-            // Inicializar providers com contexto
+            // UI providers
             this.chatProvider = new ChatWebviewProvider();
             this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
             this.chatCommands = new ChatCommands(this.chatProvider);
@@ -75,7 +66,7 @@ export class ExtensionManager {
             // (constructed lazily via singleton getter)
             this.refactoringCodeLensProvider = RefactoringCodeLensProvider.getInstance();
 
-            // Registrar o provider da webview
+            // Register components
             this.registerWebviewProvider(context);
 
             // Registrar comandos
@@ -84,87 +75,47 @@ export class ExtensionManager {
             this.refactoringService.registerCommands(context);
             this.patternDetectionService.registerCommands(context);
             this.registerCodeExplanationCommands(context);
-
-            // Registrar providers de código
             this.registerCodeProviders(context);
 
-            // Registrar CodeLens provider
-            this.refactoringCodeLensProvider.register(context);
-
-            // Configurar monitoramento de configuração
+            this.refactoringCodeLensProvider?.register?.(context);
             this.setupConfigurationWatcher(context);
-
-            // Iniciar análise do workspace
             this.startWorkspaceAnalysis();
 
-            // Adicionar output channel aos subscriptions
             context.subscriptions.push(this.outputChannel);
-
-            Logger.info('✅ Extension activation completed successfully');
-
-        } catch (error) {
-            Logger.error('❌ CRITICAL ERROR during extension activation:', error);
-            vscode.window.showErrorMessage(`Erro crítico ao ativar xCopilot: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+            Logger.info('xCopilot activated');
+        } catch (err) {
+            Logger.error('Activation error', err);
+            vscode.window.showErrorMessage('Erro crítico ao ativar xCopilot');
         }
     }
 
-    /**
-     * Registra o provider da webview
-     */
     private registerWebviewProvider(context: vscode.ExtensionContext): void {
-        Logger.info('📝 Registering WebviewViewProvider for xcopilotPanel...');
-
-        // Registrar provider principal (activity bar)
-        const mainDisposable = vscode.window.registerWebviewViewProvider(
-            'xcopilotPanel',
-            this.chatProvider,
-            {
-                webviewOptions: {
-                    retainContextWhenHidden: true
-                }
-            }
-        );
-
-        // Registrar provider do chat lateral
-        const sidebarDisposable = vscode.window.registerWebviewViewProvider(
-            'xcopilotChat',
-            this.sidebarChatProvider,
-            {
-                webviewOptions: {
-                    retainContextWhenHidden: true
-                }
-            }
-        );
-
-        context.subscriptions.push(mainDisposable, sidebarDisposable);
-        Logger.info('✅ WebviewViewProvider registered successfully!');
+        if (!this.chatProvider || !this.sidebarChatProvider) return;
+        try {
+            const mainDisposable = vscode.window.registerWebviewViewProvider('xcopilotPanel', this.chatProvider, {
+                webviewOptions: { retainContextWhenHidden: true }
+            });
+            const sidebarDisposable = vscode.window.registerWebviewViewProvider('xcopilotChat', this.sidebarChatProvider, {
+                webviewOptions: { retainContextWhenHidden: true }
+            });
+            context.subscriptions.push(mainDisposable, sidebarDisposable);
+        } catch (err) {
+            Logger.error('Failed to register webview providers', err);
+        }
     }
 
-    /**
-     * Registra os providers de código (completion, diagnostics, etc.)
-     */
     private registerCodeProviders(context: vscode.ExtensionContext): void {
-        Logger.info('🧠 Registering code providers...');
-
-        // Registrar disposables dos serviços de IA
-        const codeSuggestionsDisposables = this.codeSuggestionsService.getDisposables();
-        const patternDetectionDisposables = this.patternDetectionService.getDisposables();
-        const ghostTextDisposables = this.ghostTextService.getDisposables();
-        const inlineCompletionDisposables = this.inlineCompletionService.getDisposables();
-
-        context.subscriptions.push(
-            ...codeSuggestionsDisposables,
-            ...patternDetectionDisposables,
-            ...ghostTextDisposables,
-            ...inlineCompletionDisposables
-        );
-
-        Logger.info('✅ Code providers registered successfully!');
+        try {
+            const codeSuggestionsDisposables = this.codeSuggestionsService?.getDisposables?.() ?? [];
+            const patternDetectionDisposables = this.patternDetectionService?.getDisposables?.() ?? [];
+            const ghostTextDisposables = this.ghostTextService?.getDisposables?.() ?? [];
+            const inlineCompletionDisposables = this.inlineCompletionService?.getDisposables?.() ?? [];
+            context.subscriptions.push(...codeSuggestionsDisposables, ...patternDetectionDisposables, ...ghostTextDisposables, ...inlineCompletionDisposables);
+        } catch (err) {
+            Logger.error('Failed to register code providers', err);
+        }
     }
 
-    /**
-     * Registra comandos de explicação de código
-     */
     private registerCodeExplanationCommands(context: vscode.ExtensionContext): void {
         const commands = [
             vscode.commands.registerCommand('xcopilot.explainSelected', () => {
@@ -230,9 +181,12 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
      * Configura observadores para alterações de configuração relevantes
      */
     private setupConfigurationWatcher(context: vscode.ExtensionContext): void {
-        const disposable = vscode.workspace.onDidChangeConfiguration(e => {
-            if (e.affectsConfiguration('xcopilot')) {
-                Logger.info('xcopilot configuration changed; services may need to refresh');
+        // Monitorar mudanças na configuração da extensão
+        const configWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
+            if (event.affectsConfiguration('xcopilot')) {
+                Logger.info('🔄 Configuration changed, updating services...');
+
+                // Atualizar configurações dos serviços
                 try {
                     if (this.inlineCompletionService && typeof (this.inlineCompletionService as any).refreshConfiguration === 'function') {
                         (this.inlineCompletionService as any).refreshConfiguration();

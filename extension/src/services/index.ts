@@ -1,6 +1,7 @@
 export { BackendService } from './BackendService';
 export { CodeContextService } from './CodeContextService';
 export { CodeExplanationService } from './CodeExplanationService';
+export { CodeReviewService } from './CodeReviewService';
 export { CodeSuggestionsService } from './CodeSuggestionsService';
 export { ConfigurationService } from './ConfigurationService';
 export { ContextAwareService } from './ContextAwareService';
@@ -11,8 +12,8 @@ export { InlineCompletionService } from './InlineCompletionService';
 export { MultilineGenerationService } from './MultilineGenerationService';
 export { PatternDetectionService } from './PatternDetectionService';
 export { PromptTemplateService } from './PromptTemplateService';
-export { RefactoringService } from './RefactoringService';
 export { RefactoringCodeLensProvider } from './RefactoringCodeLensProvider';
+export { RefactoringService } from './RefactoringService';
 export { SemanticSearchService } from './SemanticSearchService';
 export { VectorEmbeddingService } from './VectorEmbeddingService';
 export { WorkspaceAnalysisService } from './WorkspaceAnalysisService';
