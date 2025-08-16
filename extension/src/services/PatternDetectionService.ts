@@ -230,25 +230,21 @@ Analise o seguinte código ${document.languageId} e detecte padrões problemáti
 ${sample}
 \`\`\`
 
-Identifique:
-1. Anti-padrões de design
-2. Violações de princípios SOLID
-3. Problemas de performance
-4. Vulnerabilidades de segurança
-5. Código mal estruturado
-
-Para cada padrão encontrado, retorne JSON no formato:
+IMPORTANTE: Retorne APENAS um objeto JSON válido, sem texto adicional. Exemplo:
 {
   "patterns": [
     {
-      "type": "tipo-do-padrao",
-      "description": "descrição do problema",
-      "line": número_da_linha_aproximado,
-      "severity": "info|warning|error",
-      "suggestion": "sugestão de melhoria"
+      "type": "performance",
+      "description": "Loop pode ser otimizado",
+      "line": 15,
+      "severity": "info",
+      "suggestion": "Use map() em vez de forEach() com push()"
     }
   ]
 }
+
+Use apenas estes valores para severity: "info", "warning", "error"
+Mantenha description e suggestion como strings simples.
 `;
 
             const response = await this.backendService.askQuestion(prompt);
@@ -267,34 +263,146 @@ Para cada padrão encontrado, retorne JSON no formato:
      */
     private parseAIResponse(response: string, document: vscode.TextDocument): DetectedPattern[] {
         try {
-            const jsonMatch = response.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) return [];
+            // Múltiplas estratégias para extrair JSON válido
+            let jsonString = this.extractJsonFromResponse(response);
+            if (!jsonString) {
+                Logger.warn('No JSON found in AI response');
+                return [];
+            }
 
-            const parsed = JSON.parse(jsonMatch[0]);
-            const patterns: DetectedPattern[] = [];
+            // Tentar múltiplas estratégias de parsing
+            const strategies = [
+                () => JSON.parse(jsonString), // Parsing direto
+                () => this.tryFixAndParse(jsonString), // Correção automática
+                () => this.tryFallbackParsing(jsonString) // Parsing manual básico
+            ];
 
-            if (parsed.patterns && Array.isArray(parsed.patterns)) {
-                for (const pattern of parsed.patterns) {
-                    const lineNumber = Math.max(0, Math.min(pattern.line - 1, document.lineCount - 1));
-                    const line = document.lineAt(lineNumber);
-
-                    patterns.push({
-                        type: pattern.type || 'ai-detected',
-                        description: pattern.description || 'Padrão detectado pela IA',
-                        location: new vscode.Range(lineNumber, 0, lineNumber, line.text.length),
-                        severity: pattern.severity || 'info',
-                        suggestion: pattern.suggestion || 'Revisar código',
-                        autoFixAvailable: false
-                    });
+            for (const strategy of strategies) {
+                try {
+                    const parsed = strategy();
+                    if (parsed) {
+                        return this.extractPatternsFromParsed(parsed, document);
+                    }
+                } catch (strategyError) {
+                    const errorMessage = strategyError instanceof Error ? strategyError.message : 'Unknown error';
+                    Logger.debug(`Parsing strategy failed: ${errorMessage}`);
+                    continue;
                 }
             }
 
-            return patterns;
+            Logger.warn('All JSON parsing strategies failed');
+            return [];
 
         } catch (error) {
             Logger.error('Error parsing AI response:', error);
             return [];
         }
+    }
+
+    /**
+     * Extrai JSON da resposta usando múltiplos padrões
+     */
+    private extractJsonFromResponse(response: string): string | null {
+        // Padrões para encontrar JSON
+        const patterns = [
+            /\{[\s\S]*?"patterns"[\s\S]*?\}/,  // Objeto com patterns
+            /\{[\s\S]*?\}/,                    // Qualquer objeto
+            /\[[\s\S]*?\]/                     // Qualquer array
+        ];
+
+        for (const pattern of patterns) {
+            const match = response.match(pattern);
+            if (match) {
+                return match[0];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Tenta corrigir JSON malformado
+     */
+    private tryFixAndParse(jsonString: string): any {
+        let fixed = jsonString;
+        
+        // Corrigir propriedades sem aspas
+        fixed = fixed.replace(/(\w+):/g, '"$1":');
+        
+        // Corrigir aspas simples
+        fixed = fixed.replace(/'/g, '"');
+        
+        // Remover comentários
+        fixed = fixed.replace(/\/\/.*$/gm, '');
+        fixed = fixed.replace(/\/\*[\s\S]*?\*\//g, '');
+        
+        // Corrigir números malformados
+        fixed = fixed.replace(/:\s*0+(\d+)/g, ': $1');
+        
+        // Corrigir vírgulas em falta ou extras
+        fixed = fixed.replace(/,(\s*[}\]])/g, '$1'); // Remove vírgulas antes de } ou ]
+        fixed = fixed.replace(/([}\]])(\s*)([^,\s}\]])/g, '$1,$2$3'); // Adiciona vírgulas após } ou ]
+        fixed = fixed.replace(/([^,\s{[])\s*([{\[])/g, '$1,$2'); // Adiciona vírgulas antes de { ou [
+        
+        // Corrigir strings não terminadas
+        fixed = fixed.replace(/"([^"]*?)$/gm, '"$1"');
+        
+        return JSON.parse(fixed);
+    }
+
+    /**
+     * Parsing manual básico como fallback
+     */
+    private tryFallbackParsing(jsonString: string): any {
+        // Tentar extrair padrões básicos mesmo com JSON quebrado
+        const patterns = [];
+        
+        // Buscar por padrões de "type", "description", etc.
+        const typeMatches = jsonString.match(/"type":\s*"([^"]+)"/g) || [];
+        const descMatches = jsonString.match(/"description":\s*"([^"]+)"/g) || [];
+        const lineMatches = jsonString.match(/"line":\s*(\d+)/g) || [];
+        
+        const maxLength = Math.max(typeMatches.length, descMatches.length, lineMatches.length);
+        
+        for (let i = 0; i < maxLength; i++) {
+            patterns.push({
+                type: typeMatches[i]?.match(/"([^"]+)"/)?.[1] || 'unknown',
+                description: descMatches[i]?.match(/"([^"]+)"/)?.[1] || 'Pattern detected',
+                line: parseInt(lineMatches[i]?.match(/(\d+)/)?.[1] || '1'),
+                severity: 'info',
+                suggestion: 'Review code'
+            });
+        }
+        
+        return { patterns };
+    }
+
+    /**
+     * Extrai padrões do objeto parsed
+     */
+    private extractPatternsFromParsed(parsed: any, document: vscode.TextDocument): DetectedPattern[] {
+        const patterns: DetectedPattern[] = [];
+
+        // Suporte para diferentes formatos de resposta
+        const patternsArray = parsed.patterns || parsed || [];
+        
+        if (Array.isArray(patternsArray)) {
+            for (const pattern of patternsArray) {
+                const lineNumber = Math.max(0, Math.min((pattern.line || 1) - 1, document.lineCount - 1));
+                const line = document.lineAt(lineNumber);
+
+                patterns.push({
+                    type: pattern.type || 'ai-detected',
+                    description: pattern.description || pattern.message || 'Padrão detectado pela IA',
+                    location: new vscode.Range(lineNumber, 0, lineNumber, line.text.length),
+                    severity: pattern.severity || 'info',
+                    suggestion: pattern.suggestion || 'Revisar código',
+                    autoFixAvailable: false
+                });
+            }
+        }
+
+        return patterns;
     }
 
     /**
