@@ -35,7 +35,7 @@ ${currentContext.fullFileContent ? `\nFile Content (excerpt):\n${currentContext.
         retrievalContext.relevantFiles.forEach((file, index) => {
             if (index < 3) { // Limit to top 3 results
                 systemPrompt += `\n\nFile: ${file.split('/').pop()}
-${retrievalContext.relevantContent[index].substring(0, 500)}...
+${retrievalContext.relevantContent[index].substring(0, RELEVANT_CONTENT_CHAR_LIMIT)}...
 (Relevance Score: ${(retrievalContext.embeddingScores[index] * 100).toFixed(1)}%)`;
             }
         });
