@@ -7908,7 +7908,7 @@ Complete a linha atual:`;
    */
   generateCacheKey(textBefore, textAfter, language) {
     const key = `${language}:${textBefore.trim()}:${textAfter.trim()}`;
-    return Buffer.from(key).toString("base64").substring(0, 50);
+    return crypto.createHash("sha256").update(key).digest("hex").substring(0, 50);
   }
   /**
    * Get cached completion if available and not expired
@@ -7919,7 +7919,7 @@ Complete a linha atual:`;
       return null;
     }
     if (Date.now() - cached.timestamp > this.cacheExpiryMs) {
-      this.cache.set(key, cached);
+      this.cache.delete(key);
       return null;
     }
     return cached.completion;

@@ -20,12 +20,12 @@ jobs:
     - name: 🔄 Checkout Code
       uses: actions/checkout@v4
       
-    - name: 🛠️ Setup Node.js
+  - name: 🛠️ Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '18'
         
-    - name: 📊 Get Project Info
+  - name: 📊 Get Project Info
       id: project_info
       run: |
         echo "commit_hash=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
@@ -36,95 +36,112 @@ jobs:
     - name: 📝 Create Notification Message
       id: message
       run: |
-        if [[ "${{ github.event_name }}" == "push" ]]; then
-          MESSAGE="🔥 *NOVO PUSH* no xCopilot!
-        
-        🌿 *Branch:* \`${{ steps.project_info.outputs.branch_name }}\`
-        👤 *Author:* ${{ steps.project_info.outputs.author_name }}
-        🔗 *Commit:* \`${{ steps.project_info.outputs.commit_hash }}\`
-        
-        📝 *Mensagem:*
-        ${{ github.event.head_commit.message }}
-        
-        🔗 [Ver no GitHub](${{ github.event.compare }})"
-        
-        elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-          if [[ "${{ github.event.action }}" == "opened" ]]; then
-            MESSAGE="🎯 *NOVO PULL REQUEST* no xCopilot!
-            
-        🆔 *PR #${{ github.event.number }}*
-        👤 *Author:* ${{ github.event.pull_request.user.login }}
-        🌿 *Branch:* \`${{ github.event.pull_request.head.ref }}\` → \`${{ github.event.pull_request.base.ref }}\`
-        
-        📝 *Título:*
-        ${{ github.event.pull_request.title }}
-        
-        🔗 [Revisar PR](${{ github.event.pull_request.html_url }})"
-        
-          elif [[ "${{ github.event.action }}" == "closed" ]]; then
-            if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
-              MESSAGE="✅ *PR MERGED* no xCopilot!
-              
-        🆔 *PR #${{ github.event.number }}*
-        👤 *Author:* ${{ github.event.pull_request.user.login }}
-        🌿 *Branch:* \`${{ github.event.pull_request.head.ref }}\` → \`${{ github.event.pull_request.base.ref }}\`
-        
-        📝 *Título:*
-        ${{ github.event.pull_request.title }}
-        
-        🎉 *Status:* MERGED com sucesso!"
-            else
-              MESSAGE="❌ *PR FECHADO* no xCopilot!
-              
-        🆔 *PR #${{ github.event.number }}*
-        👤 *Author:* ${{ github.event.pull_request.user.login }}
-        
-        📝 *Título:*
-        ${{ github.event.pull_request.title }}
-        
-        ⚠️ *Status:* Fechado sem merge"
-            fi
+          build_msg() {
+            case "$1" in
+              push)
+                cat <<'TXT'
+  🔥 *NOVO PUSH* no xCopilot!
+  🌿 *Branch:* `${{ steps.project_info.outputs.branch_name }}`
+  👤 *Author:* ${{ steps.project_info.outputs.author_name }}
+  🔗 *Commit:* `${{ steps.project_info.outputs.commit_hash }}`
+
+  📝 *Mensagem:*
+  ${{ github.event.head_commit.message }}
+
+  🔗 [Ver no GitHub](${{ github.event.compare }})
+  TXT
+                ;;
+              pr_open)
+                cat <<'TXT'
+  🎯 *NOVO PULL REQUEST* no xCopilot!
+  🆔 *PR #${{ github.event.number }}*
+  👤 *Author:* ${{ github.event.pull_request.user.login }}
+  🌿 *Branch:* `${{ github.event.pull_request.head.ref }}` → `${{ github.event.pull_request.base.ref }}`
+
+  📝 *Título:*
+  ${{ github.event.pull_request.title }}
+
+  🔗 [Revisar PR](${{ github.event.pull_request.html_url }})
+  TXT
+                ;;
+              pr_merged)
+                cat <<'TXT'
+  ✅ *PR MERGED* no xCopilot!
+  🆔 *PR #${{ github.event.number }}*
+  👤 *Author:* ${{ github.event.pull_request.user.login }}
+  🌿 *Branch:* `${{ github.event.pull_request.head.ref }}` → `${{ github.event.pull_request.base.ref }}`
+
+  📝 *Título:*
+  ${{ github.event.pull_request.title }}
+
+  🎉 *Status:* MERGED com sucesso!
+  TXT
+                ;;
+              pr_closed)
+                cat <<'TXT'
+  ❌ *PR FECHADO* no xCopilot!
+  🆔 *PR #${{ github.event.number }}*
+  👤 *Author:* ${{ github.event.pull_request.user.login }}
+
+  📝 *Título:*
+  ${{ github.event.pull_request.title }}
+
+  ⚠️ *Status:* Fechado sem merge
+  TXT
+                ;;
+              release)
+                cat <<'TXT'
+  🚀 *NOVA RELEASE* do xCopilot!
+  🏷️ *Versão:* ${{ github.event.release.tag_name }}
+  👤 *Author:* ${{ github.event.release.author.login }}
+
+  📝 *Nome:*
+  ${{ github.event.release.name }}
+
+  🔗 [Download Release](${{ github.event.release.html_url }})
+  TXT
+                ;;
+              build_ok)
+                cat <<'TXT'
+  ✅ *BUILD SUCCESS* no xCopilot!
+  🔄 *Workflow:* ${{ github.event.workflow_run.name }}
+  🌿 *Branch:* `${{ github.event.workflow_run.head_branch }}`
+  👤 *Author:* ${{ github.event.workflow_run.head_commit.author.name }}
+
+  ✨ *Status:* Compilação bem-sucedida!
+  TXT
+                ;;
+              build_fail)
+                cat <<'TXT'
+  ❌ *BUILD FAILED* no xCopilot!
+  🔄 *Workflow:* ${{ github.event.workflow_run.name }}
+  🌿 *Branch:* `${{ github.event.workflow_run.head_branch }}`
+  👤 *Author:* ${{ github.event.workflow_run.head_commit.author.name }}
+
+  ⚠️ *Status:* Falha na compilação!
+  TXT
+                ;;
+            esac
+          }
+
+          if [[ "${{ github.event_name }}" == "push" ]]; then RAW_MSG="$(build_msg push)"; fi
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            if [[ "${{ github.event.action }}" == "opened" ]]; then RAW_MSG="$(build_msg pr_open)"; fi
+            if [[ "${{ github.event.action }}" == "closed" && "${{ github.event.pull_request.merged }}" == "true" ]]; then RAW_MSG="$(build_msg pr_merged)"; fi
+            if [[ "${{ github.event.action }}" == "closed" && "${{ github.event.pull_request.merged }}" != "true" ]]; then RAW_MSG="$(build_msg pr_closed)"; fi
           fi
-          
-        elif [[ "${{ github.event_name }}" == "release" ]]; then
-          MESSAGE="🚀 *NOVA RELEASE* do xCopilot!
-          
-        🏷️ *Versão:* ${{ github.event.release.tag_name }}
-        👤 *Author:* ${{ github.event.release.author.login }}
-        
-        📝 *Nome:*
-        ${{ github.event.release.name }}
-        
-        🔗 [Download Release](${{ github.event.release.html_url }})"
-        
-        elif [[ "${{ github.event_name }}" == "workflow_run" ]]; then
-          if [[ "${{ github.event.workflow_run.conclusion }}" == "success" ]]; then
-            MESSAGE="✅ *BUILD SUCCESS* no xCopilot!
-            
-        🔄 *Workflow:* ${{ github.event.workflow_run.name }}
-        🌿 *Branch:* \`${{ github.event.workflow_run.head_branch }}\`
-        👤 *Author:* ${{ github.event.workflow_run.head_commit.author.name }}
-        
-        ✨ *Status:* Compilação bem-sucedida!"
-          else
-            MESSAGE="❌ *BUILD FAILED* no xCopilot!
-            
-        🔄 *Workflow:* ${{ github.event.workflow_run.name }}
-        🌿 *Branch:* \`${{ github.event.workflow_run.head_branch }}\`
-        👤 *Author:* ${{ github.event.workflow_run.head_commit.author.name }}
-        
-        ⚠️ *Status:* Falha na compilação!"
+          if [[ "${{ github.event_name }}" == "release" ]]; then RAW_MSG="$(build_msg release)"; fi
+          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            if [[ "${{ github.event.workflow_run.conclusion }}" == "success" ]]; then RAW_MSG="$(build_msg build_ok)"; else RAW_MSG="$(build_msg build_fail)"; fi
           fi
-        fi
+
+          # Escape completo para MarkdownV2 (documentado pelo Telegram)
+          ESCAPED=$(printf "%s" "$RAW_MSG" | sed -E 's/([_\*\[\]\(\)~`>#+=|{}\.\!-])/\\\\\1/g')
+          echo "telegram_message<<EOF" >> $GITHUB_OUTPUT
+          echo "$ESCAPED" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
         
-        # Escapar caracteres especiais para Markdown
-        MESSAGE=$(echo "$MESSAGE" | sed 's/\./\\./g' | sed 's/-/\\-/g' | sed 's/!/\\!/g')
-        
-        echo "telegram_message<<EOF" >> $GITHUB_OUTPUT
-        echo "$MESSAGE" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-        
-    - name: 📱 Send to Telegram
+  - name: 📱 Send to Telegram
       if: steps.message.outputs.telegram_message != ''
       run: |
         curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
@@ -136,7 +153,7 @@ jobs:
             \"disable_web_page_preview\": true
           }"
         
-    - name: 🎯 Send Status Update
+  - name: 🎯 Send Status Update
       if: always()
       run: |
         if [[ "${{ job.status }}" == "success" ]]; then
