@@ -124,4 +124,40 @@ export class BackendService {
             throw error;
         }
     }
+
+    /**
+     * Faz uma requisição genérica para o backend
+     */
+    async makeRequest(endpoint: string, data: any): Promise<any> {
+        const backendUrl = this.configService.getBackendUrl();
+        const fullUrl = backendUrl.replace('/openai', endpoint);
+        
+        Logger.debug(`Making request to: ${fullUrl}`);
+
+        try {
+            const response = await fetch(fullUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                Logger.error(`API error: ${response.status} - ${errorText}`);
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+
+            const result = await response.json();
+            Logger.debug(`Request completed successfully`);
+            
+            return result;
+
+        } catch (error: any) {
+            Logger.error('Request error:', error);
+            throw error;
+        }
+    }
 }

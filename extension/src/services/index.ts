@@ -1,6 +1,7 @@
 export { BackendService } from './BackendService';
 export { CodeContextService } from './CodeContextService';
 export { CodeExplanationService } from './CodeExplanationService';
+export { CodeGenerationService } from './CodeGenerationService';
 export { CodeSuggestionsService } from './CodeSuggestionsService';
 export { ConfigurationService } from './ConfigurationService';
 export { ConversationHistoryService } from './ConversationHistoryService';

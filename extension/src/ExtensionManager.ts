@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ChatCommands } from './commands';
 import {
     CodeExplanationService,
+    CodeGenerationService,
     CodeSuggestionsService,
     ConfigurationService,
     GhostTextService,
@@ -22,6 +23,7 @@ export class ExtensionManager {
     private configService: ConfigurationService;
     private codeSuggestionsService!: CodeSuggestionsService;
     private codeExplanationService!: CodeExplanationService;
+    private codeGenerationService!: CodeGenerationService;
     private ghostTextService!: GhostTextService;
     private inlineCompletionService!: InlineCompletionService;
     private refactoringService!: RefactoringService;
@@ -52,6 +54,7 @@ export class ExtensionManager {
             // Inicializar todos os serviços IA
             this.codeSuggestionsService = CodeSuggestionsService.getInstance();
             this.codeExplanationService = CodeExplanationService.getInstance();
+            this.codeGenerationService = new CodeGenerationService();
             this.ghostTextService = GhostTextService.getInstance();
             this.inlineCompletionService = InlineCompletionService.getInstance();
             this.refactoringService = RefactoringService.getInstance();
@@ -64,6 +67,7 @@ export class ExtensionManager {
             this.chatCommands.registerCommands(context);
             this.refactoringService.registerCommands(context);
             this.patternDetectionService.registerCommands(context);
+            this.codeGenerationService.registerCommands(context);
             this.registerCodeExplanationCommands(context);
 
             // Registrar providers de código
