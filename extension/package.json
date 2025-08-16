@@ -197,24 +197,24 @@
                 "title": "xCopilot: Mostrar Estatísticas de Completion"
             },
             {
-                "command": "xcopilot.analyzeWorkspace",
-                "title": "xCopilot: Analisar Workspace"
+                "command": "xcopilot.generateFromComments",
+                "title": "xCopilot: Gerar a partir de Coment\u00e1rios"
             },
             {
-                "command": "xcopilot.refreshWorkspaceAnalysis",
-                "title": "xCopilot: Atualizar Análise do Workspace"
+                "command": "xcopilot.implementInterfaces",
+                "title": "xCopilot: Implementar Interfaces"
             },
             {
-                "command": "xcopilot.showWorkspaceStats",
-                "title": "xCopilot: Mostrar Estatísticas do Workspace"
+                "command": "xcopilot.generateFunction",
+                "title": "xCopilot: Gerar Fun\u00e7\u00e3o"
             },
             {
-                "command": "xcopilot.showContextStats",
-                "title": "xCopilot: Mostrar Estatísticas de Contexto"
+                "command": "xcopilot.generatePattern",
+                "title": "xCopilot: Gerar Padr\u00e3o"
             },
             {
-                "command": "xcopilot.clearContextCache",
-                "title": "xCopilot: Limpar Cache de Contexto"
+                "command": "xcopilot.scanTodoComments",
+                "title": "xCopilot: Escanear Coment\u00e1rios TODO"
             }
         ],
         "viewsContainers": {
@@ -349,6 +349,22 @@
                 {
                     "command": "xcopilot.toggleChat",
                     "group": "xcopilot-chat@2"
+                },
+                {
+                    "command": "xcopilot.generateFromComments",
+                    "group": "xcopilot-generate@1"
+                },
+                {
+                    "command": "xcopilot.implementInterfaces",
+                    "group": "xcopilot-generate@2"
+                },
+                {
+                    "command": "xcopilot.generateFunction",
+                    "group": "xcopilot-generate@3"
+                },
+                {
+                    "command": "xcopilot.generatePattern",
+                    "group": "xcopilot-generate@4"
                 }
             ],
             "explorer/context": [
@@ -430,7 +446,11 @@
                 "xcopilot.contextAware.analysisDepth": {
                     "type": "string",
                     "default": "medium",
-                    "enum": ["shallow", "medium", "deep"],
+                    "enum": [
+                        "shallow",
+                        "medium",
+                        "deep"
+                    ],
                     "description": "Profundidade da análise do workspace"
                 },
                 "xcopilot.contextAware.memorySessions": {
@@ -486,26 +506,6 @@
             {
                 "command": "xcopilot.toggleInlineCompletion",
                 "key": "ctrl+alt+i",
-                "when": "editorTextFocus"
-            },
-            {
-                "command": "xcopilot.extractMethod",
-                "key": "ctrl+k ctrl+m",
-                "when": "editorTextFocus && editorHasSelection"
-            },
-            {
-                "command": "xcopilot.extractClass",
-                "key": "ctrl+k ctrl+shift+c",
-                "when": "editorTextFocus && editorHasSelection"
-            },
-            {
-                "command": "xcopilot.convertToAsyncAwait",
-                "key": "ctrl+k ctrl+a",
-                "when": "editorTextFocus"
-            },
-            {
-                "command": "xcopilot.convertToArrowFunction",
-                "key": "ctrl+k ctrl+shift+a",
                 "when": "editorTextFocus"
             }
         ]

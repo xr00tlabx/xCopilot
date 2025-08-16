@@ -18,3 +18,9 @@ export { SemanticSearchService } from './SemanticSearchService';
 export { VectorEmbeddingService } from './VectorEmbeddingService';
 export { WorkspaceAnalysisService } from './WorkspaceAnalysisService';
 
+// Multi-line Code Generation Services
+export { CommentAnalysisService } from './CommentAnalysisService';
+export { CodeGenerationService } from './CodeGenerationService';
+export { ASTAnalysisService } from './ASTAnalysisService';
+export { MultilineCodeGenerationService } from './MultilineCodeGenerationService';
+
