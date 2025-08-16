@@ -15,6 +15,5 @@ export { VectorEmbeddingService } from './VectorEmbeddingService';
 
 // New context-aware services
 export { WorkspaceAnalysisService } from './WorkspaceAnalysisService';
-export { ContextAwareService } from './ContextAwareService';
 export { SemanticSearchService } from './SemanticSearchService';
 
