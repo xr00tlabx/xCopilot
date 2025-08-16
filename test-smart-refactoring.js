@@ -85,12 +85,12 @@ function destructuringTest(user) {
 
 // Expected Results:
 // 1. longFunctionTest should show CodeLens: "💡 Extract function - Function too long"
-// 2. excessiveParametersTest should show CodeLens: "💡 Extrair para classe - Muitos parâmetros"
-// 3. duplicateCode1/2 should show CodeLens: "💡 Extrair método - Código duplicado"
+// 2. excessiveParametersTest should show CodeLens: "💡 Extract to class - Too many parameters"
+// 3. duplicateCode1/2 should show CodeLens: "💡 Extract method - Duplicate code"
 // 4. highComplexityTest should show warning in Problems panel
 // 5. magicNumbersTest should show info suggestions for magic numbers
-// 6. callbackTest should show CodeLens: "💡 Converter para async/await"
-// 7. traditionalFunctionTest should show CodeLens: "💡 Converter para arrow function"
-// 8. destructuringTest should show CodeLens: "💡 Usar destructuring"
+// 6. callbackTest should show CodeLens: "💡 Convert to async/await"
+// 7. traditionalFunctionTest should show CodeLens: "💡 Convert to arrow function"
+// 8. destructuringTest should show CodeLens: "💡 Use destructuring"
 
 console.log('Test cases loaded. Open this file in VS Code to see CodeLens suggestions.');

@@ -121,13 +121,13 @@ export class RefactoringService {
     private async refactorSelectedCode(): Promise<void> {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
-            vscode.window.showWarningMessage('Nenhum editor ativo encontrado');
+            vscode.window.showWarningMessage('No active editor found');
             return;
         }
 
         const selection = editor.selection;
         if (selection.isEmpty) {
-            vscode.window.showWarningMessage('Selecione o código para refatorar');
+            vscode.window.showWarningMessage('Select code to refactor');
             return;
         }
 
@@ -135,33 +135,33 @@ export class RefactoringService {
             const selectedText = editor.document.getText(selection);
             const context = this.contextService.getCurrentContext();
 
-            vscode.window.showInformationMessage('🔧 Analisando código para refatoração...');
+            vscode.window.showInformationMessage('🔧 Analyzing code for refactoring...');
 
             const refactoredCode = await this.generateRefactoredCode(selectedText, context, editor.document.languageId);
 
             if (refactoredCode && refactoredCode !== selectedText) {
                 const choice = await vscode.window.showInformationMessage(
-                    'Código refatorado gerado! Deseja aplicar as mudanças?',
-                    'Aplicar',
-                    'Visualizar',
-                    'Cancelar'
+                    'Refactored code generated! Do you want to apply the changes?',
+                    'Apply',
+                    'Preview',
+                    'Cancel'
                 );
 
-                if (choice === 'Aplicar') {
+                if (choice === 'Apply') {
                     await editor.edit(editBuilder => {
                         editBuilder.replace(selection, refactoredCode);
                     });
-                    vscode.window.showInformationMessage('✅ Refatoração aplicada com sucesso!');
-                } else if (choice === 'Visualizar') {
+                    vscode.window.showInformationMessage('✅ Refactoring applied successfully!');
+                } else if (choice === 'Preview') {
                     await this.showRefactoringPreview(selectedText, refactoredCode);
                 }
             } else {
-                vscode.window.showInformationMessage('Nenhuma melhoria de refatoração foi identificada');
+                vscode.window.showInformationMessage('No refactoring improvements identified');
             }
 
         } catch (error) {
             Logger.error('Error refactoring code:', error);
-            vscode.window.showErrorMessage('Erro ao refatorar código');
+            vscode.window.showErrorMessage('Error refactoring code');
         }
     }
 
@@ -174,14 +174,14 @@ export class RefactoringService {
 
         const selection = editor.selection;
         if (selection.isEmpty) {
-            vscode.window.showWarningMessage('Selecione o código para extrair em função');
+            vscode.window.showWarningMessage('Select code to extract into function');
             return;
         }
 
         try {
             const selectedText = editor.document.getText(selection);
             const functionName = await vscode.window.showInputBox({
-                prompt: 'Nome da nova função:',
+                prompt: 'New function name:',
                 value: 'extractedFunction'
             });
 
@@ -205,12 +205,12 @@ export class RefactoringService {
                     editBuilder.insert(insertPosition, `\n${extraction.functionDefinition}\n`);
                 });
 
-                vscode.window.showInformationMessage(`✅ Função "${functionName}" extraída com sucesso!`);
+                vscode.window.showInformationMessage(`✅ Function "${functionName}" extracted successfully!`);
             }
 
         } catch (error) {
             Logger.error('Error extracting function:', error);
-            vscode.window.showErrorMessage('Erro ao extrair função');
+            vscode.window.showErrorMessage('Error extracting function');
         }
     }
 
@@ -223,14 +223,14 @@ export class RefactoringService {
 
         const selection = editor.selection;
         if (selection.isEmpty) {
-            vscode.window.showWarningMessage('Selecione a expressão para extrair em variável');
+            vscode.window.showWarningMessage('Select the expression to extract into variable');
             return;
         }
 
         try {
             const selectedText = editor.document.getText(selection);
             const variableName = await vscode.window.showInputBox({
-                prompt: 'Nome da nova variável:',
+                prompt: 'New variable name:',
                 value: 'extractedVariable'
             });
 
@@ -259,7 +259,7 @@ export class RefactoringService {
 
         } catch (error) {
             Logger.error('Error extracting variable:', error);
-            vscode.window.showErrorMessage('Erro ao extrair variável');
+            vscode.window.showErrorMessage('Error extracting variable');
         }
     }
 
@@ -271,7 +271,7 @@ export class RefactoringService {
         if (!editor) return;
 
         try {
-            vscode.window.showInformationMessage('🔧 Otimizando imports...');
+            vscode.window.showInformationMessage('🔧 Optimizing imports...');
 
             const fileContent = editor.document.getText();
             const context = this.contextService.getCurrentContext();
@@ -284,7 +284,7 @@ export class RefactoringService {
 
             if (optimizedImports && optimizedImports !== fileContent) {
                 const choice = await vscode.window.showInformationMessage(
-                    'Imports otimizados! Aplicar mudanças?',
+                    'Imports optimized! Apply changes?',
                     'Aplicar',
                     'Cancelar'
                 );
@@ -299,15 +299,15 @@ export class RefactoringService {
                         editBuilder.replace(fullRange, optimizedImports);
                     });
 
-                    vscode.window.showInformationMessage('✅ Imports otimizados com sucesso!');
+                    vscode.window.showInformationMessage('✅ Imports optimized successfully!');
                 }
             } else {
-                vscode.window.showInformationMessage('Imports já estão otimizados');
+                vscode.window.showInformationMessage('Imports are already optimized');
             }
 
         } catch (error) {
             Logger.error('Error optimizing imports:', error);
-            vscode.window.showErrorMessage('Erro ao otimizar imports');
+            vscode.window.showErrorMessage('Error optimizing imports');
         }
     }
 
@@ -326,7 +326,7 @@ export class RefactoringService {
         ];
 
         const pattern = await vscode.window.showQuickPick(patterns, {
-            placeHolder: 'Selecione o padrão de design a aplicar'
+            placeHolder: 'Select the design pattern to apply'
         });
 
         if (!pattern) return;
@@ -357,7 +357,7 @@ export class RefactoringService {
 
         } catch (error) {
             Logger.error('Error applying design pattern:', error);
-            vscode.window.showErrorMessage('Erro ao aplicar padrão de design');
+            vscode.window.showErrorMessage('Error applying design pattern');
         }
     }
 
@@ -411,7 +411,7 @@ export class RefactoringService {
                 editor.document.getText(editor.selection);
 
             const className = await vscode.window.showInputBox({
-                prompt: 'Nome da nova classe:',
+                prompt: 'New class name:',
                 value: 'ExtractedClass'
             });
 
@@ -431,7 +431,7 @@ export class RefactoringService {
 
         } catch (error) {
             Logger.error('Error extracting class:', error);
-            vscode.window.showErrorMessage('Erro ao extrair classe');
+            vscode.window.showErrorMessage('Error extracting class');
         }
     }
 
@@ -458,7 +458,7 @@ export class RefactoringService {
             }
 
             const functionName = await vscode.window.showInputBox({
-                prompt: 'Nome da função para o código extraído:',
+                prompt: 'Function name for extracted code:',
                 value: 'extractedFunction'
             });
 
@@ -468,7 +468,7 @@ export class RefactoringService {
 
         } catch (error) {
             Logger.error('Error extracting duplicated code:', error);
-            vscode.window.showErrorMessage('Erro ao extrair código duplicado');
+            vscode.window.showErrorMessage('Error extracting duplicated code');
         }
     }
 
@@ -494,12 +494,12 @@ export class RefactoringService {
                 await editor.edit(editBuilder => {
                     editBuilder.replace(line.range, convertedCode);
                 });
-                vscode.window.showInformationMessage('✅ Convertido para async/await!');
+                vscode.window.showInformationMessage('✅ Converted to async/await!');
             }
 
         } catch (error) {
             Logger.error('Error converting to async/await:', error);
-            vscode.window.showErrorMessage('Erro ao converter para async/await');
+            vscode.window.showErrorMessage('Error converting to async/await');
         }
     }
 
@@ -525,12 +525,12 @@ export class RefactoringService {
                 await editor.edit(editBuilder => {
                     editBuilder.replace(line.range, convertedCode);
                 });
-                vscode.window.showInformationMessage('✅ Convertido para arrow function!');
+                vscode.window.showInformationMessage('✅ Converted to arrow function!');
             }
 
         } catch (error) {
             Logger.error('Error converting to arrow function:', error);
-            vscode.window.showErrorMessage('Erro ao converter para arrow function');
+            vscode.window.showErrorMessage('Error converting to arrow function');
         }
     }
 
@@ -556,12 +556,12 @@ export class RefactoringService {
                 await editor.edit(editBuilder => {
                     editBuilder.replace(line.range, destructuredCode);
                 });
-                vscode.window.showInformationMessage('✅ Destructuring aplicado!');
+                vscode.window.showInformationMessage('✅ Destructuring applied!');
             }
 
         } catch (error) {
             Logger.error('Error applying destructuring:', error);
-            vscode.window.showErrorMessage('Erro ao aplicar destructuring');
+            vscode.window.showErrorMessage('Error applying destructuring');
         }
     }
 
@@ -583,19 +583,19 @@ export class RefactoringService {
             const availableClasses = await this.findAvailableClasses(editor.document);
             
             if (availableClasses.length === 0 && availableFiles.length === 0) {
-                vscode.window.showWarningMessage('Nenhuma classe de destino encontrada');
+                vscode.window.showWarningMessage('No target classes found');
                 return;
             }
 
             // Escolher entre classe no mesmo arquivo ou arquivo diferente
-            const moveOptions = ['Classe no mesmo arquivo', 'Arquivo diferente'];
+            const moveOptions = ['Class in same file', 'Different file'];
             const moveType = await vscode.window.showQuickPick(moveOptions, {
-                placeHolder: 'Onde deseja mover o método?'
+                placeHolder: 'Where do you want to move the method?'
             });
 
             if (!moveType) return;
 
-            if (moveType === 'Classe no mesmo arquivo') {
+            if (moveType === 'Class in same file') {
                 await this.moveMethodToSameFile(editor, selection, availableClasses);
             } else {
                 await this.moveMethodToOtherFile(editor, selection, availableFiles);
@@ -603,7 +603,7 @@ export class RefactoringService {
 
         } catch (error) {
             Logger.error('Error moving method:', error);
-            vscode.window.showErrorMessage('Erro ao mover método');
+            vscode.window.showErrorMessage('Error moving method');
         }
     }
 
@@ -616,7 +616,7 @@ export class RefactoringService {
         availableClasses: string[]
     ): Promise<void> {
         const targetClass = await vscode.window.showQuickPick(availableClasses, {
-            placeHolder: 'Selecione a classe de destino'
+            placeHolder: 'Select the target class'
         });
 
         if (!targetClass) return;
@@ -639,7 +639,7 @@ export class RefactoringService {
         }));
 
         const selectedFile = await vscode.window.showQuickPick(fileQuickPicks, {
-            placeHolder: 'Selecione o arquivo de destino'
+            placeHolder: 'Select the target file'
         });
 
         if (!selectedFile) return;
@@ -649,12 +649,12 @@ export class RefactoringService {
         const targetClasses = await this.findAvailableClasses(targetDocument);
 
         if (targetClasses.length === 0) {
-            vscode.window.showWarningMessage('Nenhuma classe encontrada no arquivo de destino');
+            vscode.window.showWarningMessage('No classes found in target file');
             return;
         }
 
         const targetClass = await vscode.window.showQuickPick(targetClasses, {
-            placeHolder: 'Selecione a classe de destino'
+            placeHolder: 'Select the target class'
         });
 
         if (!targetClass) return;
@@ -674,14 +674,14 @@ export class RefactoringService {
         const methodCode = sourceEditor.document.getText(methodRange);
 
         const choice = await vscode.window.showInformationMessage(
-            `Mover método para a classe "${targetClass}" no arquivo "${vscode.workspace.asRelativePath(targetDocument.uri)}"?`,
-            'Mover',
-            'Cancelar'
+            `Move method to class "${targetClass}" in file "${vscode.workspace.asRelativePath(targetDocument.uri)}"?`,
+            'Move',
+            'Cancel'
         );
 
-        if (choice !== 'Mover') return;
+        if (choice !== 'Move') return;
 
-        // Abrir editor do arquivo de destino
+        // Open target file editor
         const targetEditor = await vscode.window.showTextDocument(targetDocument);
 
         // Adicionar método ao arquivo de destino
@@ -697,7 +697,7 @@ export class RefactoringService {
             editBuilder.delete(methodRange);
         });
 
-        vscode.window.showInformationMessage(`✅ Método movido para "${targetClass}" em ${vscode.workspace.asRelativePath(targetDocument.uri)}!`);
+        vscode.window.showInformationMessage(`✅ Method moved to "${targetClass}" in ${vscode.workspace.asRelativePath(targetDocument.uri)}!`);
     }
 
     /**
@@ -717,39 +717,39 @@ export class RefactoringService {
             }
 
             const choice = await vscode.window.showInformationMessage(
-                `Encontrados ${files.length} arquivo(s) de código. Deseja prosseguir com a refatoração do workspace?`,
-                'Prosseguir',
-                'Cancelar'
+                `Found ${files.length} code file(s). Do you want to proceed with workspace refactoring?`,
+                'Proceed',
+                'Cancel'
             );
 
-            if (choice !== 'Prosseguir') return;
+            if (choice !== 'Proceed') return;
 
-            // Escolher tipos de refatoração
+            // Choose refactoring types
             const refactoringTypes = [
-                'Otimizar Imports',
-                'Converter para ES6+',
-                'Aplicar Padrões de Design',
-                'Extrair Código Duplicado',
-                'Todas as Opções'
+                'Optimize Imports',
+                'Convert to ES6+',
+                'Apply Design Patterns',
+                'Extract Duplicate Code',
+                'All Options'
             ];
 
             const selectedTypes = await vscode.window.showQuickPick(refactoringTypes, {
-                placeHolder: 'Selecione os tipos de refatoração',
+                placeHolder: 'Select refactoring types',
                 canPickMany: true
             });
 
             if (!selectedTypes || selectedTypes.length === 0) return;
 
-            vscode.window.showInformationMessage('🔧 Iniciando refatoração do workspace...');
+            vscode.window.showInformationMessage('🔧 Starting workspace refactoring...');
 
             const results = await this.processWorkspaceFiles(files, selectedTypes);
 
-            // Mostrar relatório de resultados
+            // Show results report
             await this.showWorkspaceRefactoringReport(results);
 
         } catch (error) {
             Logger.error('Error refactoring workspace:', error);
-            vscode.window.showErrorMessage('Erro ao refatorar workspace');
+            vscode.window.showErrorMessage('Error refactoring workspace');
         }
     }
 
@@ -775,7 +775,7 @@ export class RefactoringService {
 
                 // Atualizar progresso
                 vscode.window.showInformationMessage(
-                    `Processando: ${vscode.workspace.asRelativePath(fileUri)}`
+                    `Processing: ${vscode.workspace.asRelativePath(fileUri)}`
                 );
 
             } catch (error) {
@@ -807,8 +807,8 @@ export class RefactoringService {
             for (const refactoringType of refactoringTypes) {
                 try {
                     switch (refactoringType) {
-                        case 'Otimizar Imports':
-                        case 'Todas as Opções':
+                        case 'Optimize Imports':
+                        case 'All Options':
                             const optimizedImports = await this.generateOptimizedImports(
                                 modifiedContent,
                                 {},
@@ -816,29 +816,29 @@ export class RefactoringService {
                             );
                             if (optimizedImports !== modifiedContent) {
                                 modifiedContent = optimizedImports;
-                                changes.push('Imports otimizados');
+                                changes.push('Imports optimized');
                             }
                             break;
 
-                        case 'Converter para ES6+':
+                        case 'Convert to ES6+':
                             const modernizedCode = await this.modernizeCodeForFile(
                                 modifiedContent,
                                 document.languageId
                             );
                             if (modernizedCode !== modifiedContent) {
                                 modifiedContent = modernizedCode;
-                                changes.push('Código modernizado para ES6+');
+                                changes.push('Code modernized to ES6+');
                             }
                             break;
 
-                        case 'Extrair Código Duplicado':
+                        case 'Extract Duplicate Code':
                             const deduplicatedCode = await this.extractDuplicatesInFile(
                                 modifiedContent,
                                 document
                             );
                             if (deduplicatedCode !== modifiedContent) {
                                 modifiedContent = deduplicatedCode;
-                                changes.push('Código duplicado extraído');
+                                changes.push('Duplicate code extracted');
                             }
                             break;
                     }
@@ -916,32 +916,32 @@ Retorne APENAS o código modernizado:
         const filesWithChanges = results.filter(r => r.changes.length > 0).length;
         const filesWithErrors = results.filter(r => r.errors.length > 0).length;
 
-        let report = `# Relatório de Refatoração do Workspace\n\n`;
-        report += `**Arquivos processados**: ${totalFiles}\n`;
-        report += `**Arquivos modificados**: ${filesWithChanges}\n`;
-        report += `**Arquivos com erros**: ${filesWithErrors}\n\n`;
+        let report = `# Workspace Refactoring Report\n\n`;
+        report += `**Files processed**: ${totalFiles}\n`;
+        report += `**Files modified**: ${filesWithChanges}\n`;
+        report += `**Files with errors**: ${filesWithErrors}\n\n`;
 
-        report += `## Detalhes por Arquivo\n\n`;
+        report += `## Details by File\n\n`;
 
         for (const result of results) {
             report += `### ${result.file}\n`;
             
             if (result.changes.length > 0) {
-                report += `**Mudanças aplicadas**:\n`;
+                report += `**Changes applied**:\n`;
                 for (const change of result.changes) {
                     report += `- ✅ ${change}\n`;
                 }
             }
 
             if (result.errors.length > 0) {
-                report += `**Erros encontrados**:\n`;
+                report += `**Errors found**:\n`;
                 for (const error of result.errors) {
                     report += `- ❌ ${error}\n`;
                 }
             }
 
             if (result.changes.length === 0 && result.errors.length === 0) {
-                report += `- ℹ️ Nenhuma mudança necessária\n`;
+                report += `- ℹ️ No changes needed\n`;
             }
 
             report += `\n`;
@@ -956,7 +956,7 @@ Retorne APENAS o código modernizado:
         await vscode.window.showTextDocument(doc);
 
         vscode.window.showInformationMessage(
-            `✅ Refatoração do workspace concluída! ${filesWithChanges}/${totalFiles} arquivos modificados.`
+            `✅ Workspace refactoring completed! ${filesWithChanges}/${totalFiles} files modified.`
         );
     }
     private async findAvailableFiles(): Promise<vscode.Uri[]> {
@@ -1183,7 +1183,7 @@ Retorne APENAS o código refatorado com o padrão aplicado:
 
             vscode.window.showInformationMessage('✅ Refatoração aplicada com sucesso!');
         } else {
-            vscode.window.showWarningMessage('Não foi possível aplicar a refatoração automaticamente');
+            vscode.window.showWarningMessage('Unable to apply refactoring automatically');
         }
     }
 
@@ -1213,12 +1213,12 @@ Retorne APENAS o código refatorado com o padrão aplicado:
      */
     private async showPatternPreview(original: string, pattern: string, patternName: string): Promise<void> {
         const choice = await vscode.window.showInformationMessage(
-            `Padrão ${patternName} gerado! Deseja visualizar?`,
-            'Visualizar',
-            'Cancelar'
+            `Pattern ${patternName} generated! Do you want to view it?`,
+            'View',
+            'Cancel'
         );
 
-        if (choice === 'Visualizar') {
+        if (choice === 'View') {
             const doc = await vscode.workspace.openTextDocument({
                 content: `// PADRÃO ${patternName.toUpperCase()} APLICADO:\n\n${pattern}`,
                 language: 'typescript'
@@ -1331,7 +1331,7 @@ Retorne APENAS o código da classe:
             editBuilder.insert(insertPosition, `\n${extraction.functionDefinition}\n`);
         });
 
-        vscode.window.showInformationMessage(`✅ ${duplicates.length} duplicatas extraídas para "${functionName}"!`);
+        vscode.window.showInformationMessage(`✅ ${duplicates.length} duplicates extracted to "${functionName}"!`);
     }
 
     /**
@@ -1444,12 +1444,12 @@ Retorne APENAS o código com destructuring aplicado:
         targetClass: string
     ): Promise<void> {
         const choice = await vscode.window.showInformationMessage(
-            `Mover método para a classe "${targetClass}"?`,
-            'Mover',
-            'Cancelar'
+            `Move method to class "${targetClass}"?`,
+            'Move',
+            'Cancel'
         );
 
-        if (choice !== 'Mover') return;
+        if (choice !== 'Move') return;
 
         // Remover método da posição original
         await editor.edit(editBuilder => {
@@ -1464,7 +1464,7 @@ Retorne APENAS o código com destructuring aplicado:
             });
         }
 
-        vscode.window.showInformationMessage(`✅ Método movido para "${targetClass}"!`);
+        vscode.window.showInformationMessage(`✅ Method moved to "${targetClass}"!`);
     }
 
     /**
@@ -1501,26 +1501,26 @@ Retorne APENAS o código com destructuring aplicado:
      */
     private async showExtractClassPreview(original: string, extracted: string, className: string): Promise<void> {
         const choice = await vscode.window.showInformationMessage(
-            `Classe "${className}" gerada! Deseja visualizar?`,
-            'Aplicar',
-            'Visualizar',
-            'Cancelar'
+            `Class "${className}" generated! Do you want to view it?`,
+            'Apply',
+            'View',
+            'Cancel'
         );
 
-        if (choice === 'Visualizar') {
+        if (choice === 'View') {
             const doc = await vscode.workspace.openTextDocument({
-                content: `// CLASSE EXTRAÍDA: ${className}\n\n${extracted}`,
+                content: `// EXTRACTED CLASS: ${className}\n\n${extracted}`,
                 language: 'typescript'
             });
             await vscode.window.showTextDocument(doc);
-        } else if (choice === 'Aplicar') {
+        } else if (choice === 'Apply') {
             const editor = vscode.window.activeTextEditor;
             if (editor) {
                 const insertPosition = this.findBestInsertionPoint(editor.document);
                 await editor.edit(editBuilder => {
                     editBuilder.insert(insertPosition, `\n${extracted}\n`);
                 });
-                vscode.window.showInformationMessage(`✅ Classe "${className}" criada!`);
+                vscode.window.showInformationMessage(`✅ Class "${className}" created!`);
             }
         }
     }

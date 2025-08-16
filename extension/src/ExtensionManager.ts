@@ -213,7 +213,7 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
     private setupConfigurationWatcher(context: vscode.ExtensionContext): void {
         const configWatcher = vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('xcopilot')) {
-                Logger.info('🔄 Configuration changed, reloading services...');
+                Logger.info('🔄 Configuration changed, refreshing CodeLens provider...');
                 // Recarregar configurações dos serviços se necessário
                 this.refactoringCodeLensProvider.refresh();
             }

@@ -177,10 +177,10 @@ export class PatternDetectionService {
             if (this.hasTooManyParameters(line)) {
                 patterns.push({
                     type: 'excessive-parameters',
-                    description: 'Função com muitos parâmetros detectada',
+                    description: 'Function with too many parameters detected',
                     location: new vscode.Range(lineNumber, 0, lineNumber, line.length),
                     severity: 'warning',
-                    suggestion: 'Considere usar um objeto ou extrair para classe',
+                    suggestion: 'Consider using an object or extracting to a class',
                     autoFixAvailable: true
                 });
             }

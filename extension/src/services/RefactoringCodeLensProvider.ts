@@ -81,7 +81,7 @@ export class RefactoringCodeLensProvider implements vscode.CodeLensProvider {
                 suggestions.push({
                     range: new vscode.Range(lineNumber, 0, lineNumber, line.length),
                     type: 'extract-method',
-                    description: 'Extrair função - Função muito longa',
+                    description: 'Extract function - Function too long',
                     command: 'xcopilot.extractMethod',
                     args: [document.uri, functionRange]
                 });
@@ -92,7 +92,7 @@ export class RefactoringCodeLensProvider implements vscode.CodeLensProvider {
                 suggestions.push({
                     range: new vscode.Range(lineNumber, 0, lineNumber, line.length),
                     type: 'extract-class',
-                    description: 'Extrair para classe - Muitos parâmetros',
+                    description: 'Extract to class - Too many parameters',
                     command: 'xcopilot.extractClass',
                     args: [document.uri, new vscode.Range(lineNumber, 0, lineNumber, line.length)]
                 });
@@ -128,7 +128,7 @@ export class RefactoringCodeLensProvider implements vscode.CodeLensProvider {
             suggestions.push({
                 range: new vscode.Range(lineNumber, 0, lineNumber, line.length),
                 type: 'modernize-async',
-                description: 'Converter para async/await',
+                description: 'Convert to async/await',
                 command: 'xcopilot.convertToAsyncAwait',
                 args: [lineNumber]
             });
@@ -139,7 +139,7 @@ export class RefactoringCodeLensProvider implements vscode.CodeLensProvider {
             suggestions.push({
                 range: new vscode.Range(lineNumber, 0, lineNumber, line.length),
                 type: 'modernize-arrow',
-                description: 'Converter para arrow function',
+                description: 'Convert to arrow function',
                 command: 'xcopilot.convertToArrowFunction',
                 args: [lineNumber]
             });
@@ -150,7 +150,7 @@ export class RefactoringCodeLensProvider implements vscode.CodeLensProvider {
             suggestions.push({
                 range: new vscode.Range(lineNumber, 0, lineNumber, line.length),
                 type: 'modernize-destructuring',
-                description: 'Usar destructuring',
+                description: 'Use destructuring',
                 command: 'xcopilot.applyDestructuring',
                 args: [lineNumber]
             });

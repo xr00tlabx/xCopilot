@@ -8146,10 +8146,10 @@ var PatternDetectionService = class _PatternDetectionService {
       if (this.hasTooManyParameters(line)) {
         patterns.push({
           type: "excessive-parameters",
-          description: "Fun\xE7\xE3o com muitos par\xE2metros detectada",
+          description: "Function with too many parameters detected",
           location: new vscode9.Range(lineNumber, 0, lineNumber, line.length),
           severity: "warning",
-          suggestion: "Considere usar um objeto ou extrair para classe",
+          suggestion: "Consider using an object or extracting to a class",
           autoFixAvailable: true
         });
       }
@@ -8550,40 +8550,40 @@ var RefactoringService = class _RefactoringService {
   async refactorSelectedCode() {
     const editor = vscode10.window.activeTextEditor;
     if (!editor) {
-      vscode10.window.showWarningMessage("Nenhum editor ativo encontrado");
+      vscode10.window.showWarningMessage("No active editor found");
       return;
     }
     const selection = editor.selection;
     if (selection.isEmpty) {
-      vscode10.window.showWarningMessage("Selecione o c\xF3digo para refatorar");
+      vscode10.window.showWarningMessage("Select code to refactor");
       return;
     }
     try {
       const selectedText = editor.document.getText(selection);
       const context = this.contextService.getCurrentContext();
-      vscode10.window.showInformationMessage("\u{1F527} Analisando c\xF3digo para refatora\xE7\xE3o...");
+      vscode10.window.showInformationMessage("\u{1F527} Analyzing code for refactoring...");
       const refactoredCode = await this.generateRefactoredCode(selectedText, context, editor.document.languageId);
       if (refactoredCode && refactoredCode !== selectedText) {
         const choice = await vscode10.window.showInformationMessage(
-          "C\xF3digo refatorado gerado! Deseja aplicar as mudan\xE7as?",
-          "Aplicar",
-          "Visualizar",
-          "Cancelar"
+          "Refactored code generated! Do you want to apply the changes?",
+          "Apply",
+          "Preview",
+          "Cancel"
         );
-        if (choice === "Aplicar") {
+        if (choice === "Apply") {
           await editor.edit((editBuilder) => {
             editBuilder.replace(selection, refactoredCode);
           });
-          vscode10.window.showInformationMessage("\u2705 Refatora\xE7\xE3o aplicada com sucesso!");
-        } else if (choice === "Visualizar") {
+          vscode10.window.showInformationMessage("\u2705 Refactoring applied successfully!");
+        } else if (choice === "Preview") {
           await this.showRefactoringPreview(selectedText, refactoredCode);
         }
       } else {
-        vscode10.window.showInformationMessage("Nenhuma melhoria de refatora\xE7\xE3o foi identificada");
+        vscode10.window.showInformationMessage("No refactoring improvements identified");
       }
     } catch (error) {
       Logger.error("Error refactoring code:", error);
-      vscode10.window.showErrorMessage("Erro ao refatorar c\xF3digo");
+      vscode10.window.showErrorMessage("Error refactoring code");
     }
   }
   /**
@@ -8595,13 +8595,13 @@ var RefactoringService = class _RefactoringService {
       return;
     const selection = editor.selection;
     if (selection.isEmpty) {
-      vscode10.window.showWarningMessage("Selecione o c\xF3digo para extrair em fun\xE7\xE3o");
+      vscode10.window.showWarningMessage("Select code to extract into function");
       return;
     }
     try {
       const selectedText = editor.document.getText(selection);
       const functionName = await vscode10.window.showInputBox({
-        prompt: "Nome da nova fun\xE7\xE3o:",
+        prompt: "New function name:",
         value: "extractedFunction"
       });
       if (!functionName)
@@ -8621,11 +8621,11 @@ var RefactoringService = class _RefactoringService {
 ${extraction.functionDefinition}
 `);
         });
-        vscode10.window.showInformationMessage(`\u2705 Fun\xE7\xE3o "${functionName}" extra\xEDda com sucesso!`);
+        vscode10.window.showInformationMessage(`\u2705 Function "${functionName}" extracted successfully!`);
       }
     } catch (error) {
       Logger.error("Error extracting function:", error);
-      vscode10.window.showErrorMessage("Erro ao extrair fun\xE7\xE3o");
+      vscode10.window.showErrorMessage("Error extracting function");
     }
   }
   /**
@@ -8637,13 +8637,13 @@ ${extraction.functionDefinition}
       return;
     const selection = editor.selection;
     if (selection.isEmpty) {
-      vscode10.window.showWarningMessage("Selecione a express\xE3o para extrair em vari\xE1vel");
+      vscode10.window.showWarningMessage("Select the expression to extract into variable");
       return;
     }
     try {
       const selectedText = editor.document.getText(selection);
       const variableName = await vscode10.window.showInputBox({
-        prompt: "Nome da nova vari\xE1vel:",
+        prompt: "New variable name:",
         value: "extractedVariable"
       });
       if (!variableName)
@@ -8666,7 +8666,7 @@ ${extraction.functionDefinition}
       }
     } catch (error) {
       Logger.error("Error extracting variable:", error);
-      vscode10.window.showErrorMessage("Erro ao extrair vari\xE1vel");
+      vscode10.window.showErrorMessage("Error extracting variable");
     }
   }
   /**
@@ -8677,7 +8677,7 @@ ${extraction.functionDefinition}
     if (!editor)
       return;
     try {
-      vscode10.window.showInformationMessage("\u{1F527} Otimizando imports...");
+      vscode10.window.showInformationMessage("\u{1F527} Optimizing imports...");
       const fileContent = editor.document.getText();
       const context = this.contextService.getCurrentContext();
       const optimizedImports = await this.generateOptimizedImports(
@@ -8687,7 +8687,7 @@ ${extraction.functionDefinition}
       );
       if (optimizedImports && optimizedImports !== fileContent) {
         const choice = await vscode10.window.showInformationMessage(
-          "Imports otimizados! Aplicar mudan\xE7as?",
+          "Imports optimized! Apply changes?",
           "Aplicar",
           "Cancelar"
         );
@@ -8699,14 +8699,14 @@ ${extraction.functionDefinition}
           await editor.edit((editBuilder) => {
             editBuilder.replace(fullRange, optimizedImports);
           });
-          vscode10.window.showInformationMessage("\u2705 Imports otimizados com sucesso!");
+          vscode10.window.showInformationMessage("\u2705 Imports optimized successfully!");
         }
       } else {
-        vscode10.window.showInformationMessage("Imports j\xE1 est\xE3o otimizados");
+        vscode10.window.showInformationMessage("Imports are already optimized");
       }
     } catch (error) {
       Logger.error("Error optimizing imports:", error);
-      vscode10.window.showErrorMessage("Erro ao otimizar imports");
+      vscode10.window.showErrorMessage("Error optimizing imports");
     }
   }
   /**
@@ -8723,7 +8723,7 @@ ${extraction.functionDefinition}
       "Decorator"
     ];
     const pattern = await vscode10.window.showQuickPick(patterns, {
-      placeHolder: "Selecione o padr\xE3o de design a aplicar"
+      placeHolder: "Select the design pattern to apply"
     });
     if (!pattern)
       return;
@@ -8746,7 +8746,7 @@ ${extraction.functionDefinition}
       }
     } catch (error) {
       Logger.error("Error applying design pattern:", error);
-      vscode10.window.showErrorMessage("Erro ao aplicar padr\xE3o de design");
+      vscode10.window.showErrorMessage("Error applying design pattern");
     }
   }
   /**
@@ -8768,7 +8768,7 @@ ${extraction.functionDefinition}
       selection = editor.selection;
     }
     if (!selection || selection.isEmpty) {
-      vscode10.window.showWarningMessage("Selecione o c\xF3digo para extrair em m\xE9todo");
+      vscode10.window.showWarningMessage("Select code to extract into method");
       return;
     }
     await this.extractFunction();
@@ -8787,7 +8787,7 @@ ${extraction.functionDefinition}
     try {
       const selectedText = range ? editor.document.getText(range) : editor.document.getText(editor.selection);
       const className = await vscode10.window.showInputBox({
-        prompt: "Nome da nova classe:",
+        prompt: "New class name:",
         value: "ExtractedClass"
       });
       if (!className)
@@ -8804,7 +8804,7 @@ ${extraction.functionDefinition}
       }
     } catch (error) {
       Logger.error("Error extracting class:", error);
-      vscode10.window.showErrorMessage("Erro ao extrair classe");
+      vscode10.window.showErrorMessage("Error extracting class");
     }
   }
   /**
@@ -8822,11 +8822,11 @@ ${extraction.functionDefinition}
       const targetLine = range ? range.start.line : editor.selection.start.line;
       const duplicates = await this.findDuplicatedCode(editor.document, targetLine);
       if (duplicates.length < 2) {
-        vscode10.window.showInformationMessage("C\xF3digo duplicado n\xE3o encontrado suficientemente");
+        vscode10.window.showInformationMessage("Insufficient duplicate code found");
         return;
       }
       const functionName = await vscode10.window.showInputBox({
-        prompt: "Nome da fun\xE7\xE3o para o c\xF3digo extra\xEDdo:",
+        prompt: "Function name for extracted code:",
         value: "extractedFunction"
       });
       if (!functionName)
@@ -8834,7 +8834,7 @@ ${extraction.functionDefinition}
       await this.extractDuplicatesIntoFunction(editor, duplicates, functionName);
     } catch (error) {
       Logger.error("Error extracting duplicated code:", error);
-      vscode10.window.showErrorMessage("Erro ao extrair c\xF3digo duplicado");
+      vscode10.window.showErrorMessage("Error extracting duplicated code");
     }
   }
   /**
@@ -8855,11 +8855,11 @@ ${extraction.functionDefinition}
         await editor.edit((editBuilder) => {
           editBuilder.replace(line.range, convertedCode);
         });
-        vscode10.window.showInformationMessage("\u2705 Convertido para async/await!");
+        vscode10.window.showInformationMessage("\u2705 Converted to async/await!");
       }
     } catch (error) {
       Logger.error("Error converting to async/await:", error);
-      vscode10.window.showErrorMessage("Erro ao converter para async/await");
+      vscode10.window.showErrorMessage("Error converting to async/await");
     }
   }
   /**
@@ -8880,11 +8880,11 @@ ${extraction.functionDefinition}
         await editor.edit((editBuilder) => {
           editBuilder.replace(line.range, convertedCode);
         });
-        vscode10.window.showInformationMessage("\u2705 Convertido para arrow function!");
+        vscode10.window.showInformationMessage("\u2705 Converted to arrow function!");
       }
     } catch (error) {
       Logger.error("Error converting to arrow function:", error);
-      vscode10.window.showErrorMessage("Erro ao converter para arrow function");
+      vscode10.window.showErrorMessage("Error converting to arrow function");
     }
   }
   /**
@@ -8905,11 +8905,11 @@ ${extraction.functionDefinition}
         await editor.edit((editBuilder) => {
           editBuilder.replace(line.range, destructuredCode);
         });
-        vscode10.window.showInformationMessage("\u2705 Destructuring aplicado!");
+        vscode10.window.showInformationMessage("\u2705 Destructuring applied!");
       }
     } catch (error) {
       Logger.error("Error applying destructuring:", error);
-      vscode10.window.showErrorMessage("Erro ao aplicar destructuring");
+      vscode10.window.showErrorMessage("Error applying destructuring");
     }
   }
   /**
@@ -8922,29 +8922,29 @@ ${extraction.functionDefinition}
     try {
       const selection = editor.selection;
       if (selection.isEmpty) {
-        vscode10.window.showWarningMessage("Selecione o m\xE9todo para mover");
+        vscode10.window.showWarningMessage("Select the method to move");
         return;
       }
       const availableFiles = await this.findAvailableFiles();
       const availableClasses = await this.findAvailableClasses(editor.document);
       if (availableClasses.length === 0 && availableFiles.length === 0) {
-        vscode10.window.showWarningMessage("Nenhuma classe de destino encontrada");
+        vscode10.window.showWarningMessage("No target classes found");
         return;
       }
-      const moveOptions = ["Classe no mesmo arquivo", "Arquivo diferente"];
+      const moveOptions = ["Class in same file", "Different file"];
       const moveType = await vscode10.window.showQuickPick(moveOptions, {
-        placeHolder: "Onde deseja mover o m\xE9todo?"
+        placeHolder: "Where do you want to move the method?"
       });
       if (!moveType)
         return;
-      if (moveType === "Classe no mesmo arquivo") {
+      if (moveType === "Class in same file") {
         await this.moveMethodToSameFile(editor, selection, availableClasses);
       } else {
         await this.moveMethodToOtherFile(editor, selection, availableFiles);
       }
     } catch (error) {
       Logger.error("Error moving method:", error);
-      vscode10.window.showErrorMessage("Erro ao mover m\xE9todo");
+      vscode10.window.showErrorMessage("Error moving method");
     }
   }
   /**
@@ -8952,7 +8952,7 @@ ${extraction.functionDefinition}
    */
   async moveMethodToSameFile(editor, selection, availableClasses) {
     const targetClass = await vscode10.window.showQuickPick(availableClasses, {
-      placeHolder: "Selecione a classe de destino"
+      placeHolder: "Select the target class"
     });
     if (!targetClass)
       return;
@@ -8968,18 +8968,18 @@ ${extraction.functionDefinition}
       uri
     }));
     const selectedFile = await vscode10.window.showQuickPick(fileQuickPicks, {
-      placeHolder: "Selecione o arquivo de destino"
+      placeHolder: "Select the target file"
     });
     if (!selectedFile)
       return;
     const targetDocument = await vscode10.workspace.openTextDocument(selectedFile.uri);
     const targetClasses = await this.findAvailableClasses(targetDocument);
     if (targetClasses.length === 0) {
-      vscode10.window.showWarningMessage("Nenhuma classe encontrada no arquivo de destino");
+      vscode10.window.showWarningMessage("No classes found in target file");
       return;
     }
     const targetClass = await vscode10.window.showQuickPick(targetClasses, {
-      placeHolder: "Selecione a classe de destino"
+      placeHolder: "Select the target class"
     });
     if (!targetClass)
       return;
@@ -8991,11 +8991,11 @@ ${extraction.functionDefinition}
   async performMultiFileMethodMove(sourceEditor, methodRange, targetDocument, targetClass) {
     const methodCode = sourceEditor.document.getText(methodRange);
     const choice = await vscode10.window.showInformationMessage(
-      `Mover m\xE9todo para a classe "${targetClass}" no arquivo "${vscode10.workspace.asRelativePath(targetDocument.uri)}"?`,
-      "Mover",
-      "Cancelar"
+      `Move method to class "${targetClass}" in file "${vscode10.workspace.asRelativePath(targetDocument.uri)}"?`,
+      "Move",
+      "Cancel"
     );
-    if (choice !== "Mover")
+    if (choice !== "Move")
       return;
     const targetEditor = await vscode10.window.showTextDocument(targetDocument);
     const classPosition = this.findClassPosition(targetDocument, targetClass);
@@ -9009,7 +9009,7 @@ ${extraction.functionDefinition}
     await sourceEditor.edit((editBuilder) => {
       editBuilder.delete(methodRange);
     });
-    vscode10.window.showInformationMessage(`\u2705 M\xE9todo movido para "${targetClass}" em ${vscode10.workspace.asRelativePath(targetDocument.uri)}!`);
+    vscode10.window.showInformationMessage(`\u2705 Method moved to "${targetClass}" in ${vscode10.workspace.asRelativePath(targetDocument.uri)}!`);
   }
   /**
    * Refatora workspace inteiro
@@ -9021,35 +9021,35 @@ ${extraction.functionDefinition}
         "**/node_modules/**"
       );
       if (files.length === 0) {
-        vscode10.window.showInformationMessage("Nenhum arquivo de c\xF3digo encontrado no workspace");
+        vscode10.window.showInformationMessage("No code files found in workspace");
         return;
       }
       const choice = await vscode10.window.showInformationMessage(
-        `Encontrados ${files.length} arquivo(s) de c\xF3digo. Deseja prosseguir com a refatora\xE7\xE3o do workspace?`,
-        "Prosseguir",
-        "Cancelar"
+        `Found ${files.length} code file(s). Do you want to proceed with workspace refactoring?`,
+        "Proceed",
+        "Cancel"
       );
-      if (choice !== "Prosseguir")
+      if (choice !== "Proceed")
         return;
       const refactoringTypes = [
-        "Otimizar Imports",
-        "Converter para ES6+",
-        "Aplicar Padr\xF5es de Design",
-        "Extrair C\xF3digo Duplicado",
-        "Todas as Op\xE7\xF5es"
+        "Optimize Imports",
+        "Convert to ES6+",
+        "Apply Design Patterns",
+        "Extract Duplicate Code",
+        "All Options"
       ];
       const selectedTypes = await vscode10.window.showQuickPick(refactoringTypes, {
-        placeHolder: "Selecione os tipos de refatora\xE7\xE3o",
+        placeHolder: "Select refactoring types",
         canPickMany: true
       });
       if (!selectedTypes || selectedTypes.length === 0)
         return;
-      vscode10.window.showInformationMessage("\u{1F527} Iniciando refatora\xE7\xE3o do workspace...");
+      vscode10.window.showInformationMessage("\u{1F527} Starting workspace refactoring...");
       const results = await this.processWorkspaceFiles(files, selectedTypes);
       await this.showWorkspaceRefactoringReport(results);
     } catch (error) {
       Logger.error("Error refactoring workspace:", error);
-      vscode10.window.showErrorMessage("Erro ao refatorar workspace");
+      vscode10.window.showErrorMessage("Error refactoring workspace");
     }
   }
   /**
@@ -9067,7 +9067,7 @@ ${extraction.functionDefinition}
           errors: fileResults.errors
         });
         vscode10.window.showInformationMessage(
-          `Processando: ${vscode10.workspace.asRelativePath(fileUri)}`
+          `Processing: ${vscode10.workspace.asRelativePath(fileUri)}`
         );
       } catch (error) {
         results.push({
@@ -9091,8 +9091,8 @@ ${extraction.functionDefinition}
       for (const refactoringType of refactoringTypes) {
         try {
           switch (refactoringType) {
-            case "Otimizar Imports":
-            case "Todas as Op\xE7\xF5es":
+            case "Optimize Imports":
+            case "All Options":
               const optimizedImports = await this.generateOptimizedImports(
                 modifiedContent,
                 {},
@@ -9100,27 +9100,27 @@ ${extraction.functionDefinition}
               );
               if (optimizedImports !== modifiedContent) {
                 modifiedContent = optimizedImports;
-                changes.push("Imports otimizados");
+                changes.push("Imports optimized");
               }
               break;
-            case "Converter para ES6+":
+            case "Convert to ES6+":
               const modernizedCode = await this.modernizeCodeForFile(
                 modifiedContent,
                 document.languageId
               );
               if (modernizedCode !== modifiedContent) {
                 modifiedContent = modernizedCode;
-                changes.push("C\xF3digo modernizado para ES6+");
+                changes.push("Code modernized to ES6+");
               }
               break;
-            case "Extrair C\xF3digo Duplicado":
+            case "Extract Duplicate Code":
               const deduplicatedCode = await this.extractDuplicatesInFile(
                 modifiedContent,
                 document
               );
               if (deduplicatedCode !== modifiedContent) {
                 modifiedContent = deduplicatedCode;
-                changes.push("C\xF3digo duplicado extra\xEDdo");
+                changes.push("Duplicate code extracted");
               }
               break;
           }
@@ -9184,24 +9184,24 @@ Retorne APENAS o c\xF3digo modernizado:
     const totalFiles = results.length;
     const filesWithChanges = results.filter((r2) => r2.changes.length > 0).length;
     const filesWithErrors = results.filter((r2) => r2.errors.length > 0).length;
-    let report = `# Relat\xF3rio de Refatora\xE7\xE3o do Workspace
+    let report = `# Workspace Refactoring Report
 
 `;
-    report += `**Arquivos processados**: ${totalFiles}
+    report += `**Files processed**: ${totalFiles}
 `;
-    report += `**Arquivos modificados**: ${filesWithChanges}
+    report += `**Files modified**: ${filesWithChanges}
 `;
-    report += `**Arquivos com erros**: ${filesWithErrors}
+    report += `**Files with errors**: ${filesWithErrors}
 
 `;
-    report += `## Detalhes por Arquivo
+    report += `## Details by File
 
 `;
     for (const result of results) {
       report += `### ${result.file}
 `;
       if (result.changes.length > 0) {
-        report += `**Mudan\xE7as aplicadas**:
+        report += `**Changes applied**:
 `;
         for (const change of result.changes) {
           report += `- \u2705 ${change}
@@ -9209,7 +9209,7 @@ Retorne APENAS o c\xF3digo modernizado:
         }
       }
       if (result.errors.length > 0) {
-        report += `**Erros encontrados**:
+        report += `**Errors found**:
 `;
         for (const error of result.errors) {
           report += `- \u274C ${error}
@@ -9217,7 +9217,7 @@ Retorne APENAS o c\xF3digo modernizado:
         }
       }
       if (result.changes.length === 0 && result.errors.length === 0) {
-        report += `- \u2139\uFE0F Nenhuma mudan\xE7a necess\xE1ria
+        report += `- \u2139\uFE0F No changes needed
 `;
       }
       report += `
@@ -9229,7 +9229,7 @@ Retorne APENAS o c\xF3digo modernizado:
     });
     await vscode10.window.showTextDocument(doc);
     vscode10.window.showInformationMessage(
-      `\u2705 Refatora\xE7\xE3o do workspace conclu\xEDda! ${filesWithChanges}/${totalFiles} arquivos modificados.`
+      `\u2705 Workspace refactoring completed! ${filesWithChanges}/${totalFiles} files modified.`
     );
   }
   async findAvailableFiles() {
@@ -9404,7 +9404,7 @@ Retorne APENAS o c\xF3digo refatorado com o padr\xE3o aplicado:
       });
       vscode10.window.showInformationMessage("\u2705 Refatora\xE7\xE3o aplicada com sucesso!");
     } else {
-      vscode10.window.showWarningMessage("N\xE3o foi poss\xEDvel aplicar a refatora\xE7\xE3o automaticamente");
+      vscode10.window.showWarningMessage("Unable to apply refactoring automatically");
     }
   }
   /**
@@ -9430,11 +9430,11 @@ Retorne APENAS o c\xF3digo refatorado com o padr\xE3o aplicado:
    */
   async showPatternPreview(original, pattern, patternName) {
     const choice = await vscode10.window.showInformationMessage(
-      `Padr\xE3o ${patternName} gerado! Deseja visualizar?`,
-      "Visualizar",
-      "Cancelar"
+      `Pattern ${patternName} generated! Do you want to view it?`,
+      "View",
+      "Cancel"
     );
-    if (choice === "Visualizar") {
+    if (choice === "View") {
       const doc = await vscode10.workspace.openTextDocument({
         content: `// PADR\xC3O ${patternName.toUpperCase()} APLICADO:
 
@@ -9523,7 +9523,7 @@ Retorne APENAS o c\xF3digo da classe:
 ${extraction.functionDefinition}
 `);
     });
-    vscode10.window.showInformationMessage(`\u2705 ${duplicates.length} duplicatas extra\xEDdas para "${functionName}"!`);
+    vscode10.window.showInformationMessage(`\u2705 ${duplicates.length} duplicates extracted to "${functionName}"!`);
   }
   /**
    * Gera código async/await
@@ -9609,11 +9609,11 @@ Retorne APENAS o c\xF3digo com destructuring aplicado:
    */
   async performMethodMove(editor, methodRange, methodCode, targetClass) {
     const choice = await vscode10.window.showInformationMessage(
-      `Mover m\xE9todo para a classe "${targetClass}"?`,
-      "Mover",
-      "Cancelar"
+      `Move method to class "${targetClass}"?`,
+      "Move",
+      "Cancel"
     );
-    if (choice !== "Mover")
+    if (choice !== "Move")
       return;
     await editor.edit((editBuilder) => {
       editBuilder.delete(methodRange);
@@ -9626,7 +9626,7 @@ Retorne APENAS o c\xF3digo com destructuring aplicado:
 `);
       });
     }
-    vscode10.window.showInformationMessage(`\u2705 M\xE9todo movido para "${targetClass}"!`);
+    vscode10.window.showInformationMessage(`\u2705 Method moved to "${targetClass}"!`);
   }
   /**
    * Encontra posição de uma classe
@@ -9658,20 +9658,20 @@ Retorne APENAS o c\xF3digo com destructuring aplicado:
    */
   async showExtractClassPreview(original, extracted, className) {
     const choice = await vscode10.window.showInformationMessage(
-      `Classe "${className}" gerada! Deseja visualizar?`,
-      "Aplicar",
-      "Visualizar",
-      "Cancelar"
+      `Class "${className}" generated! Do you want to view it?`,
+      "Apply",
+      "View",
+      "Cancel"
     );
-    if (choice === "Visualizar") {
+    if (choice === "View") {
       const doc = await vscode10.workspace.openTextDocument({
-        content: `// CLASSE EXTRA\xCDDA: ${className}
+        content: `// EXTRACTED CLASS: ${className}
 
 ${extracted}`,
         language: "typescript"
       });
       await vscode10.window.showTextDocument(doc);
-    } else if (choice === "Aplicar") {
+    } else if (choice === "Apply") {
       const editor = vscode10.window.activeTextEditor;
       if (editor) {
         const insertPosition = this.findBestInsertionPoint(editor.document);
@@ -9680,7 +9680,7 @@ ${extracted}`,
 ${extracted}
 `);
         });
-        vscode10.window.showInformationMessage(`\u2705 Classe "${className}" criada!`);
+        vscode10.window.showInformationMessage(`\u2705 Class "${className}" created!`);
       }
     }
   }
@@ -9736,7 +9736,7 @@ var RefactoringCodeLensProvider = class _RefactoringCodeLensProvider {
         suggestions.push({
           range: new vscode11.Range(lineNumber, 0, lineNumber, line.length),
           type: "extract-method",
-          description: "Extrair fun\xE7\xE3o - Fun\xE7\xE3o muito longa",
+          description: "Extract function - Function too long",
           command: "xcopilot.extractMethod",
           args: [document.uri, functionRange]
         });
@@ -9745,7 +9745,7 @@ var RefactoringCodeLensProvider = class _RefactoringCodeLensProvider {
         suggestions.push({
           range: new vscode11.Range(lineNumber, 0, lineNumber, line.length),
           type: "extract-class",
-          description: "Extrair para classe - Muitos par\xE2metros",
+          description: "Extract to class - Too many parameters",
           command: "xcopilot.extractClass",
           args: [document.uri, new vscode11.Range(lineNumber, 0, lineNumber, line.length)]
         });
@@ -9754,7 +9754,7 @@ var RefactoringCodeLensProvider = class _RefactoringCodeLensProvider {
         suggestions.push({
           range: new vscode11.Range(lineNumber, 0, lineNumber, line.length),
           type: "extract-method",
-          description: "Extrair m\xE9todo - C\xF3digo duplicado",
+          description: "Extract method - Duplicate code",
           command: "xcopilot.extractDuplicatedCode",
           args: [document.uri, new vscode11.Range(lineNumber, 0, lineNumber, line.length)]
         });
@@ -9773,7 +9773,7 @@ var RefactoringCodeLensProvider = class _RefactoringCodeLensProvider {
       suggestions.push({
         range: new vscode11.Range(lineNumber, 0, lineNumber, line.length),
         type: "modernize-async",
-        description: "Converter para async/await",
+        description: "Convert to async/await",
         command: "xcopilot.convertToAsyncAwait",
         args: [lineNumber]
       });
@@ -9782,7 +9782,7 @@ var RefactoringCodeLensProvider = class _RefactoringCodeLensProvider {
       suggestions.push({
         range: new vscode11.Range(lineNumber, 0, lineNumber, line.length),
         type: "modernize-arrow",
-        description: "Converter para arrow function",
+        description: "Convert to arrow function",
         command: "xcopilot.convertToArrowFunction",
         args: [lineNumber]
       });
@@ -9791,7 +9791,7 @@ var RefactoringCodeLensProvider = class _RefactoringCodeLensProvider {
       suggestions.push({
         range: new vscode11.Range(lineNumber, 0, lineNumber, line.length),
         type: "modernize-destructuring",
-        description: "Usar destructuring",
+        description: "Use destructuring",
         command: "xcopilot.applyDestructuring",
         args: [lineNumber]
       });
@@ -11360,7 +11360,7 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
   setupConfigurationWatcher(context) {
     const configWatcher = vscode13.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("xcopilot")) {
-        Logger.info("\u{1F504} Configuration changed, reloading services...");
+        Logger.info("\u{1F504} Configuration changed, refreshing CodeLens provider...");
         this.refactoringCodeLensProvider.refresh();
       }
     });
