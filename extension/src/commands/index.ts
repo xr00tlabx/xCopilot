@@ -1,2 +1,3 @@
 export { ChatCommands } from './ChatCommands';
-export { InlineCompletionCommands } from './InlineCompletionCommands';
+export { CodeGenerationCommands } from './CodeGenerationCommands';
+

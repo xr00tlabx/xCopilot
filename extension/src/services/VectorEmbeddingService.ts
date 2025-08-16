@@ -1,7 +1,6 @@
-import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { VectorEmbedding, ContextRetrievalResult } from '../types';
+import * as vscode from 'vscode';
 import { Logger } from '../utils/Logger';
 import { ConfigurationService } from './ConfigurationService';
 
@@ -11,7 +10,7 @@ import { ConfigurationService } from './ConfigurationService';
 export class VectorEmbeddingService {
     private static instance: VectorEmbeddingService;
     private configService: ConfigurationService;
-    private embeddings: Map<string, VectorEmbedding> = new Map();
+    private embeddings: Map<string, any> = new Map();
     private isIndexing: boolean = false;
     private lastIndexTime: Date | null = null;
 
@@ -62,10 +61,10 @@ export class VectorEmbeddingService {
      */
     private async indexWorkspaceFolder(folderPath: string): Promise<void> {
         const supportedExtensions = ['.ts', '.js', '.tsx', '.jsx', '.py', '.java', '.cpp', '.c', '.cs', '.php', '.go', '.rs', '.rb', '.swift', '.kt', '.md', '.json', '.yml', '.yaml'];
-        
+
         try {
             const files = await this.getFilesRecursively(folderPath, supportedExtensions);
-            
+
             for (const filePath of files) {
                 try {
                     await this.indexFile(filePath);
@@ -120,8 +119,9 @@ export class VectorEmbeddingService {
             const stats = await fs.promises.stat(filePath);
 
             // Skip very large files (>configured limit)
-            const maxFileSize = this.configService.getMaxFileSizeForIndexing
-                ? this.configService.getMaxFileSizeForIndexing()
+            const cfg: any = this.configService as any;
+            const maxFileSize = typeof cfg.getMaxFileSizeForIndexing === 'function'
+                ? cfg.getMaxFileSizeForIndexing()
                 : 100 * 1024; // fallback to 100KB if not configured
             if (stats.size > maxFileSize) {
                 Logger.debug(`Skipping large file: ${filePath} (size: ${stats.size} bytes, limit: ${maxFileSize} bytes)`);
@@ -130,11 +130,11 @@ export class VectorEmbeddingService {
 
             // Create chunks for large content
             const chunks = this.createContentChunks(content);
-            
+
             // Generate embeddings (mock implementation - in real scenario would call OpenAI embeddings API)
             const embeddings = await this.generateEmbeddings(content);
 
-            const vectorEmbedding: VectorEmbedding = {
+            const vectorEmbedding: any = {
                 id: this.generateFileId(filePath),
                 filePath,
                 content,
@@ -148,7 +148,7 @@ export class VectorEmbeddingService {
             };
 
             this.embeddings.set(filePath, vectorEmbedding);
-            
+
             // Send to Elasticsearch for persistence
             await this.sendToElasticsearch(vectorEmbedding);
 
@@ -212,10 +212,10 @@ export class VectorEmbeddingService {
     /**
      * Send embedding to Elasticsearch
      */
-    private async sendToElasticsearch(embedding: VectorEmbedding): Promise<void> {
+    private async sendToElasticsearch(embedding: any): Promise<void> {
         try {
             const backendUrl = this.configService.getBackendUrl().replace('/openai', '/embeddings');
-            
+
             const response = await fetch(backendUrl, {
                 method: 'POST',
                 headers: {
@@ -241,7 +241,7 @@ export class VectorEmbeddingService {
     /**
      * Retrieve relevant context based on a query
      */
-    async retrieveRelevantContext(query: string, maxResults: number = 5): Promise<ContextRetrievalResult> {
+    async retrieveRelevantContext(query: string, maxResults: number = 5): Promise<any> {
         const queryEmbeddings = await this.generateEmbeddings(query);
         const scores: Array<{ filePath: string; score: number; content: string }> = [];
 
@@ -330,3 +330,4 @@ export class VectorEmbeddingService {
         }
     }
 }
+

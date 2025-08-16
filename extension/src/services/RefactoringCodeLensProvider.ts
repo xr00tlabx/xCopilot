@@ -226,15 +226,15 @@ export class RefactoringCodeLensProvider implements vscode.CodeLensProvider {
     private hasTooManyParameters(line: string): boolean {
         const functionRegex = /(function\s+\w+\s*\(([^)]*)\)|(\w+)\s*\(([^)]*)\)\s*\{|(\w+)\s*:\s*\(([^)]*)\)\s*=>|(\w+)\s*=\s*\(([^)]*)\)\s*=>)/;
         const match = line.match(functionRegex);
-        
+
         if (!match) return false;
 
         const params = match[2] || match[4] || match[6] || match[8] || '';
-        
+
         if (!params.trim()) return false;
 
         const parameterCount = params.split(',').filter(p => p.trim().length > 0).length;
-        
+
         return parameterCount > 5;
     }
 
@@ -302,3 +302,4 @@ export class RefactoringCodeLensProvider implements vscode.CodeLensProvider {
         }
     }
 }
+

@@ -1,5 +1,5 @@
-import * as vscode from 'vscode';
 import * as path from 'path';
+import * as vscode from 'vscode';
 import { Logger } from '../utils/Logger';
 import { CodeContextService } from './CodeContextService';
 
@@ -19,11 +19,35 @@ export class WorkspaceAnalysisService {
         this.setupWorkspaceListeners();
     }
 
-    static getInstance(): WorkspaceAnalysisService {
+    static getInstance(_context?: vscode.ExtensionContext): WorkspaceAnalysisService {
         if (!WorkspaceAnalysisService.instance) {
             WorkspaceAnalysisService.instance = new WorkspaceAnalysisService();
         }
         return WorkspaceAnalysisService.instance;
+    }
+
+    /**
+     * Backward-compatible method used by other services
+     */
+    async analyzeWorkspace(force: boolean = false): Promise<void> {
+        if (!force && this.workspaceState && !this.isAnalysisStale()) {
+            return;
+        }
+
+        this.analysisInProgress = true;
+        try {
+            const analysis = await this.performFullAnalysis();
+            this.workspaceState = analysis;
+            this.lastAnalysisTime = Date.now();
+        } catch (error) {
+            Logger.error('Error analyzing workspace:', error);
+        } finally {
+            this.analysisInProgress = false;
+        }
+    }
+
+    getCurrentAnalysis(): WorkspaceState | null {
+        return this.workspaceState;
     }
 
     /**
@@ -54,7 +78,7 @@ export class WorkspaceAnalysisService {
             return;
         }
 
-        Logger.info('🔍 Starting complete workspace analysis...');
+        Logger.info('\ud83d\udd0d Starting complete workspace analysis...');
         this.analysisInProgress = true;
 
         try {
@@ -62,8 +86,8 @@ export class WorkspaceAnalysisService {
             this.workspaceState = workspaceState;
             this.lastAnalysisTime = Date.now();
 
-            Logger.info(`✅ Workspace analysis completed: ${workspaceState.totalFiles} files, ${workspaceState.languages.length} languages`);
-            
+            Logger.info(`\u2705 Workspace analysis completed: ${workspaceState.totalFiles} files, ${workspaceState.languages.length} languages`);
+
             // Show analysis results to user
             vscode.window.showInformationMessage(
                 `xCopilot: Workspace analyzed (${workspaceState.totalFiles} files, ${workspaceState.languages.join(', ')})`
@@ -103,30 +127,30 @@ export class WorkspaceAnalysisService {
      */
     formatContextForPrompt(userPrompt: string): string {
         const context = this.getWorkspaceContext();
-        
+
         let contextPrompt = `[WORKSPACE CONTEXT]\n`;
-        
+
         if (context.projectType) {
             contextPrompt += `Project Type: ${context.projectType}\n`;
         }
-        
+
         contextPrompt += `Languages: ${context.mainLanguages.join(', ')}\n`;
-        
+
         if (context.technologies.length > 0) {
             contextPrompt += `Technologies: ${context.technologies.join(', ')}\n`;
         }
-        
+
         if (context.currentFile) {
             contextPrompt += `Current File: ${context.currentFile.name} (${context.currentFile.language})\n`;
         }
-        
+
         if (context.keyFiles.length > 0) {
             contextPrompt += `Key Files: ${context.keyFiles.slice(0, 5).join(', ')}\n`;
         }
-        
+
         contextPrompt += `\n[USER QUESTION]\n${userPrompt}\n\n`;
         contextPrompt += `[INSTRUCTIONS]\nAnswer considering the workspace context above. Be specific to the project's technologies and structure.`;
-        
+
         return contextPrompt;
     }
 
@@ -141,7 +165,7 @@ export class WorkspaceAnalysisService {
 
         const rootFolder = workspaceFolders[0];
         const files = await this.getAllFiles(rootFolder.uri);
-        
+
         const analysis: WorkspaceState = {
             totalFiles: files.length,
             languages: this.extractLanguages(files),
@@ -162,16 +186,16 @@ export class WorkspaceAnalysisService {
     private async getAllFiles(rootUri: vscode.Uri): Promise<FileInfo[]> {
         const pattern = '**/*.{js,ts,tsx,jsx,py,java,cpp,c,cs,php,go,rs,rb,swift,kt,scala,dart,vue,svelte,html,css,scss,sass,less,json,yaml,yml,md,txt}';
         const excludePattern = '**/node_modules/**';
-        
+
         const files = await vscode.workspace.findFiles(pattern, excludePattern, 1000);
-        
+
         const fileInfos: FileInfo[] = [];
         for (const file of files) {
             try {
                 const stat = await vscode.workspace.fs.stat(file);
                 const relativePath = vscode.workspace.asRelativePath(file);
                 const extension = path.extname(file.fsPath);
-                
+
                 fileInfos.push({
                     uri: file,
                     relativePath,
@@ -185,7 +209,7 @@ export class WorkspaceAnalysisService {
                 Logger.debug(`Could not stat file ${file.fsPath}:`, error);
             }
         }
-        
+
         return fileInfos;
     }
 
@@ -194,13 +218,13 @@ export class WorkspaceAnalysisService {
      */
     private extractLanguages(files: FileInfo[]): string[] {
         const languageCount = new Map<string, number>();
-        
+
         files.forEach(file => {
             if (file.language) {
                 languageCount.set(file.language, (languageCount.get(file.language) || 0) + 1);
             }
         });
-        
+
         // Ordenar por frequência
         return Array.from(languageCount.entries())
             .sort((a, b) => b[1] - a[1])
@@ -218,7 +242,7 @@ export class WorkspaceAnalysisService {
             mainFolders: [],
             depth: 0
         };
-        
+
         files.forEach(file => {
             const parts = file.relativePath.split('/');
             if (parts.length > 1) {
@@ -227,15 +251,15 @@ export class WorkspaceAnalysisService {
                 structure.depth = Math.max(structure.depth, parts.length);
             }
         });
-        
+
         structure.mainFolders = Array.from(folders).slice(0, 10);
-        structure.hasSourceFolder = structure.mainFolders.some(f => 
+        structure.hasSourceFolder = structure.mainFolders.some(f =>
             ['src', 'source', 'lib', 'app'].includes(f.toLowerCase())
         );
-        structure.hasTestFolder = structure.mainFolders.some(f => 
+        structure.hasTestFolder = structure.mainFolders.some(f =>
             ['test', 'tests', '__tests__', 'spec', 'specs'].includes(f.toLowerCase())
         );
-        
+
         return structure;
     }
 
@@ -250,9 +274,9 @@ export class WorkspaceAnalysisService {
             'README.md', 'CHANGELOG.md', 'LICENSE', '.gitignore',
             'tsconfig.json', 'webpack.config.js', 'vite.config.js'
         ];
-        
+
         return files
-            .filter(file => keyFilePatterns.some(pattern => 
+            .filter(file => keyFilePatterns.some(pattern =>
                 file.name.toLowerCase().includes(pattern.toLowerCase())
             ))
             .map(file => file.relativePath)
@@ -264,14 +288,14 @@ export class WorkspaceAnalysisService {
      */
     private async detectTechnologies(files: FileInfo[]): Promise<string[]> {
         const technologies = new Set<string>();
-        
+
         for (const file of files) {
             // Detectar por nome de arquivo
             if (file.name === 'package.json') {
                 try {
                     const content = await vscode.workspace.fs.readFile(file.uri);
                     const packageJson = JSON.parse(content.toString());
-                    
+
                     // Extrair tecnologias das dependências
                     const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
                     Object.keys(deps).forEach(dep => {
@@ -289,7 +313,7 @@ export class WorkspaceAnalysisService {
                     Logger.debug('Error reading package.json:', error);
                 }
             }
-            
+
             // Detectar por extensão
             if (file.extension === '.tsx' || file.extension === '.jsx') {
                 technologies.add('React');
@@ -310,7 +334,7 @@ export class WorkspaceAnalysisService {
                 technologies.add('Gradle');
             }
         }
-        
+
         return Array.from(technologies);
     }
 
@@ -321,7 +345,7 @@ export class WorkspaceAnalysisService {
         // Esta é uma implementação simplificada
         // Em uma versão completa, analisaria o conteúdo dos arquivos
         const patterns: string[] = [];
-        
+
         if (files.some(f => f.relativePath.includes('components/'))) {
             patterns.push('Component-based architecture');
         }
@@ -334,7 +358,7 @@ export class WorkspaceAnalysisService {
         if (files.some(f => f.relativePath.includes('controllers/'))) {
             patterns.push('MVC pattern');
         }
-        
+
         return patterns;
     }
 
@@ -363,7 +387,7 @@ export class WorkspaceAnalysisService {
         if (files.some(f => f.extension === '.csproj')) {
             return 'C#/.NET';
         }
-        
+
         return 'Mixed/Other';
     }
 
@@ -392,7 +416,7 @@ export class WorkspaceAnalysisService {
             '.vue': 'Vue',
             '.svelte': 'Svelte'
         };
-        
+
         return extensionMap[extension] || null;
     }
 
@@ -404,7 +428,7 @@ export class WorkspaceAnalysisService {
         if (!editor) {
             return null;
         }
-        
+
         const document = editor.document;
         return {
             name: path.basename(document.fileName),
@@ -434,9 +458,9 @@ export class WorkspaceAnalysisService {
         if (!this.workspaceState) {
             return 'No workspace analysis available';
         }
-        
+
         const { totalFiles, languages, projectType, technologies } = this.workspaceState;
-        
+
         let summary = `${projectType} project with ${totalFiles} files`;
         if (languages.length > 0) {
             summary += `, primarily ${languages[0]}`;
@@ -444,7 +468,7 @@ export class WorkspaceAnalysisService {
         if (technologies.length > 0) {
             summary += `, using ${technologies.slice(0, 3).join(', ')}`;
         }
-        
+
         return summary;
     }
 
@@ -454,7 +478,7 @@ export class WorkspaceAnalysisService {
     private getBasicWorkspaceContext(): WorkspaceContext {
         const currentFile = this.getCurrentFileInfo();
         const recentFiles = this.getRecentFiles();
-        
+
         return {
             projectType: 'Unknown',
             mainLanguages: currentFile ? [currentFile.language] : [],
@@ -496,7 +520,7 @@ export class WorkspaceAnalysisService {
         if (!this.workspaceState) {
             return;
         }
-        
+
         // Atualizar apenas informações básicas
         this.workspaceState.lastUpdated = Date.now();
         Logger.debug('Incremental workspace analysis completed');

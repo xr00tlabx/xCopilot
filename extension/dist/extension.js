@@ -1,0 +1,15334 @@
+"use strict";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// node_modules/web-streams-polyfill/dist/ponyfill.es2018.js
+var require_ponyfill_es2018 = __commonJS({
+  "node_modules/web-streams-polyfill/dist/ponyfill.es2018.js"(exports2, module2) {
+    (function(global2, factory) {
+      typeof exports2 === "object" && typeof module2 !== "undefined" ? factory(exports2) : typeof define === "function" && define.amd ? define(["exports"], factory) : (global2 = typeof globalThis !== "undefined" ? globalThis : global2 || self, factory(global2.WebStreamsPolyfill = {}));
+    })(exports2, function(exports3) {
+      "use strict";
+      function noop2() {
+        return void 0;
+      }
+      function typeIsObject(x2) {
+        return typeof x2 === "object" && x2 !== null || typeof x2 === "function";
+      }
+      const rethrowAssertionErrorRejection = noop2;
+      function setFunctionName(fn, name) {
+        try {
+          Object.defineProperty(fn, "name", {
+            value: name,
+            configurable: true
+          });
+        } catch (_a2) {
+        }
+      }
+      const originalPromise = Promise;
+      const originalPromiseThen = Promise.prototype.then;
+      const originalPromiseReject = Promise.reject.bind(originalPromise);
+      function newPromise(executor) {
+        return new originalPromise(executor);
+      }
+      function promiseResolvedWith(value) {
+        return newPromise((resolve) => resolve(value));
+      }
+      function promiseRejectedWith(reason) {
+        return originalPromiseReject(reason);
+      }
+      function PerformPromiseThen(promise, onFulfilled, onRejected) {
+        return originalPromiseThen.call(promise, onFulfilled, onRejected);
+      }
+      function uponPromise(promise, onFulfilled, onRejected) {
+        PerformPromiseThen(PerformPromiseThen(promise, onFulfilled, onRejected), void 0, rethrowAssertionErrorRejection);
+      }
+      function uponFulfillment(promise, onFulfilled) {
+        uponPromise(promise, onFulfilled);
+      }
+      function uponRejection(promise, onRejected) {
+        uponPromise(promise, void 0, onRejected);
+      }
+      function transformPromiseWith(promise, fulfillmentHandler, rejectionHandler) {
+        return PerformPromiseThen(promise, fulfillmentHandler, rejectionHandler);
+      }
+      function setPromiseIsHandledToTrue(promise) {
+        PerformPromiseThen(promise, void 0, rethrowAssertionErrorRejection);
+      }
+      let _queueMicrotask = (callback) => {
+        if (typeof queueMicrotask === "function") {
+          _queueMicrotask = queueMicrotask;
+        } else {
+          const resolvedPromise = promiseResolvedWith(void 0);
+          _queueMicrotask = (cb) => PerformPromiseThen(resolvedPromise, cb);
+        }
+        return _queueMicrotask(callback);
+      };
+      function reflectCall(F2, V, args) {
+        if (typeof F2 !== "function") {
+          throw new TypeError("Argument is not a function");
+        }
+        return Function.prototype.apply.call(F2, V, args);
+      }
+      function promiseCall(F2, V, args) {
+        try {
+          return promiseResolvedWith(reflectCall(F2, V, args));
+        } catch (value) {
+          return promiseRejectedWith(value);
+        }
+      }
+      const QUEUE_MAX_ARRAY_SIZE = 16384;
+      class SimpleQueue {
+        constructor() {
+          this._cursor = 0;
+          this._size = 0;
+          this._front = {
+            _elements: [],
+            _next: void 0
+          };
+          this._back = this._front;
+          this._cursor = 0;
+          this._size = 0;
+        }
+        get length() {
+          return this._size;
+        }
+        // For exception safety, this method is structured in order:
+        // 1. Read state
+        // 2. Calculate required state mutations
+        // 3. Perform state mutations
+        push(element) {
+          const oldBack = this._back;
+          let newBack = oldBack;
+          if (oldBack._elements.length === QUEUE_MAX_ARRAY_SIZE - 1) {
+            newBack = {
+              _elements: [],
+              _next: void 0
+            };
+          }
+          oldBack._elements.push(element);
+          if (newBack !== oldBack) {
+            this._back = newBack;
+            oldBack._next = newBack;
+          }
+          ++this._size;
+        }
+        // Like push(), shift() follows the read -> calculate -> mutate pattern for
+        // exception safety.
+        shift() {
+          const oldFront = this._front;
+          let newFront = oldFront;
+          const oldCursor = this._cursor;
+          let newCursor = oldCursor + 1;
+          const elements = oldFront._elements;
+          const element = elements[oldCursor];
+          if (newCursor === QUEUE_MAX_ARRAY_SIZE) {
+            newFront = oldFront._next;
+            newCursor = 0;
+          }
+          --this._size;
+          this._cursor = newCursor;
+          if (oldFront !== newFront) {
+            this._front = newFront;
+          }
+          elements[oldCursor] = void 0;
+          return element;
+        }
+        // The tricky thing about forEach() is that it can be called
+        // re-entrantly. The queue may be mutated inside the callback. It is easy to
+        // see that push() within the callback has no negative effects since the end
+        // of the queue is checked for on every iteration. If shift() is called
+        // repeatedly within the callback then the next iteration may return an
+        // element that has been removed. In this case the callback will be called
+        // with undefined values until we either "catch up" with elements that still
+        // exist or reach the back of the queue.
+        forEach(callback) {
+          let i2 = this._cursor;
+          let node = this._front;
+          let elements = node._elements;
+          while (i2 !== elements.length || node._next !== void 0) {
+            if (i2 === elements.length) {
+              node = node._next;
+              elements = node._elements;
+              i2 = 0;
+              if (elements.length === 0) {
+                break;
+              }
+            }
+            callback(elements[i2]);
+            ++i2;
+          }
+        }
+        // Return the element that would be returned if shift() was called now,
+        // without modifying the queue.
+        peek() {
+          const front = this._front;
+          const cursor = this._cursor;
+          return front._elements[cursor];
+        }
+      }
+      const AbortSteps = Symbol("[[AbortSteps]]");
+      const ErrorSteps = Symbol("[[ErrorSteps]]");
+      const CancelSteps = Symbol("[[CancelSteps]]");
+      const PullSteps = Symbol("[[PullSteps]]");
+      const ReleaseSteps = Symbol("[[ReleaseSteps]]");
+      function ReadableStreamReaderGenericInitialize(reader, stream) {
+        reader._ownerReadableStream = stream;
+        stream._reader = reader;
+        if (stream._state === "readable") {
+          defaultReaderClosedPromiseInitialize(reader);
+        } else if (stream._state === "closed") {
+          defaultReaderClosedPromiseInitializeAsResolved(reader);
+        } else {
+          defaultReaderClosedPromiseInitializeAsRejected(reader, stream._storedError);
+        }
+      }
+      function ReadableStreamReaderGenericCancel(reader, reason) {
+        const stream = reader._ownerReadableStream;
+        return ReadableStreamCancel(stream, reason);
+      }
+      function ReadableStreamReaderGenericRelease(reader) {
+        const stream = reader._ownerReadableStream;
+        if (stream._state === "readable") {
+          defaultReaderClosedPromiseReject(reader, new TypeError(`Reader was released and can no longer be used to monitor the stream's closedness`));
+        } else {
+          defaultReaderClosedPromiseResetToRejected(reader, new TypeError(`Reader was released and can no longer be used to monitor the stream's closedness`));
+        }
+        stream._readableStreamController[ReleaseSteps]();
+        stream._reader = void 0;
+        reader._ownerReadableStream = void 0;
+      }
+      function readerLockException(name) {
+        return new TypeError("Cannot " + name + " a stream using a released reader");
+      }
+      function defaultReaderClosedPromiseInitialize(reader) {
+        reader._closedPromise = newPromise((resolve, reject) => {
+          reader._closedPromise_resolve = resolve;
+          reader._closedPromise_reject = reject;
+        });
+      }
+      function defaultReaderClosedPromiseInitializeAsRejected(reader, reason) {
+        defaultReaderClosedPromiseInitialize(reader);
+        defaultReaderClosedPromiseReject(reader, reason);
+      }
+      function defaultReaderClosedPromiseInitializeAsResolved(reader) {
+        defaultReaderClosedPromiseInitialize(reader);
+        defaultReaderClosedPromiseResolve(reader);
+      }
+      function defaultReaderClosedPromiseReject(reader, reason) {
+        if (reader._closedPromise_reject === void 0) {
+          return;
+        }
+        setPromiseIsHandledToTrue(reader._closedPromise);
+        reader._closedPromise_reject(reason);
+        reader._closedPromise_resolve = void 0;
+        reader._closedPromise_reject = void 0;
+      }
+      function defaultReaderClosedPromiseResetToRejected(reader, reason) {
+        defaultReaderClosedPromiseInitializeAsRejected(reader, reason);
+      }
+      function defaultReaderClosedPromiseResolve(reader) {
+        if (reader._closedPromise_resolve === void 0) {
+          return;
+        }
+        reader._closedPromise_resolve(void 0);
+        reader._closedPromise_resolve = void 0;
+        reader._closedPromise_reject = void 0;
+      }
+      const NumberIsFinite = Number.isFinite || function(x2) {
+        return typeof x2 === "number" && isFinite(x2);
+      };
+      const MathTrunc = Math.trunc || function(v) {
+        return v < 0 ? Math.ceil(v) : Math.floor(v);
+      };
+      function isDictionary(x2) {
+        return typeof x2 === "object" || typeof x2 === "function";
+      }
+      function assertDictionary(obj, context) {
+        if (obj !== void 0 && !isDictionary(obj)) {
+          throw new TypeError(`${context} is not an object.`);
+        }
+      }
+      function assertFunction(x2, context) {
+        if (typeof x2 !== "function") {
+          throw new TypeError(`${context} is not a function.`);
+        }
+      }
+      function isObject(x2) {
+        return typeof x2 === "object" && x2 !== null || typeof x2 === "function";
+      }
+      function assertObject(x2, context) {
+        if (!isObject(x2)) {
+          throw new TypeError(`${context} is not an object.`);
+        }
+      }
+      function assertRequiredArgument(x2, position, context) {
+        if (x2 === void 0) {
+          throw new TypeError(`Parameter ${position} is required in '${context}'.`);
+        }
+      }
+      function assertRequiredField(x2, field, context) {
+        if (x2 === void 0) {
+          throw new TypeError(`${field} is required in '${context}'.`);
+        }
+      }
+      function convertUnrestrictedDouble(value) {
+        return Number(value);
+      }
+      function censorNegativeZero(x2) {
+        return x2 === 0 ? 0 : x2;
+      }
+      function integerPart(x2) {
+        return censorNegativeZero(MathTrunc(x2));
+      }
+      function convertUnsignedLongLongWithEnforceRange(value, context) {
+        const lowerBound = 0;
+        const upperBound = Number.MAX_SAFE_INTEGER;
+        let x2 = Number(value);
+        x2 = censorNegativeZero(x2);
+        if (!NumberIsFinite(x2)) {
+          throw new TypeError(`${context} is not a finite number`);
+        }
+        x2 = integerPart(x2);
+        if (x2 < lowerBound || x2 > upperBound) {
+          throw new TypeError(`${context} is outside the accepted range of ${lowerBound} to ${upperBound}, inclusive`);
+        }
+        if (!NumberIsFinite(x2) || x2 === 0) {
+          return 0;
+        }
+        return x2;
+      }
+      function assertReadableStream(x2, context) {
+        if (!IsReadableStream(x2)) {
+          throw new TypeError(`${context} is not a ReadableStream.`);
+        }
+      }
+      function AcquireReadableStreamDefaultReader(stream) {
+        return new ReadableStreamDefaultReader(stream);
+      }
+      function ReadableStreamAddReadRequest(stream, readRequest) {
+        stream._reader._readRequests.push(readRequest);
+      }
+      function ReadableStreamFulfillReadRequest(stream, chunk, done) {
+        const reader = stream._reader;
+        const readRequest = reader._readRequests.shift();
+        if (done) {
+          readRequest._closeSteps();
+        } else {
+          readRequest._chunkSteps(chunk);
+        }
+      }
+      function ReadableStreamGetNumReadRequests(stream) {
+        return stream._reader._readRequests.length;
+      }
+      function ReadableStreamHasDefaultReader(stream) {
+        const reader = stream._reader;
+        if (reader === void 0) {
+          return false;
+        }
+        if (!IsReadableStreamDefaultReader(reader)) {
+          return false;
+        }
+        return true;
+      }
+      class ReadableStreamDefaultReader {
+        constructor(stream) {
+          assertRequiredArgument(stream, 1, "ReadableStreamDefaultReader");
+          assertReadableStream(stream, "First parameter");
+          if (IsReadableStreamLocked(stream)) {
+            throw new TypeError("This stream has already been locked for exclusive reading by another reader");
+          }
+          ReadableStreamReaderGenericInitialize(this, stream);
+          this._readRequests = new SimpleQueue();
+        }
+        /**
+         * Returns a promise that will be fulfilled when the stream becomes closed,
+         * or rejected if the stream ever errors or the reader's lock is released before the stream finishes closing.
+         */
+        get closed() {
+          if (!IsReadableStreamDefaultReader(this)) {
+            return promiseRejectedWith(defaultReaderBrandCheckException("closed"));
+          }
+          return this._closedPromise;
+        }
+        /**
+         * If the reader is active, behaves the same as {@link ReadableStream.cancel | stream.cancel(reason)}.
+         */
+        cancel(reason = void 0) {
+          if (!IsReadableStreamDefaultReader(this)) {
+            return promiseRejectedWith(defaultReaderBrandCheckException("cancel"));
+          }
+          if (this._ownerReadableStream === void 0) {
+            return promiseRejectedWith(readerLockException("cancel"));
+          }
+          return ReadableStreamReaderGenericCancel(this, reason);
+        }
+        /**
+         * Returns a promise that allows access to the next chunk from the stream's internal queue, if available.
+         *
+         * If reading a chunk causes the queue to become empty, more data will be pulled from the underlying source.
+         */
+        read() {
+          if (!IsReadableStreamDefaultReader(this)) {
+            return promiseRejectedWith(defaultReaderBrandCheckException("read"));
+          }
+          if (this._ownerReadableStream === void 0) {
+            return promiseRejectedWith(readerLockException("read from"));
+          }
+          let resolvePromise;
+          let rejectPromise;
+          const promise = newPromise((resolve, reject) => {
+            resolvePromise = resolve;
+            rejectPromise = reject;
+          });
+          const readRequest = {
+            _chunkSteps: (chunk) => resolvePromise({ value: chunk, done: false }),
+            _closeSteps: () => resolvePromise({ value: void 0, done: true }),
+            _errorSteps: (e2) => rejectPromise(e2)
+          };
+          ReadableStreamDefaultReaderRead(this, readRequest);
+          return promise;
+        }
+        /**
+         * Releases the reader's lock on the corresponding stream. After the lock is released, the reader is no longer active.
+         * If the associated stream is errored when the lock is released, the reader will appear errored in the same way
+         * from now on; otherwise, the reader will appear closed.
+         *
+         * A reader's lock cannot be released while it still has a pending read request, i.e., if a promise returned by
+         * the reader's {@link ReadableStreamDefaultReader.read | read()} method has not yet been settled. Attempting to
+         * do so will throw a `TypeError` and leave the reader locked to the stream.
+         */
+        releaseLock() {
+          if (!IsReadableStreamDefaultReader(this)) {
+            throw defaultReaderBrandCheckException("releaseLock");
+          }
+          if (this._ownerReadableStream === void 0) {
+            return;
+          }
+          ReadableStreamDefaultReaderRelease(this);
+        }
+      }
+      Object.defineProperties(ReadableStreamDefaultReader.prototype, {
+        cancel: { enumerable: true },
+        read: { enumerable: true },
+        releaseLock: { enumerable: true },
+        closed: { enumerable: true }
+      });
+      setFunctionName(ReadableStreamDefaultReader.prototype.cancel, "cancel");
+      setFunctionName(ReadableStreamDefaultReader.prototype.read, "read");
+      setFunctionName(ReadableStreamDefaultReader.prototype.releaseLock, "releaseLock");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ReadableStreamDefaultReader.prototype, Symbol.toStringTag, {
+          value: "ReadableStreamDefaultReader",
+          configurable: true
+        });
+      }
+      function IsReadableStreamDefaultReader(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_readRequests")) {
+          return false;
+        }
+        return x2 instanceof ReadableStreamDefaultReader;
+      }
+      function ReadableStreamDefaultReaderRead(reader, readRequest) {
+        const stream = reader._ownerReadableStream;
+        stream._disturbed = true;
+        if (stream._state === "closed") {
+          readRequest._closeSteps();
+        } else if (stream._state === "errored") {
+          readRequest._errorSteps(stream._storedError);
+        } else {
+          stream._readableStreamController[PullSteps](readRequest);
+        }
+      }
+      function ReadableStreamDefaultReaderRelease(reader) {
+        ReadableStreamReaderGenericRelease(reader);
+        const e2 = new TypeError("Reader was released");
+        ReadableStreamDefaultReaderErrorReadRequests(reader, e2);
+      }
+      function ReadableStreamDefaultReaderErrorReadRequests(reader, e2) {
+        const readRequests = reader._readRequests;
+        reader._readRequests = new SimpleQueue();
+        readRequests.forEach((readRequest) => {
+          readRequest._errorSteps(e2);
+        });
+      }
+      function defaultReaderBrandCheckException(name) {
+        return new TypeError(`ReadableStreamDefaultReader.prototype.${name} can only be used on a ReadableStreamDefaultReader`);
+      }
+      const AsyncIteratorPrototype = Object.getPrototypeOf(Object.getPrototypeOf(async function* () {
+      }).prototype);
+      class ReadableStreamAsyncIteratorImpl {
+        constructor(reader, preventCancel) {
+          this._ongoingPromise = void 0;
+          this._isFinished = false;
+          this._reader = reader;
+          this._preventCancel = preventCancel;
+        }
+        next() {
+          const nextSteps = () => this._nextSteps();
+          this._ongoingPromise = this._ongoingPromise ? transformPromiseWith(this._ongoingPromise, nextSteps, nextSteps) : nextSteps();
+          return this._ongoingPromise;
+        }
+        return(value) {
+          const returnSteps = () => this._returnSteps(value);
+          return this._ongoingPromise ? transformPromiseWith(this._ongoingPromise, returnSteps, returnSteps) : returnSteps();
+        }
+        _nextSteps() {
+          if (this._isFinished) {
+            return Promise.resolve({ value: void 0, done: true });
+          }
+          const reader = this._reader;
+          let resolvePromise;
+          let rejectPromise;
+          const promise = newPromise((resolve, reject) => {
+            resolvePromise = resolve;
+            rejectPromise = reject;
+          });
+          const readRequest = {
+            _chunkSteps: (chunk) => {
+              this._ongoingPromise = void 0;
+              _queueMicrotask(() => resolvePromise({ value: chunk, done: false }));
+            },
+            _closeSteps: () => {
+              this._ongoingPromise = void 0;
+              this._isFinished = true;
+              ReadableStreamReaderGenericRelease(reader);
+              resolvePromise({ value: void 0, done: true });
+            },
+            _errorSteps: (reason) => {
+              this._ongoingPromise = void 0;
+              this._isFinished = true;
+              ReadableStreamReaderGenericRelease(reader);
+              rejectPromise(reason);
+            }
+          };
+          ReadableStreamDefaultReaderRead(reader, readRequest);
+          return promise;
+        }
+        _returnSteps(value) {
+          if (this._isFinished) {
+            return Promise.resolve({ value, done: true });
+          }
+          this._isFinished = true;
+          const reader = this._reader;
+          if (!this._preventCancel) {
+            const result = ReadableStreamReaderGenericCancel(reader, value);
+            ReadableStreamReaderGenericRelease(reader);
+            return transformPromiseWith(result, () => ({ value, done: true }));
+          }
+          ReadableStreamReaderGenericRelease(reader);
+          return promiseResolvedWith({ value, done: true });
+        }
+      }
+      const ReadableStreamAsyncIteratorPrototype = {
+        next() {
+          if (!IsReadableStreamAsyncIterator(this)) {
+            return promiseRejectedWith(streamAsyncIteratorBrandCheckException("next"));
+          }
+          return this._asyncIteratorImpl.next();
+        },
+        return(value) {
+          if (!IsReadableStreamAsyncIterator(this)) {
+            return promiseRejectedWith(streamAsyncIteratorBrandCheckException("return"));
+          }
+          return this._asyncIteratorImpl.return(value);
+        }
+      };
+      Object.setPrototypeOf(ReadableStreamAsyncIteratorPrototype, AsyncIteratorPrototype);
+      function AcquireReadableStreamAsyncIterator(stream, preventCancel) {
+        const reader = AcquireReadableStreamDefaultReader(stream);
+        const impl = new ReadableStreamAsyncIteratorImpl(reader, preventCancel);
+        const iterator = Object.create(ReadableStreamAsyncIteratorPrototype);
+        iterator._asyncIteratorImpl = impl;
+        return iterator;
+      }
+      function IsReadableStreamAsyncIterator(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_asyncIteratorImpl")) {
+          return false;
+        }
+        try {
+          return x2._asyncIteratorImpl instanceof ReadableStreamAsyncIteratorImpl;
+        } catch (_a2) {
+          return false;
+        }
+      }
+      function streamAsyncIteratorBrandCheckException(name) {
+        return new TypeError(`ReadableStreamAsyncIterator.${name} can only be used on a ReadableSteamAsyncIterator`);
+      }
+      const NumberIsNaN = Number.isNaN || function(x2) {
+        return x2 !== x2;
+      };
+      var _a, _b, _c;
+      function CreateArrayFromList(elements) {
+        return elements.slice();
+      }
+      function CopyDataBlockBytes(dest, destOffset, src, srcOffset, n) {
+        new Uint8Array(dest).set(new Uint8Array(src, srcOffset, n), destOffset);
+      }
+      let TransferArrayBuffer = (O) => {
+        if (typeof O.transfer === "function") {
+          TransferArrayBuffer = (buffer) => buffer.transfer();
+        } else if (typeof structuredClone === "function") {
+          TransferArrayBuffer = (buffer) => structuredClone(buffer, { transfer: [buffer] });
+        } else {
+          TransferArrayBuffer = (buffer) => buffer;
+        }
+        return TransferArrayBuffer(O);
+      };
+      let IsDetachedBuffer = (O) => {
+        if (typeof O.detached === "boolean") {
+          IsDetachedBuffer = (buffer) => buffer.detached;
+        } else {
+          IsDetachedBuffer = (buffer) => buffer.byteLength === 0;
+        }
+        return IsDetachedBuffer(O);
+      };
+      function ArrayBufferSlice(buffer, begin, end) {
+        if (buffer.slice) {
+          return buffer.slice(begin, end);
+        }
+        const length = end - begin;
+        const slice = new ArrayBuffer(length);
+        CopyDataBlockBytes(slice, 0, buffer, begin, length);
+        return slice;
+      }
+      function GetMethod(receiver, prop) {
+        const func = receiver[prop];
+        if (func === void 0 || func === null) {
+          return void 0;
+        }
+        if (typeof func !== "function") {
+          throw new TypeError(`${String(prop)} is not a function`);
+        }
+        return func;
+      }
+      function CreateAsyncFromSyncIterator(syncIteratorRecord) {
+        const syncIterable = {
+          [Symbol.iterator]: () => syncIteratorRecord.iterator
+        };
+        const asyncIterator = async function* () {
+          return yield* syncIterable;
+        }();
+        const nextMethod = asyncIterator.next;
+        return { iterator: asyncIterator, nextMethod, done: false };
+      }
+      const SymbolAsyncIterator = (_c = (_a = Symbol.asyncIterator) !== null && _a !== void 0 ? _a : (_b = Symbol.for) === null || _b === void 0 ? void 0 : _b.call(Symbol, "Symbol.asyncIterator")) !== null && _c !== void 0 ? _c : "@@asyncIterator";
+      function GetIterator(obj, hint = "sync", method) {
+        if (method === void 0) {
+          if (hint === "async") {
+            method = GetMethod(obj, SymbolAsyncIterator);
+            if (method === void 0) {
+              const syncMethod = GetMethod(obj, Symbol.iterator);
+              const syncIteratorRecord = GetIterator(obj, "sync", syncMethod);
+              return CreateAsyncFromSyncIterator(syncIteratorRecord);
+            }
+          } else {
+            method = GetMethod(obj, Symbol.iterator);
+          }
+        }
+        if (method === void 0) {
+          throw new TypeError("The object is not iterable");
+        }
+        const iterator = reflectCall(method, obj, []);
+        if (!typeIsObject(iterator)) {
+          throw new TypeError("The iterator method must return an object");
+        }
+        const nextMethod = iterator.next;
+        return { iterator, nextMethod, done: false };
+      }
+      function IteratorNext(iteratorRecord) {
+        const result = reflectCall(iteratorRecord.nextMethod, iteratorRecord.iterator, []);
+        if (!typeIsObject(result)) {
+          throw new TypeError("The iterator.next() method must return an object");
+        }
+        return result;
+      }
+      function IteratorComplete(iterResult) {
+        return Boolean(iterResult.done);
+      }
+      function IteratorValue(iterResult) {
+        return iterResult.value;
+      }
+      function IsNonNegativeNumber(v) {
+        if (typeof v !== "number") {
+          return false;
+        }
+        if (NumberIsNaN(v)) {
+          return false;
+        }
+        if (v < 0) {
+          return false;
+        }
+        return true;
+      }
+      function CloneAsUint8Array(O) {
+        const buffer = ArrayBufferSlice(O.buffer, O.byteOffset, O.byteOffset + O.byteLength);
+        return new Uint8Array(buffer);
+      }
+      function DequeueValue(container) {
+        const pair = container._queue.shift();
+        container._queueTotalSize -= pair.size;
+        if (container._queueTotalSize < 0) {
+          container._queueTotalSize = 0;
+        }
+        return pair.value;
+      }
+      function EnqueueValueWithSize(container, value, size) {
+        if (!IsNonNegativeNumber(size) || size === Infinity) {
+          throw new RangeError("Size must be a finite, non-NaN, non-negative number.");
+        }
+        container._queue.push({ value, size });
+        container._queueTotalSize += size;
+      }
+      function PeekQueueValue(container) {
+        const pair = container._queue.peek();
+        return pair.value;
+      }
+      function ResetQueue(container) {
+        container._queue = new SimpleQueue();
+        container._queueTotalSize = 0;
+      }
+      function isDataViewConstructor(ctor) {
+        return ctor === DataView;
+      }
+      function isDataView(view) {
+        return isDataViewConstructor(view.constructor);
+      }
+      function arrayBufferViewElementSize(ctor) {
+        if (isDataViewConstructor(ctor)) {
+          return 1;
+        }
+        return ctor.BYTES_PER_ELEMENT;
+      }
+      class ReadableStreamBYOBRequest {
+        constructor() {
+          throw new TypeError("Illegal constructor");
+        }
+        /**
+         * Returns the view for writing in to, or `null` if the BYOB request has already been responded to.
+         */
+        get view() {
+          if (!IsReadableStreamBYOBRequest(this)) {
+            throw byobRequestBrandCheckException("view");
+          }
+          return this._view;
+        }
+        respond(bytesWritten) {
+          if (!IsReadableStreamBYOBRequest(this)) {
+            throw byobRequestBrandCheckException("respond");
+          }
+          assertRequiredArgument(bytesWritten, 1, "respond");
+          bytesWritten = convertUnsignedLongLongWithEnforceRange(bytesWritten, "First parameter");
+          if (this._associatedReadableByteStreamController === void 0) {
+            throw new TypeError("This BYOB request has been invalidated");
+          }
+          if (IsDetachedBuffer(this._view.buffer)) {
+            throw new TypeError(`The BYOB request's buffer has been detached and so cannot be used as a response`);
+          }
+          ReadableByteStreamControllerRespond(this._associatedReadableByteStreamController, bytesWritten);
+        }
+        respondWithNewView(view) {
+          if (!IsReadableStreamBYOBRequest(this)) {
+            throw byobRequestBrandCheckException("respondWithNewView");
+          }
+          assertRequiredArgument(view, 1, "respondWithNewView");
+          if (!ArrayBuffer.isView(view)) {
+            throw new TypeError("You can only respond with array buffer views");
+          }
+          if (this._associatedReadableByteStreamController === void 0) {
+            throw new TypeError("This BYOB request has been invalidated");
+          }
+          if (IsDetachedBuffer(view.buffer)) {
+            throw new TypeError("The given view's buffer has been detached and so cannot be used as a response");
+          }
+          ReadableByteStreamControllerRespondWithNewView(this._associatedReadableByteStreamController, view);
+        }
+      }
+      Object.defineProperties(ReadableStreamBYOBRequest.prototype, {
+        respond: { enumerable: true },
+        respondWithNewView: { enumerable: true },
+        view: { enumerable: true }
+      });
+      setFunctionName(ReadableStreamBYOBRequest.prototype.respond, "respond");
+      setFunctionName(ReadableStreamBYOBRequest.prototype.respondWithNewView, "respondWithNewView");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ReadableStreamBYOBRequest.prototype, Symbol.toStringTag, {
+          value: "ReadableStreamBYOBRequest",
+          configurable: true
+        });
+      }
+      class ReadableByteStreamController {
+        constructor() {
+          throw new TypeError("Illegal constructor");
+        }
+        /**
+         * Returns the current BYOB pull request, or `null` if there isn't one.
+         */
+        get byobRequest() {
+          if (!IsReadableByteStreamController(this)) {
+            throw byteStreamControllerBrandCheckException("byobRequest");
+          }
+          return ReadableByteStreamControllerGetBYOBRequest(this);
+        }
+        /**
+         * Returns the desired size to fill the controlled stream's internal queue. It can be negative, if the queue is
+         * over-full. An underlying byte source ought to use this information to determine when and how to apply backpressure.
+         */
+        get desiredSize() {
+          if (!IsReadableByteStreamController(this)) {
+            throw byteStreamControllerBrandCheckException("desiredSize");
+          }
+          return ReadableByteStreamControllerGetDesiredSize(this);
+        }
+        /**
+         * Closes the controlled readable stream. Consumers will still be able to read any previously-enqueued chunks from
+         * the stream, but once those are read, the stream will become closed.
+         */
+        close() {
+          if (!IsReadableByteStreamController(this)) {
+            throw byteStreamControllerBrandCheckException("close");
+          }
+          if (this._closeRequested) {
+            throw new TypeError("The stream has already been closed; do not close it again!");
+          }
+          const state = this._controlledReadableByteStream._state;
+          if (state !== "readable") {
+            throw new TypeError(`The stream (in ${state} state) is not in the readable state and cannot be closed`);
+          }
+          ReadableByteStreamControllerClose(this);
+        }
+        enqueue(chunk) {
+          if (!IsReadableByteStreamController(this)) {
+            throw byteStreamControllerBrandCheckException("enqueue");
+          }
+          assertRequiredArgument(chunk, 1, "enqueue");
+          if (!ArrayBuffer.isView(chunk)) {
+            throw new TypeError("chunk must be an array buffer view");
+          }
+          if (chunk.byteLength === 0) {
+            throw new TypeError("chunk must have non-zero byteLength");
+          }
+          if (chunk.buffer.byteLength === 0) {
+            throw new TypeError(`chunk's buffer must have non-zero byteLength`);
+          }
+          if (this._closeRequested) {
+            throw new TypeError("stream is closed or draining");
+          }
+          const state = this._controlledReadableByteStream._state;
+          if (state !== "readable") {
+            throw new TypeError(`The stream (in ${state} state) is not in the readable state and cannot be enqueued to`);
+          }
+          ReadableByteStreamControllerEnqueue(this, chunk);
+        }
+        /**
+         * Errors the controlled readable stream, making all future interactions with it fail with the given error `e`.
+         */
+        error(e2 = void 0) {
+          if (!IsReadableByteStreamController(this)) {
+            throw byteStreamControllerBrandCheckException("error");
+          }
+          ReadableByteStreamControllerError(this, e2);
+        }
+        /** @internal */
+        [CancelSteps](reason) {
+          ReadableByteStreamControllerClearPendingPullIntos(this);
+          ResetQueue(this);
+          const result = this._cancelAlgorithm(reason);
+          ReadableByteStreamControllerClearAlgorithms(this);
+          return result;
+        }
+        /** @internal */
+        [PullSteps](readRequest) {
+          const stream = this._controlledReadableByteStream;
+          if (this._queueTotalSize > 0) {
+            ReadableByteStreamControllerFillReadRequestFromQueue(this, readRequest);
+            return;
+          }
+          const autoAllocateChunkSize = this._autoAllocateChunkSize;
+          if (autoAllocateChunkSize !== void 0) {
+            let buffer;
+            try {
+              buffer = new ArrayBuffer(autoAllocateChunkSize);
+            } catch (bufferE) {
+              readRequest._errorSteps(bufferE);
+              return;
+            }
+            const pullIntoDescriptor = {
+              buffer,
+              bufferByteLength: autoAllocateChunkSize,
+              byteOffset: 0,
+              byteLength: autoAllocateChunkSize,
+              bytesFilled: 0,
+              minimumFill: 1,
+              elementSize: 1,
+              viewConstructor: Uint8Array,
+              readerType: "default"
+            };
+            this._pendingPullIntos.push(pullIntoDescriptor);
+          }
+          ReadableStreamAddReadRequest(stream, readRequest);
+          ReadableByteStreamControllerCallPullIfNeeded(this);
+        }
+        /** @internal */
+        [ReleaseSteps]() {
+          if (this._pendingPullIntos.length > 0) {
+            const firstPullInto = this._pendingPullIntos.peek();
+            firstPullInto.readerType = "none";
+            this._pendingPullIntos = new SimpleQueue();
+            this._pendingPullIntos.push(firstPullInto);
+          }
+        }
+      }
+      Object.defineProperties(ReadableByteStreamController.prototype, {
+        close: { enumerable: true },
+        enqueue: { enumerable: true },
+        error: { enumerable: true },
+        byobRequest: { enumerable: true },
+        desiredSize: { enumerable: true }
+      });
+      setFunctionName(ReadableByteStreamController.prototype.close, "close");
+      setFunctionName(ReadableByteStreamController.prototype.enqueue, "enqueue");
+      setFunctionName(ReadableByteStreamController.prototype.error, "error");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ReadableByteStreamController.prototype, Symbol.toStringTag, {
+          value: "ReadableByteStreamController",
+          configurable: true
+        });
+      }
+      function IsReadableByteStreamController(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_controlledReadableByteStream")) {
+          return false;
+        }
+        return x2 instanceof ReadableByteStreamController;
+      }
+      function IsReadableStreamBYOBRequest(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_associatedReadableByteStreamController")) {
+          return false;
+        }
+        return x2 instanceof ReadableStreamBYOBRequest;
+      }
+      function ReadableByteStreamControllerCallPullIfNeeded(controller) {
+        const shouldPull = ReadableByteStreamControllerShouldCallPull(controller);
+        if (!shouldPull) {
+          return;
+        }
+        if (controller._pulling) {
+          controller._pullAgain = true;
+          return;
+        }
+        controller._pulling = true;
+        const pullPromise = controller._pullAlgorithm();
+        uponPromise(pullPromise, () => {
+          controller._pulling = false;
+          if (controller._pullAgain) {
+            controller._pullAgain = false;
+            ReadableByteStreamControllerCallPullIfNeeded(controller);
+          }
+          return null;
+        }, (e2) => {
+          ReadableByteStreamControllerError(controller, e2);
+          return null;
+        });
+      }
+      function ReadableByteStreamControllerClearPendingPullIntos(controller) {
+        ReadableByteStreamControllerInvalidateBYOBRequest(controller);
+        controller._pendingPullIntos = new SimpleQueue();
+      }
+      function ReadableByteStreamControllerCommitPullIntoDescriptor(stream, pullIntoDescriptor) {
+        let done = false;
+        if (stream._state === "closed") {
+          done = true;
+        }
+        const filledView = ReadableByteStreamControllerConvertPullIntoDescriptor(pullIntoDescriptor);
+        if (pullIntoDescriptor.readerType === "default") {
+          ReadableStreamFulfillReadRequest(stream, filledView, done);
+        } else {
+          ReadableStreamFulfillReadIntoRequest(stream, filledView, done);
+        }
+      }
+      function ReadableByteStreamControllerConvertPullIntoDescriptor(pullIntoDescriptor) {
+        const bytesFilled = pullIntoDescriptor.bytesFilled;
+        const elementSize = pullIntoDescriptor.elementSize;
+        return new pullIntoDescriptor.viewConstructor(pullIntoDescriptor.buffer, pullIntoDescriptor.byteOffset, bytesFilled / elementSize);
+      }
+      function ReadableByteStreamControllerEnqueueChunkToQueue(controller, buffer, byteOffset, byteLength) {
+        controller._queue.push({ buffer, byteOffset, byteLength });
+        controller._queueTotalSize += byteLength;
+      }
+      function ReadableByteStreamControllerEnqueueClonedChunkToQueue(controller, buffer, byteOffset, byteLength) {
+        let clonedChunk;
+        try {
+          clonedChunk = ArrayBufferSlice(buffer, byteOffset, byteOffset + byteLength);
+        } catch (cloneE) {
+          ReadableByteStreamControllerError(controller, cloneE);
+          throw cloneE;
+        }
+        ReadableByteStreamControllerEnqueueChunkToQueue(controller, clonedChunk, 0, byteLength);
+      }
+      function ReadableByteStreamControllerEnqueueDetachedPullIntoToQueue(controller, firstDescriptor) {
+        if (firstDescriptor.bytesFilled > 0) {
+          ReadableByteStreamControllerEnqueueClonedChunkToQueue(controller, firstDescriptor.buffer, firstDescriptor.byteOffset, firstDescriptor.bytesFilled);
+        }
+        ReadableByteStreamControllerShiftPendingPullInto(controller);
+      }
+      function ReadableByteStreamControllerFillPullIntoDescriptorFromQueue(controller, pullIntoDescriptor) {
+        const maxBytesToCopy = Math.min(controller._queueTotalSize, pullIntoDescriptor.byteLength - pullIntoDescriptor.bytesFilled);
+        const maxBytesFilled = pullIntoDescriptor.bytesFilled + maxBytesToCopy;
+        let totalBytesToCopyRemaining = maxBytesToCopy;
+        let ready = false;
+        const remainderBytes = maxBytesFilled % pullIntoDescriptor.elementSize;
+        const maxAlignedBytes = maxBytesFilled - remainderBytes;
+        if (maxAlignedBytes >= pullIntoDescriptor.minimumFill) {
+          totalBytesToCopyRemaining = maxAlignedBytes - pullIntoDescriptor.bytesFilled;
+          ready = true;
+        }
+        const queue = controller._queue;
+        while (totalBytesToCopyRemaining > 0) {
+          const headOfQueue = queue.peek();
+          const bytesToCopy = Math.min(totalBytesToCopyRemaining, headOfQueue.byteLength);
+          const destStart = pullIntoDescriptor.byteOffset + pullIntoDescriptor.bytesFilled;
+          CopyDataBlockBytes(pullIntoDescriptor.buffer, destStart, headOfQueue.buffer, headOfQueue.byteOffset, bytesToCopy);
+          if (headOfQueue.byteLength === bytesToCopy) {
+            queue.shift();
+          } else {
+            headOfQueue.byteOffset += bytesToCopy;
+            headOfQueue.byteLength -= bytesToCopy;
+          }
+          controller._queueTotalSize -= bytesToCopy;
+          ReadableByteStreamControllerFillHeadPullIntoDescriptor(controller, bytesToCopy, pullIntoDescriptor);
+          totalBytesToCopyRemaining -= bytesToCopy;
+        }
+        return ready;
+      }
+      function ReadableByteStreamControllerFillHeadPullIntoDescriptor(controller, size, pullIntoDescriptor) {
+        pullIntoDescriptor.bytesFilled += size;
+      }
+      function ReadableByteStreamControllerHandleQueueDrain(controller) {
+        if (controller._queueTotalSize === 0 && controller._closeRequested) {
+          ReadableByteStreamControllerClearAlgorithms(controller);
+          ReadableStreamClose(controller._controlledReadableByteStream);
+        } else {
+          ReadableByteStreamControllerCallPullIfNeeded(controller);
+        }
+      }
+      function ReadableByteStreamControllerInvalidateBYOBRequest(controller) {
+        if (controller._byobRequest === null) {
+          return;
+        }
+        controller._byobRequest._associatedReadableByteStreamController = void 0;
+        controller._byobRequest._view = null;
+        controller._byobRequest = null;
+      }
+      function ReadableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(controller) {
+        while (controller._pendingPullIntos.length > 0) {
+          if (controller._queueTotalSize === 0) {
+            return;
+          }
+          const pullIntoDescriptor = controller._pendingPullIntos.peek();
+          if (ReadableByteStreamControllerFillPullIntoDescriptorFromQueue(controller, pullIntoDescriptor)) {
+            ReadableByteStreamControllerShiftPendingPullInto(controller);
+            ReadableByteStreamControllerCommitPullIntoDescriptor(controller._controlledReadableByteStream, pullIntoDescriptor);
+          }
+        }
+      }
+      function ReadableByteStreamControllerProcessReadRequestsUsingQueue(controller) {
+        const reader = controller._controlledReadableByteStream._reader;
+        while (reader._readRequests.length > 0) {
+          if (controller._queueTotalSize === 0) {
+            return;
+          }
+          const readRequest = reader._readRequests.shift();
+          ReadableByteStreamControllerFillReadRequestFromQueue(controller, readRequest);
+        }
+      }
+      function ReadableByteStreamControllerPullInto(controller, view, min, readIntoRequest) {
+        const stream = controller._controlledReadableByteStream;
+        const ctor = view.constructor;
+        const elementSize = arrayBufferViewElementSize(ctor);
+        const { byteOffset, byteLength } = view;
+        const minimumFill = min * elementSize;
+        let buffer;
+        try {
+          buffer = TransferArrayBuffer(view.buffer);
+        } catch (e2) {
+          readIntoRequest._errorSteps(e2);
+          return;
+        }
+        const pullIntoDescriptor = {
+          buffer,
+          bufferByteLength: buffer.byteLength,
+          byteOffset,
+          byteLength,
+          bytesFilled: 0,
+          minimumFill,
+          elementSize,
+          viewConstructor: ctor,
+          readerType: "byob"
+        };
+        if (controller._pendingPullIntos.length > 0) {
+          controller._pendingPullIntos.push(pullIntoDescriptor);
+          ReadableStreamAddReadIntoRequest(stream, readIntoRequest);
+          return;
+        }
+        if (stream._state === "closed") {
+          const emptyView = new ctor(pullIntoDescriptor.buffer, pullIntoDescriptor.byteOffset, 0);
+          readIntoRequest._closeSteps(emptyView);
+          return;
+        }
+        if (controller._queueTotalSize > 0) {
+          if (ReadableByteStreamControllerFillPullIntoDescriptorFromQueue(controller, pullIntoDescriptor)) {
+            const filledView = ReadableByteStreamControllerConvertPullIntoDescriptor(pullIntoDescriptor);
+            ReadableByteStreamControllerHandleQueueDrain(controller);
+            readIntoRequest._chunkSteps(filledView);
+            return;
+          }
+          if (controller._closeRequested) {
+            const e2 = new TypeError("Insufficient bytes to fill elements in the given buffer");
+            ReadableByteStreamControllerError(controller, e2);
+            readIntoRequest._errorSteps(e2);
+            return;
+          }
+        }
+        controller._pendingPullIntos.push(pullIntoDescriptor);
+        ReadableStreamAddReadIntoRequest(stream, readIntoRequest);
+        ReadableByteStreamControllerCallPullIfNeeded(controller);
+      }
+      function ReadableByteStreamControllerRespondInClosedState(controller, firstDescriptor) {
+        if (firstDescriptor.readerType === "none") {
+          ReadableByteStreamControllerShiftPendingPullInto(controller);
+        }
+        const stream = controller._controlledReadableByteStream;
+        if (ReadableStreamHasBYOBReader(stream)) {
+          while (ReadableStreamGetNumReadIntoRequests(stream) > 0) {
+            const pullIntoDescriptor = ReadableByteStreamControllerShiftPendingPullInto(controller);
+            ReadableByteStreamControllerCommitPullIntoDescriptor(stream, pullIntoDescriptor);
+          }
+        }
+      }
+      function ReadableByteStreamControllerRespondInReadableState(controller, bytesWritten, pullIntoDescriptor) {
+        ReadableByteStreamControllerFillHeadPullIntoDescriptor(controller, bytesWritten, pullIntoDescriptor);
+        if (pullIntoDescriptor.readerType === "none") {
+          ReadableByteStreamControllerEnqueueDetachedPullIntoToQueue(controller, pullIntoDescriptor);
+          ReadableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(controller);
+          return;
+        }
+        if (pullIntoDescriptor.bytesFilled < pullIntoDescriptor.minimumFill) {
+          return;
+        }
+        ReadableByteStreamControllerShiftPendingPullInto(controller);
+        const remainderSize = pullIntoDescriptor.bytesFilled % pullIntoDescriptor.elementSize;
+        if (remainderSize > 0) {
+          const end = pullIntoDescriptor.byteOffset + pullIntoDescriptor.bytesFilled;
+          ReadableByteStreamControllerEnqueueClonedChunkToQueue(controller, pullIntoDescriptor.buffer, end - remainderSize, remainderSize);
+        }
+        pullIntoDescriptor.bytesFilled -= remainderSize;
+        ReadableByteStreamControllerCommitPullIntoDescriptor(controller._controlledReadableByteStream, pullIntoDescriptor);
+        ReadableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(controller);
+      }
+      function ReadableByteStreamControllerRespondInternal(controller, bytesWritten) {
+        const firstDescriptor = controller._pendingPullIntos.peek();
+        ReadableByteStreamControllerInvalidateBYOBRequest(controller);
+        const state = controller._controlledReadableByteStream._state;
+        if (state === "closed") {
+          ReadableByteStreamControllerRespondInClosedState(controller, firstDescriptor);
+        } else {
+          ReadableByteStreamControllerRespondInReadableState(controller, bytesWritten, firstDescriptor);
+        }
+        ReadableByteStreamControllerCallPullIfNeeded(controller);
+      }
+      function ReadableByteStreamControllerShiftPendingPullInto(controller) {
+        const descriptor = controller._pendingPullIntos.shift();
+        return descriptor;
+      }
+      function ReadableByteStreamControllerShouldCallPull(controller) {
+        const stream = controller._controlledReadableByteStream;
+        if (stream._state !== "readable") {
+          return false;
+        }
+        if (controller._closeRequested) {
+          return false;
+        }
+        if (!controller._started) {
+          return false;
+        }
+        if (ReadableStreamHasDefaultReader(stream) && ReadableStreamGetNumReadRequests(stream) > 0) {
+          return true;
+        }
+        if (ReadableStreamHasBYOBReader(stream) && ReadableStreamGetNumReadIntoRequests(stream) > 0) {
+          return true;
+        }
+        const desiredSize = ReadableByteStreamControllerGetDesiredSize(controller);
+        if (desiredSize > 0) {
+          return true;
+        }
+        return false;
+      }
+      function ReadableByteStreamControllerClearAlgorithms(controller) {
+        controller._pullAlgorithm = void 0;
+        controller._cancelAlgorithm = void 0;
+      }
+      function ReadableByteStreamControllerClose(controller) {
+        const stream = controller._controlledReadableByteStream;
+        if (controller._closeRequested || stream._state !== "readable") {
+          return;
+        }
+        if (controller._queueTotalSize > 0) {
+          controller._closeRequested = true;
+          return;
+        }
+        if (controller._pendingPullIntos.length > 0) {
+          const firstPendingPullInto = controller._pendingPullIntos.peek();
+          if (firstPendingPullInto.bytesFilled % firstPendingPullInto.elementSize !== 0) {
+            const e2 = new TypeError("Insufficient bytes to fill elements in the given buffer");
+            ReadableByteStreamControllerError(controller, e2);
+            throw e2;
+          }
+        }
+        ReadableByteStreamControllerClearAlgorithms(controller);
+        ReadableStreamClose(stream);
+      }
+      function ReadableByteStreamControllerEnqueue(controller, chunk) {
+        const stream = controller._controlledReadableByteStream;
+        if (controller._closeRequested || stream._state !== "readable") {
+          return;
+        }
+        const { buffer, byteOffset, byteLength } = chunk;
+        if (IsDetachedBuffer(buffer)) {
+          throw new TypeError("chunk's buffer is detached and so cannot be enqueued");
+        }
+        const transferredBuffer = TransferArrayBuffer(buffer);
+        if (controller._pendingPullIntos.length > 0) {
+          const firstPendingPullInto = controller._pendingPullIntos.peek();
+          if (IsDetachedBuffer(firstPendingPullInto.buffer)) {
+            throw new TypeError("The BYOB request's buffer has been detached and so cannot be filled with an enqueued chunk");
+          }
+          ReadableByteStreamControllerInvalidateBYOBRequest(controller);
+          firstPendingPullInto.buffer = TransferArrayBuffer(firstPendingPullInto.buffer);
+          if (firstPendingPullInto.readerType === "none") {
+            ReadableByteStreamControllerEnqueueDetachedPullIntoToQueue(controller, firstPendingPullInto);
+          }
+        }
+        if (ReadableStreamHasDefaultReader(stream)) {
+          ReadableByteStreamControllerProcessReadRequestsUsingQueue(controller);
+          if (ReadableStreamGetNumReadRequests(stream) === 0) {
+            ReadableByteStreamControllerEnqueueChunkToQueue(controller, transferredBuffer, byteOffset, byteLength);
+          } else {
+            if (controller._pendingPullIntos.length > 0) {
+              ReadableByteStreamControllerShiftPendingPullInto(controller);
+            }
+            const transferredView = new Uint8Array(transferredBuffer, byteOffset, byteLength);
+            ReadableStreamFulfillReadRequest(stream, transferredView, false);
+          }
+        } else if (ReadableStreamHasBYOBReader(stream)) {
+          ReadableByteStreamControllerEnqueueChunkToQueue(controller, transferredBuffer, byteOffset, byteLength);
+          ReadableByteStreamControllerProcessPullIntoDescriptorsUsingQueue(controller);
+        } else {
+          ReadableByteStreamControllerEnqueueChunkToQueue(controller, transferredBuffer, byteOffset, byteLength);
+        }
+        ReadableByteStreamControllerCallPullIfNeeded(controller);
+      }
+      function ReadableByteStreamControllerError(controller, e2) {
+        const stream = controller._controlledReadableByteStream;
+        if (stream._state !== "readable") {
+          return;
+        }
+        ReadableByteStreamControllerClearPendingPullIntos(controller);
+        ResetQueue(controller);
+        ReadableByteStreamControllerClearAlgorithms(controller);
+        ReadableStreamError(stream, e2);
+      }
+      function ReadableByteStreamControllerFillReadRequestFromQueue(controller, readRequest) {
+        const entry = controller._queue.shift();
+        controller._queueTotalSize -= entry.byteLength;
+        ReadableByteStreamControllerHandleQueueDrain(controller);
+        const view = new Uint8Array(entry.buffer, entry.byteOffset, entry.byteLength);
+        readRequest._chunkSteps(view);
+      }
+      function ReadableByteStreamControllerGetBYOBRequest(controller) {
+        if (controller._byobRequest === null && controller._pendingPullIntos.length > 0) {
+          const firstDescriptor = controller._pendingPullIntos.peek();
+          const view = new Uint8Array(firstDescriptor.buffer, firstDescriptor.byteOffset + firstDescriptor.bytesFilled, firstDescriptor.byteLength - firstDescriptor.bytesFilled);
+          const byobRequest = Object.create(ReadableStreamBYOBRequest.prototype);
+          SetUpReadableStreamBYOBRequest(byobRequest, controller, view);
+          controller._byobRequest = byobRequest;
+        }
+        return controller._byobRequest;
+      }
+      function ReadableByteStreamControllerGetDesiredSize(controller) {
+        const state = controller._controlledReadableByteStream._state;
+        if (state === "errored") {
+          return null;
+        }
+        if (state === "closed") {
+          return 0;
+        }
+        return controller._strategyHWM - controller._queueTotalSize;
+      }
+      function ReadableByteStreamControllerRespond(controller, bytesWritten) {
+        const firstDescriptor = controller._pendingPullIntos.peek();
+        const state = controller._controlledReadableByteStream._state;
+        if (state === "closed") {
+          if (bytesWritten !== 0) {
+            throw new TypeError("bytesWritten must be 0 when calling respond() on a closed stream");
+          }
+        } else {
+          if (bytesWritten === 0) {
+            throw new TypeError("bytesWritten must be greater than 0 when calling respond() on a readable stream");
+          }
+          if (firstDescriptor.bytesFilled + bytesWritten > firstDescriptor.byteLength) {
+            throw new RangeError("bytesWritten out of range");
+          }
+        }
+        firstDescriptor.buffer = TransferArrayBuffer(firstDescriptor.buffer);
+        ReadableByteStreamControllerRespondInternal(controller, bytesWritten);
+      }
+      function ReadableByteStreamControllerRespondWithNewView(controller, view) {
+        const firstDescriptor = controller._pendingPullIntos.peek();
+        const state = controller._controlledReadableByteStream._state;
+        if (state === "closed") {
+          if (view.byteLength !== 0) {
+            throw new TypeError("The view's length must be 0 when calling respondWithNewView() on a closed stream");
+          }
+        } else {
+          if (view.byteLength === 0) {
+            throw new TypeError("The view's length must be greater than 0 when calling respondWithNewView() on a readable stream");
+          }
+        }
+        if (firstDescriptor.byteOffset + firstDescriptor.bytesFilled !== view.byteOffset) {
+          throw new RangeError("The region specified by view does not match byobRequest");
+        }
+        if (firstDescriptor.bufferByteLength !== view.buffer.byteLength) {
+          throw new RangeError("The buffer of view has different capacity than byobRequest");
+        }
+        if (firstDescriptor.bytesFilled + view.byteLength > firstDescriptor.byteLength) {
+          throw new RangeError("The region specified by view is larger than byobRequest");
+        }
+        const viewByteLength = view.byteLength;
+        firstDescriptor.buffer = TransferArrayBuffer(view.buffer);
+        ReadableByteStreamControllerRespondInternal(controller, viewByteLength);
+      }
+      function SetUpReadableByteStreamController(stream, controller, startAlgorithm, pullAlgorithm, cancelAlgorithm, highWaterMark, autoAllocateChunkSize) {
+        controller._controlledReadableByteStream = stream;
+        controller._pullAgain = false;
+        controller._pulling = false;
+        controller._byobRequest = null;
+        controller._queue = controller._queueTotalSize = void 0;
+        ResetQueue(controller);
+        controller._closeRequested = false;
+        controller._started = false;
+        controller._strategyHWM = highWaterMark;
+        controller._pullAlgorithm = pullAlgorithm;
+        controller._cancelAlgorithm = cancelAlgorithm;
+        controller._autoAllocateChunkSize = autoAllocateChunkSize;
+        controller._pendingPullIntos = new SimpleQueue();
+        stream._readableStreamController = controller;
+        const startResult = startAlgorithm();
+        uponPromise(promiseResolvedWith(startResult), () => {
+          controller._started = true;
+          ReadableByteStreamControllerCallPullIfNeeded(controller);
+          return null;
+        }, (r2) => {
+          ReadableByteStreamControllerError(controller, r2);
+          return null;
+        });
+      }
+      function SetUpReadableByteStreamControllerFromUnderlyingSource(stream, underlyingByteSource, highWaterMark) {
+        const controller = Object.create(ReadableByteStreamController.prototype);
+        let startAlgorithm;
+        let pullAlgorithm;
+        let cancelAlgorithm;
+        if (underlyingByteSource.start !== void 0) {
+          startAlgorithm = () => underlyingByteSource.start(controller);
+        } else {
+          startAlgorithm = () => void 0;
+        }
+        if (underlyingByteSource.pull !== void 0) {
+          pullAlgorithm = () => underlyingByteSource.pull(controller);
+        } else {
+          pullAlgorithm = () => promiseResolvedWith(void 0);
+        }
+        if (underlyingByteSource.cancel !== void 0) {
+          cancelAlgorithm = (reason) => underlyingByteSource.cancel(reason);
+        } else {
+          cancelAlgorithm = () => promiseResolvedWith(void 0);
+        }
+        const autoAllocateChunkSize = underlyingByteSource.autoAllocateChunkSize;
+        if (autoAllocateChunkSize === 0) {
+          throw new TypeError("autoAllocateChunkSize must be greater than 0");
+        }
+        SetUpReadableByteStreamController(stream, controller, startAlgorithm, pullAlgorithm, cancelAlgorithm, highWaterMark, autoAllocateChunkSize);
+      }
+      function SetUpReadableStreamBYOBRequest(request, controller, view) {
+        request._associatedReadableByteStreamController = controller;
+        request._view = view;
+      }
+      function byobRequestBrandCheckException(name) {
+        return new TypeError(`ReadableStreamBYOBRequest.prototype.${name} can only be used on a ReadableStreamBYOBRequest`);
+      }
+      function byteStreamControllerBrandCheckException(name) {
+        return new TypeError(`ReadableByteStreamController.prototype.${name} can only be used on a ReadableByteStreamController`);
+      }
+      function convertReaderOptions(options, context) {
+        assertDictionary(options, context);
+        const mode = options === null || options === void 0 ? void 0 : options.mode;
+        return {
+          mode: mode === void 0 ? void 0 : convertReadableStreamReaderMode(mode, `${context} has member 'mode' that`)
+        };
+      }
+      function convertReadableStreamReaderMode(mode, context) {
+        mode = `${mode}`;
+        if (mode !== "byob") {
+          throw new TypeError(`${context} '${mode}' is not a valid enumeration value for ReadableStreamReaderMode`);
+        }
+        return mode;
+      }
+      function convertByobReadOptions(options, context) {
+        var _a2;
+        assertDictionary(options, context);
+        const min = (_a2 = options === null || options === void 0 ? void 0 : options.min) !== null && _a2 !== void 0 ? _a2 : 1;
+        return {
+          min: convertUnsignedLongLongWithEnforceRange(min, `${context} has member 'min' that`)
+        };
+      }
+      function AcquireReadableStreamBYOBReader(stream) {
+        return new ReadableStreamBYOBReader(stream);
+      }
+      function ReadableStreamAddReadIntoRequest(stream, readIntoRequest) {
+        stream._reader._readIntoRequests.push(readIntoRequest);
+      }
+      function ReadableStreamFulfillReadIntoRequest(stream, chunk, done) {
+        const reader = stream._reader;
+        const readIntoRequest = reader._readIntoRequests.shift();
+        if (done) {
+          readIntoRequest._closeSteps(chunk);
+        } else {
+          readIntoRequest._chunkSteps(chunk);
+        }
+      }
+      function ReadableStreamGetNumReadIntoRequests(stream) {
+        return stream._reader._readIntoRequests.length;
+      }
+      function ReadableStreamHasBYOBReader(stream) {
+        const reader = stream._reader;
+        if (reader === void 0) {
+          return false;
+        }
+        if (!IsReadableStreamBYOBReader(reader)) {
+          return false;
+        }
+        return true;
+      }
+      class ReadableStreamBYOBReader {
+        constructor(stream) {
+          assertRequiredArgument(stream, 1, "ReadableStreamBYOBReader");
+          assertReadableStream(stream, "First parameter");
+          if (IsReadableStreamLocked(stream)) {
+            throw new TypeError("This stream has already been locked for exclusive reading by another reader");
+          }
+          if (!IsReadableByteStreamController(stream._readableStreamController)) {
+            throw new TypeError("Cannot construct a ReadableStreamBYOBReader for a stream not constructed with a byte source");
+          }
+          ReadableStreamReaderGenericInitialize(this, stream);
+          this._readIntoRequests = new SimpleQueue();
+        }
+        /**
+         * Returns a promise that will be fulfilled when the stream becomes closed, or rejected if the stream ever errors or
+         * the reader's lock is released before the stream finishes closing.
+         */
+        get closed() {
+          if (!IsReadableStreamBYOBReader(this)) {
+            return promiseRejectedWith(byobReaderBrandCheckException("closed"));
+          }
+          return this._closedPromise;
+        }
+        /**
+         * If the reader is active, behaves the same as {@link ReadableStream.cancel | stream.cancel(reason)}.
+         */
+        cancel(reason = void 0) {
+          if (!IsReadableStreamBYOBReader(this)) {
+            return promiseRejectedWith(byobReaderBrandCheckException("cancel"));
+          }
+          if (this._ownerReadableStream === void 0) {
+            return promiseRejectedWith(readerLockException("cancel"));
+          }
+          return ReadableStreamReaderGenericCancel(this, reason);
+        }
+        read(view, rawOptions = {}) {
+          if (!IsReadableStreamBYOBReader(this)) {
+            return promiseRejectedWith(byobReaderBrandCheckException("read"));
+          }
+          if (!ArrayBuffer.isView(view)) {
+            return promiseRejectedWith(new TypeError("view must be an array buffer view"));
+          }
+          if (view.byteLength === 0) {
+            return promiseRejectedWith(new TypeError("view must have non-zero byteLength"));
+          }
+          if (view.buffer.byteLength === 0) {
+            return promiseRejectedWith(new TypeError(`view's buffer must have non-zero byteLength`));
+          }
+          if (IsDetachedBuffer(view.buffer)) {
+            return promiseRejectedWith(new TypeError("view's buffer has been detached"));
+          }
+          let options;
+          try {
+            options = convertByobReadOptions(rawOptions, "options");
+          } catch (e2) {
+            return promiseRejectedWith(e2);
+          }
+          const min = options.min;
+          if (min === 0) {
+            return promiseRejectedWith(new TypeError("options.min must be greater than 0"));
+          }
+          if (!isDataView(view)) {
+            if (min > view.length) {
+              return promiseRejectedWith(new RangeError("options.min must be less than or equal to view's length"));
+            }
+          } else if (min > view.byteLength) {
+            return promiseRejectedWith(new RangeError("options.min must be less than or equal to view's byteLength"));
+          }
+          if (this._ownerReadableStream === void 0) {
+            return promiseRejectedWith(readerLockException("read from"));
+          }
+          let resolvePromise;
+          let rejectPromise;
+          const promise = newPromise((resolve, reject) => {
+            resolvePromise = resolve;
+            rejectPromise = reject;
+          });
+          const readIntoRequest = {
+            _chunkSteps: (chunk) => resolvePromise({ value: chunk, done: false }),
+            _closeSteps: (chunk) => resolvePromise({ value: chunk, done: true }),
+            _errorSteps: (e2) => rejectPromise(e2)
+          };
+          ReadableStreamBYOBReaderRead(this, view, min, readIntoRequest);
+          return promise;
+        }
+        /**
+         * Releases the reader's lock on the corresponding stream. After the lock is released, the reader is no longer active.
+         * If the associated stream is errored when the lock is released, the reader will appear errored in the same way
+         * from now on; otherwise, the reader will appear closed.
+         *
+         * A reader's lock cannot be released while it still has a pending read request, i.e., if a promise returned by
+         * the reader's {@link ReadableStreamBYOBReader.read | read()} method has not yet been settled. Attempting to
+         * do so will throw a `TypeError` and leave the reader locked to the stream.
+         */
+        releaseLock() {
+          if (!IsReadableStreamBYOBReader(this)) {
+            throw byobReaderBrandCheckException("releaseLock");
+          }
+          if (this._ownerReadableStream === void 0) {
+            return;
+          }
+          ReadableStreamBYOBReaderRelease(this);
+        }
+      }
+      Object.defineProperties(ReadableStreamBYOBReader.prototype, {
+        cancel: { enumerable: true },
+        read: { enumerable: true },
+        releaseLock: { enumerable: true },
+        closed: { enumerable: true }
+      });
+      setFunctionName(ReadableStreamBYOBReader.prototype.cancel, "cancel");
+      setFunctionName(ReadableStreamBYOBReader.prototype.read, "read");
+      setFunctionName(ReadableStreamBYOBReader.prototype.releaseLock, "releaseLock");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ReadableStreamBYOBReader.prototype, Symbol.toStringTag, {
+          value: "ReadableStreamBYOBReader",
+          configurable: true
+        });
+      }
+      function IsReadableStreamBYOBReader(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_readIntoRequests")) {
+          return false;
+        }
+        return x2 instanceof ReadableStreamBYOBReader;
+      }
+      function ReadableStreamBYOBReaderRead(reader, view, min, readIntoRequest) {
+        const stream = reader._ownerReadableStream;
+        stream._disturbed = true;
+        if (stream._state === "errored") {
+          readIntoRequest._errorSteps(stream._storedError);
+        } else {
+          ReadableByteStreamControllerPullInto(stream._readableStreamController, view, min, readIntoRequest);
+        }
+      }
+      function ReadableStreamBYOBReaderRelease(reader) {
+        ReadableStreamReaderGenericRelease(reader);
+        const e2 = new TypeError("Reader was released");
+        ReadableStreamBYOBReaderErrorReadIntoRequests(reader, e2);
+      }
+      function ReadableStreamBYOBReaderErrorReadIntoRequests(reader, e2) {
+        const readIntoRequests = reader._readIntoRequests;
+        reader._readIntoRequests = new SimpleQueue();
+        readIntoRequests.forEach((readIntoRequest) => {
+          readIntoRequest._errorSteps(e2);
+        });
+      }
+      function byobReaderBrandCheckException(name) {
+        return new TypeError(`ReadableStreamBYOBReader.prototype.${name} can only be used on a ReadableStreamBYOBReader`);
+      }
+      function ExtractHighWaterMark(strategy, defaultHWM) {
+        const { highWaterMark } = strategy;
+        if (highWaterMark === void 0) {
+          return defaultHWM;
+        }
+        if (NumberIsNaN(highWaterMark) || highWaterMark < 0) {
+          throw new RangeError("Invalid highWaterMark");
+        }
+        return highWaterMark;
+      }
+      function ExtractSizeAlgorithm(strategy) {
+        const { size } = strategy;
+        if (!size) {
+          return () => 1;
+        }
+        return size;
+      }
+      function convertQueuingStrategy(init, context) {
+        assertDictionary(init, context);
+        const highWaterMark = init === null || init === void 0 ? void 0 : init.highWaterMark;
+        const size = init === null || init === void 0 ? void 0 : init.size;
+        return {
+          highWaterMark: highWaterMark === void 0 ? void 0 : convertUnrestrictedDouble(highWaterMark),
+          size: size === void 0 ? void 0 : convertQueuingStrategySize(size, `${context} has member 'size' that`)
+        };
+      }
+      function convertQueuingStrategySize(fn, context) {
+        assertFunction(fn, context);
+        return (chunk) => convertUnrestrictedDouble(fn(chunk));
+      }
+      function convertUnderlyingSink(original, context) {
+        assertDictionary(original, context);
+        const abort = original === null || original === void 0 ? void 0 : original.abort;
+        const close = original === null || original === void 0 ? void 0 : original.close;
+        const start = original === null || original === void 0 ? void 0 : original.start;
+        const type = original === null || original === void 0 ? void 0 : original.type;
+        const write = original === null || original === void 0 ? void 0 : original.write;
+        return {
+          abort: abort === void 0 ? void 0 : convertUnderlyingSinkAbortCallback(abort, original, `${context} has member 'abort' that`),
+          close: close === void 0 ? void 0 : convertUnderlyingSinkCloseCallback(close, original, `${context} has member 'close' that`),
+          start: start === void 0 ? void 0 : convertUnderlyingSinkStartCallback(start, original, `${context} has member 'start' that`),
+          write: write === void 0 ? void 0 : convertUnderlyingSinkWriteCallback(write, original, `${context} has member 'write' that`),
+          type
+        };
+      }
+      function convertUnderlyingSinkAbortCallback(fn, original, context) {
+        assertFunction(fn, context);
+        return (reason) => promiseCall(fn, original, [reason]);
+      }
+      function convertUnderlyingSinkCloseCallback(fn, original, context) {
+        assertFunction(fn, context);
+        return () => promiseCall(fn, original, []);
+      }
+      function convertUnderlyingSinkStartCallback(fn, original, context) {
+        assertFunction(fn, context);
+        return (controller) => reflectCall(fn, original, [controller]);
+      }
+      function convertUnderlyingSinkWriteCallback(fn, original, context) {
+        assertFunction(fn, context);
+        return (chunk, controller) => promiseCall(fn, original, [chunk, controller]);
+      }
+      function assertWritableStream(x2, context) {
+        if (!IsWritableStream(x2)) {
+          throw new TypeError(`${context} is not a WritableStream.`);
+        }
+      }
+      function isAbortSignal2(value) {
+        if (typeof value !== "object" || value === null) {
+          return false;
+        }
+        try {
+          return typeof value.aborted === "boolean";
+        } catch (_a2) {
+          return false;
+        }
+      }
+      const supportsAbortController = typeof AbortController === "function";
+      function createAbortController() {
+        if (supportsAbortController) {
+          return new AbortController();
+        }
+        return void 0;
+      }
+      class WritableStream {
+        constructor(rawUnderlyingSink = {}, rawStrategy = {}) {
+          if (rawUnderlyingSink === void 0) {
+            rawUnderlyingSink = null;
+          } else {
+            assertObject(rawUnderlyingSink, "First parameter");
+          }
+          const strategy = convertQueuingStrategy(rawStrategy, "Second parameter");
+          const underlyingSink = convertUnderlyingSink(rawUnderlyingSink, "First parameter");
+          InitializeWritableStream(this);
+          const type = underlyingSink.type;
+          if (type !== void 0) {
+            throw new RangeError("Invalid type is specified");
+          }
+          const sizeAlgorithm = ExtractSizeAlgorithm(strategy);
+          const highWaterMark = ExtractHighWaterMark(strategy, 1);
+          SetUpWritableStreamDefaultControllerFromUnderlyingSink(this, underlyingSink, highWaterMark, sizeAlgorithm);
+        }
+        /**
+         * Returns whether or not the writable stream is locked to a writer.
+         */
+        get locked() {
+          if (!IsWritableStream(this)) {
+            throw streamBrandCheckException$2("locked");
+          }
+          return IsWritableStreamLocked(this);
+        }
+        /**
+         * Aborts the stream, signaling that the producer can no longer successfully write to the stream and it is to be
+         * immediately moved to an errored state, with any queued-up writes discarded. This will also execute any abort
+         * mechanism of the underlying sink.
+         *
+         * The returned promise will fulfill if the stream shuts down successfully, or reject if the underlying sink signaled
+         * that there was an error doing so. Additionally, it will reject with a `TypeError` (without attempting to cancel
+         * the stream) if the stream is currently locked.
+         */
+        abort(reason = void 0) {
+          if (!IsWritableStream(this)) {
+            return promiseRejectedWith(streamBrandCheckException$2("abort"));
+          }
+          if (IsWritableStreamLocked(this)) {
+            return promiseRejectedWith(new TypeError("Cannot abort a stream that already has a writer"));
+          }
+          return WritableStreamAbort(this, reason);
+        }
+        /**
+         * Closes the stream. The underlying sink will finish processing any previously-written chunks, before invoking its
+         * close behavior. During this time any further attempts to write will fail (without erroring the stream).
+         *
+         * The method returns a promise that will fulfill if all remaining chunks are successfully written and the stream
+         * successfully closes, or rejects if an error is encountered during this process. Additionally, it will reject with
+         * a `TypeError` (without attempting to cancel the stream) if the stream is currently locked.
+         */
+        close() {
+          if (!IsWritableStream(this)) {
+            return promiseRejectedWith(streamBrandCheckException$2("close"));
+          }
+          if (IsWritableStreamLocked(this)) {
+            return promiseRejectedWith(new TypeError("Cannot close a stream that already has a writer"));
+          }
+          if (WritableStreamCloseQueuedOrInFlight(this)) {
+            return promiseRejectedWith(new TypeError("Cannot close an already-closing stream"));
+          }
+          return WritableStreamClose(this);
+        }
+        /**
+         * Creates a {@link WritableStreamDefaultWriter | writer} and locks the stream to the new writer. While the stream
+         * is locked, no other writer can be acquired until this one is released.
+         *
+         * This functionality is especially useful for creating abstractions that desire the ability to write to a stream
+         * without interruption or interleaving. By getting a writer for the stream, you can ensure nobody else can write at
+         * the same time, which would cause the resulting written data to be unpredictable and probably useless.
+         */
+        getWriter() {
+          if (!IsWritableStream(this)) {
+            throw streamBrandCheckException$2("getWriter");
+          }
+          return AcquireWritableStreamDefaultWriter(this);
+        }
+      }
+      Object.defineProperties(WritableStream.prototype, {
+        abort: { enumerable: true },
+        close: { enumerable: true },
+        getWriter: { enumerable: true },
+        locked: { enumerable: true }
+      });
+      setFunctionName(WritableStream.prototype.abort, "abort");
+      setFunctionName(WritableStream.prototype.close, "close");
+      setFunctionName(WritableStream.prototype.getWriter, "getWriter");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(WritableStream.prototype, Symbol.toStringTag, {
+          value: "WritableStream",
+          configurable: true
+        });
+      }
+      function AcquireWritableStreamDefaultWriter(stream) {
+        return new WritableStreamDefaultWriter(stream);
+      }
+      function CreateWritableStream(startAlgorithm, writeAlgorithm, closeAlgorithm, abortAlgorithm, highWaterMark = 1, sizeAlgorithm = () => 1) {
+        const stream = Object.create(WritableStream.prototype);
+        InitializeWritableStream(stream);
+        const controller = Object.create(WritableStreamDefaultController.prototype);
+        SetUpWritableStreamDefaultController(stream, controller, startAlgorithm, writeAlgorithm, closeAlgorithm, abortAlgorithm, highWaterMark, sizeAlgorithm);
+        return stream;
+      }
+      function InitializeWritableStream(stream) {
+        stream._state = "writable";
+        stream._storedError = void 0;
+        stream._writer = void 0;
+        stream._writableStreamController = void 0;
+        stream._writeRequests = new SimpleQueue();
+        stream._inFlightWriteRequest = void 0;
+        stream._closeRequest = void 0;
+        stream._inFlightCloseRequest = void 0;
+        stream._pendingAbortRequest = void 0;
+        stream._backpressure = false;
+      }
+      function IsWritableStream(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_writableStreamController")) {
+          return false;
+        }
+        return x2 instanceof WritableStream;
+      }
+      function IsWritableStreamLocked(stream) {
+        if (stream._writer === void 0) {
+          return false;
+        }
+        return true;
+      }
+      function WritableStreamAbort(stream, reason) {
+        var _a2;
+        if (stream._state === "closed" || stream._state === "errored") {
+          return promiseResolvedWith(void 0);
+        }
+        stream._writableStreamController._abortReason = reason;
+        (_a2 = stream._writableStreamController._abortController) === null || _a2 === void 0 ? void 0 : _a2.abort(reason);
+        const state = stream._state;
+        if (state === "closed" || state === "errored") {
+          return promiseResolvedWith(void 0);
+        }
+        if (stream._pendingAbortRequest !== void 0) {
+          return stream._pendingAbortRequest._promise;
+        }
+        let wasAlreadyErroring = false;
+        if (state === "erroring") {
+          wasAlreadyErroring = true;
+          reason = void 0;
+        }
+        const promise = newPromise((resolve, reject) => {
+          stream._pendingAbortRequest = {
+            _promise: void 0,
+            _resolve: resolve,
+            _reject: reject,
+            _reason: reason,
+            _wasAlreadyErroring: wasAlreadyErroring
+          };
+        });
+        stream._pendingAbortRequest._promise = promise;
+        if (!wasAlreadyErroring) {
+          WritableStreamStartErroring(stream, reason);
+        }
+        return promise;
+      }
+      function WritableStreamClose(stream) {
+        const state = stream._state;
+        if (state === "closed" || state === "errored") {
+          return promiseRejectedWith(new TypeError(`The stream (in ${state} state) is not in the writable state and cannot be closed`));
+        }
+        const promise = newPromise((resolve, reject) => {
+          const closeRequest = {
+            _resolve: resolve,
+            _reject: reject
+          };
+          stream._closeRequest = closeRequest;
+        });
+        const writer = stream._writer;
+        if (writer !== void 0 && stream._backpressure && state === "writable") {
+          defaultWriterReadyPromiseResolve(writer);
+        }
+        WritableStreamDefaultControllerClose(stream._writableStreamController);
+        return promise;
+      }
+      function WritableStreamAddWriteRequest(stream) {
+        const promise = newPromise((resolve, reject) => {
+          const writeRequest = {
+            _resolve: resolve,
+            _reject: reject
+          };
+          stream._writeRequests.push(writeRequest);
+        });
+        return promise;
+      }
+      function WritableStreamDealWithRejection(stream, error) {
+        const state = stream._state;
+        if (state === "writable") {
+          WritableStreamStartErroring(stream, error);
+          return;
+        }
+        WritableStreamFinishErroring(stream);
+      }
+      function WritableStreamStartErroring(stream, reason) {
+        const controller = stream._writableStreamController;
+        stream._state = "erroring";
+        stream._storedError = reason;
+        const writer = stream._writer;
+        if (writer !== void 0) {
+          WritableStreamDefaultWriterEnsureReadyPromiseRejected(writer, reason);
+        }
+        if (!WritableStreamHasOperationMarkedInFlight(stream) && controller._started) {
+          WritableStreamFinishErroring(stream);
+        }
+      }
+      function WritableStreamFinishErroring(stream) {
+        stream._state = "errored";
+        stream._writableStreamController[ErrorSteps]();
+        const storedError = stream._storedError;
+        stream._writeRequests.forEach((writeRequest) => {
+          writeRequest._reject(storedError);
+        });
+        stream._writeRequests = new SimpleQueue();
+        if (stream._pendingAbortRequest === void 0) {
+          WritableStreamRejectCloseAndClosedPromiseIfNeeded(stream);
+          return;
+        }
+        const abortRequest = stream._pendingAbortRequest;
+        stream._pendingAbortRequest = void 0;
+        if (abortRequest._wasAlreadyErroring) {
+          abortRequest._reject(storedError);
+          WritableStreamRejectCloseAndClosedPromiseIfNeeded(stream);
+          return;
+        }
+        const promise = stream._writableStreamController[AbortSteps](abortRequest._reason);
+        uponPromise(promise, () => {
+          abortRequest._resolve();
+          WritableStreamRejectCloseAndClosedPromiseIfNeeded(stream);
+          return null;
+        }, (reason) => {
+          abortRequest._reject(reason);
+          WritableStreamRejectCloseAndClosedPromiseIfNeeded(stream);
+          return null;
+        });
+      }
+      function WritableStreamFinishInFlightWrite(stream) {
+        stream._inFlightWriteRequest._resolve(void 0);
+        stream._inFlightWriteRequest = void 0;
+      }
+      function WritableStreamFinishInFlightWriteWithError(stream, error) {
+        stream._inFlightWriteRequest._reject(error);
+        stream._inFlightWriteRequest = void 0;
+        WritableStreamDealWithRejection(stream, error);
+      }
+      function WritableStreamFinishInFlightClose(stream) {
+        stream._inFlightCloseRequest._resolve(void 0);
+        stream._inFlightCloseRequest = void 0;
+        const state = stream._state;
+        if (state === "erroring") {
+          stream._storedError = void 0;
+          if (stream._pendingAbortRequest !== void 0) {
+            stream._pendingAbortRequest._resolve();
+            stream._pendingAbortRequest = void 0;
+          }
+        }
+        stream._state = "closed";
+        const writer = stream._writer;
+        if (writer !== void 0) {
+          defaultWriterClosedPromiseResolve(writer);
+        }
+      }
+      function WritableStreamFinishInFlightCloseWithError(stream, error) {
+        stream._inFlightCloseRequest._reject(error);
+        stream._inFlightCloseRequest = void 0;
+        if (stream._pendingAbortRequest !== void 0) {
+          stream._pendingAbortRequest._reject(error);
+          stream._pendingAbortRequest = void 0;
+        }
+        WritableStreamDealWithRejection(stream, error);
+      }
+      function WritableStreamCloseQueuedOrInFlight(stream) {
+        if (stream._closeRequest === void 0 && stream._inFlightCloseRequest === void 0) {
+          return false;
+        }
+        return true;
+      }
+      function WritableStreamHasOperationMarkedInFlight(stream) {
+        if (stream._inFlightWriteRequest === void 0 && stream._inFlightCloseRequest === void 0) {
+          return false;
+        }
+        return true;
+      }
+      function WritableStreamMarkCloseRequestInFlight(stream) {
+        stream._inFlightCloseRequest = stream._closeRequest;
+        stream._closeRequest = void 0;
+      }
+      function WritableStreamMarkFirstWriteRequestInFlight(stream) {
+        stream._inFlightWriteRequest = stream._writeRequests.shift();
+      }
+      function WritableStreamRejectCloseAndClosedPromiseIfNeeded(stream) {
+        if (stream._closeRequest !== void 0) {
+          stream._closeRequest._reject(stream._storedError);
+          stream._closeRequest = void 0;
+        }
+        const writer = stream._writer;
+        if (writer !== void 0) {
+          defaultWriterClosedPromiseReject(writer, stream._storedError);
+        }
+      }
+      function WritableStreamUpdateBackpressure(stream, backpressure) {
+        const writer = stream._writer;
+        if (writer !== void 0 && backpressure !== stream._backpressure) {
+          if (backpressure) {
+            defaultWriterReadyPromiseReset(writer);
+          } else {
+            defaultWriterReadyPromiseResolve(writer);
+          }
+        }
+        stream._backpressure = backpressure;
+      }
+      class WritableStreamDefaultWriter {
+        constructor(stream) {
+          assertRequiredArgument(stream, 1, "WritableStreamDefaultWriter");
+          assertWritableStream(stream, "First parameter");
+          if (IsWritableStreamLocked(stream)) {
+            throw new TypeError("This stream has already been locked for exclusive writing by another writer");
+          }
+          this._ownerWritableStream = stream;
+          stream._writer = this;
+          const state = stream._state;
+          if (state === "writable") {
+            if (!WritableStreamCloseQueuedOrInFlight(stream) && stream._backpressure) {
+              defaultWriterReadyPromiseInitialize(this);
+            } else {
+              defaultWriterReadyPromiseInitializeAsResolved(this);
+            }
+            defaultWriterClosedPromiseInitialize(this);
+          } else if (state === "erroring") {
+            defaultWriterReadyPromiseInitializeAsRejected(this, stream._storedError);
+            defaultWriterClosedPromiseInitialize(this);
+          } else if (state === "closed") {
+            defaultWriterReadyPromiseInitializeAsResolved(this);
+            defaultWriterClosedPromiseInitializeAsResolved(this);
+          } else {
+            const storedError = stream._storedError;
+            defaultWriterReadyPromiseInitializeAsRejected(this, storedError);
+            defaultWriterClosedPromiseInitializeAsRejected(this, storedError);
+          }
+        }
+        /**
+         * Returns a promise that will be fulfilled when the stream becomes closed, or rejected if the stream ever errors or
+         * the writer’s lock is released before the stream finishes closing.
+         */
+        get closed() {
+          if (!IsWritableStreamDefaultWriter(this)) {
+            return promiseRejectedWith(defaultWriterBrandCheckException("closed"));
+          }
+          return this._closedPromise;
+        }
+        /**
+         * Returns the desired size to fill the stream’s internal queue. It can be negative, if the queue is over-full.
+         * A producer can use this information to determine the right amount of data to write.
+         *
+         * It will be `null` if the stream cannot be successfully written to (due to either being errored, or having an abort
+         * queued up). It will return zero if the stream is closed. And the getter will throw an exception if invoked when
+         * the writer’s lock is released.
+         */
+        get desiredSize() {
+          if (!IsWritableStreamDefaultWriter(this)) {
+            throw defaultWriterBrandCheckException("desiredSize");
+          }
+          if (this._ownerWritableStream === void 0) {
+            throw defaultWriterLockException("desiredSize");
+          }
+          return WritableStreamDefaultWriterGetDesiredSize(this);
+        }
+        /**
+         * Returns a promise that will be fulfilled when the desired size to fill the stream’s internal queue transitions
+         * from non-positive to positive, signaling that it is no longer applying backpressure. Once the desired size dips
+         * back to zero or below, the getter will return a new promise that stays pending until the next transition.
+         *
+         * If the stream becomes errored or aborted, or the writer’s lock is released, the returned promise will become
+         * rejected.
+         */
+        get ready() {
+          if (!IsWritableStreamDefaultWriter(this)) {
+            return promiseRejectedWith(defaultWriterBrandCheckException("ready"));
+          }
+          return this._readyPromise;
+        }
+        /**
+         * If the reader is active, behaves the same as {@link WritableStream.abort | stream.abort(reason)}.
+         */
+        abort(reason = void 0) {
+          if (!IsWritableStreamDefaultWriter(this)) {
+            return promiseRejectedWith(defaultWriterBrandCheckException("abort"));
+          }
+          if (this._ownerWritableStream === void 0) {
+            return promiseRejectedWith(defaultWriterLockException("abort"));
+          }
+          return WritableStreamDefaultWriterAbort(this, reason);
+        }
+        /**
+         * If the reader is active, behaves the same as {@link WritableStream.close | stream.close()}.
+         */
+        close() {
+          if (!IsWritableStreamDefaultWriter(this)) {
+            return promiseRejectedWith(defaultWriterBrandCheckException("close"));
+          }
+          const stream = this._ownerWritableStream;
+          if (stream === void 0) {
+            return promiseRejectedWith(defaultWriterLockException("close"));
+          }
+          if (WritableStreamCloseQueuedOrInFlight(stream)) {
+            return promiseRejectedWith(new TypeError("Cannot close an already-closing stream"));
+          }
+          return WritableStreamDefaultWriterClose(this);
+        }
+        /**
+         * Releases the writer’s lock on the corresponding stream. After the lock is released, the writer is no longer active.
+         * If the associated stream is errored when the lock is released, the writer will appear errored in the same way from
+         * now on; otherwise, the writer will appear closed.
+         *
+         * Note that the lock can still be released even if some ongoing writes have not yet finished (i.e. even if the
+         * promises returned from previous calls to {@link WritableStreamDefaultWriter.write | write()} have not yet settled).
+         * It’s not necessary to hold the lock on the writer for the duration of the write; the lock instead simply prevents
+         * other producers from writing in an interleaved manner.
+         */
+        releaseLock() {
+          if (!IsWritableStreamDefaultWriter(this)) {
+            throw defaultWriterBrandCheckException("releaseLock");
+          }
+          const stream = this._ownerWritableStream;
+          if (stream === void 0) {
+            return;
+          }
+          WritableStreamDefaultWriterRelease(this);
+        }
+        write(chunk = void 0) {
+          if (!IsWritableStreamDefaultWriter(this)) {
+            return promiseRejectedWith(defaultWriterBrandCheckException("write"));
+          }
+          if (this._ownerWritableStream === void 0) {
+            return promiseRejectedWith(defaultWriterLockException("write to"));
+          }
+          return WritableStreamDefaultWriterWrite(this, chunk);
+        }
+      }
+      Object.defineProperties(WritableStreamDefaultWriter.prototype, {
+        abort: { enumerable: true },
+        close: { enumerable: true },
+        releaseLock: { enumerable: true },
+        write: { enumerable: true },
+        closed: { enumerable: true },
+        desiredSize: { enumerable: true },
+        ready: { enumerable: true }
+      });
+      setFunctionName(WritableStreamDefaultWriter.prototype.abort, "abort");
+      setFunctionName(WritableStreamDefaultWriter.prototype.close, "close");
+      setFunctionName(WritableStreamDefaultWriter.prototype.releaseLock, "releaseLock");
+      setFunctionName(WritableStreamDefaultWriter.prototype.write, "write");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(WritableStreamDefaultWriter.prototype, Symbol.toStringTag, {
+          value: "WritableStreamDefaultWriter",
+          configurable: true
+        });
+      }
+      function IsWritableStreamDefaultWriter(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_ownerWritableStream")) {
+          return false;
+        }
+        return x2 instanceof WritableStreamDefaultWriter;
+      }
+      function WritableStreamDefaultWriterAbort(writer, reason) {
+        const stream = writer._ownerWritableStream;
+        return WritableStreamAbort(stream, reason);
+      }
+      function WritableStreamDefaultWriterClose(writer) {
+        const stream = writer._ownerWritableStream;
+        return WritableStreamClose(stream);
+      }
+      function WritableStreamDefaultWriterCloseWithErrorPropagation(writer) {
+        const stream = writer._ownerWritableStream;
+        const state = stream._state;
+        if (WritableStreamCloseQueuedOrInFlight(stream) || state === "closed") {
+          return promiseResolvedWith(void 0);
+        }
+        if (state === "errored") {
+          return promiseRejectedWith(stream._storedError);
+        }
+        return WritableStreamDefaultWriterClose(writer);
+      }
+      function WritableStreamDefaultWriterEnsureClosedPromiseRejected(writer, error) {
+        if (writer._closedPromiseState === "pending") {
+          defaultWriterClosedPromiseReject(writer, error);
+        } else {
+          defaultWriterClosedPromiseResetToRejected(writer, error);
+        }
+      }
+      function WritableStreamDefaultWriterEnsureReadyPromiseRejected(writer, error) {
+        if (writer._readyPromiseState === "pending") {
+          defaultWriterReadyPromiseReject(writer, error);
+        } else {
+          defaultWriterReadyPromiseResetToRejected(writer, error);
+        }
+      }
+      function WritableStreamDefaultWriterGetDesiredSize(writer) {
+        const stream = writer._ownerWritableStream;
+        const state = stream._state;
+        if (state === "errored" || state === "erroring") {
+          return null;
+        }
+        if (state === "closed") {
+          return 0;
+        }
+        return WritableStreamDefaultControllerGetDesiredSize(stream._writableStreamController);
+      }
+      function WritableStreamDefaultWriterRelease(writer) {
+        const stream = writer._ownerWritableStream;
+        const releasedError = new TypeError(`Writer was released and can no longer be used to monitor the stream's closedness`);
+        WritableStreamDefaultWriterEnsureReadyPromiseRejected(writer, releasedError);
+        WritableStreamDefaultWriterEnsureClosedPromiseRejected(writer, releasedError);
+        stream._writer = void 0;
+        writer._ownerWritableStream = void 0;
+      }
+      function WritableStreamDefaultWriterWrite(writer, chunk) {
+        const stream = writer._ownerWritableStream;
+        const controller = stream._writableStreamController;
+        const chunkSize = WritableStreamDefaultControllerGetChunkSize(controller, chunk);
+        if (stream !== writer._ownerWritableStream) {
+          return promiseRejectedWith(defaultWriterLockException("write to"));
+        }
+        const state = stream._state;
+        if (state === "errored") {
+          return promiseRejectedWith(stream._storedError);
+        }
+        if (WritableStreamCloseQueuedOrInFlight(stream) || state === "closed") {
+          return promiseRejectedWith(new TypeError("The stream is closing or closed and cannot be written to"));
+        }
+        if (state === "erroring") {
+          return promiseRejectedWith(stream._storedError);
+        }
+        const promise = WritableStreamAddWriteRequest(stream);
+        WritableStreamDefaultControllerWrite(controller, chunk, chunkSize);
+        return promise;
+      }
+      const closeSentinel = {};
+      class WritableStreamDefaultController {
+        constructor() {
+          throw new TypeError("Illegal constructor");
+        }
+        /**
+         * The reason which was passed to `WritableStream.abort(reason)` when the stream was aborted.
+         *
+         * @deprecated
+         *  This property has been removed from the specification, see https://github.com/whatwg/streams/pull/1177.
+         *  Use {@link WritableStreamDefaultController.signal}'s `reason` instead.
+         */
+        get abortReason() {
+          if (!IsWritableStreamDefaultController(this)) {
+            throw defaultControllerBrandCheckException$2("abortReason");
+          }
+          return this._abortReason;
+        }
+        /**
+         * An `AbortSignal` that can be used to abort the pending write or close operation when the stream is aborted.
+         */
+        get signal() {
+          if (!IsWritableStreamDefaultController(this)) {
+            throw defaultControllerBrandCheckException$2("signal");
+          }
+          if (this._abortController === void 0) {
+            throw new TypeError("WritableStreamDefaultController.prototype.signal is not supported");
+          }
+          return this._abortController.signal;
+        }
+        /**
+         * Closes the controlled writable stream, making all future interactions with it fail with the given error `e`.
+         *
+         * This method is rarely used, since usually it suffices to return a rejected promise from one of the underlying
+         * sink's methods. However, it can be useful for suddenly shutting down a stream in response to an event outside the
+         * normal lifecycle of interactions with the underlying sink.
+         */
+        error(e2 = void 0) {
+          if (!IsWritableStreamDefaultController(this)) {
+            throw defaultControllerBrandCheckException$2("error");
+          }
+          const state = this._controlledWritableStream._state;
+          if (state !== "writable") {
+            return;
+          }
+          WritableStreamDefaultControllerError(this, e2);
+        }
+        /** @internal */
+        [AbortSteps](reason) {
+          const result = this._abortAlgorithm(reason);
+          WritableStreamDefaultControllerClearAlgorithms(this);
+          return result;
+        }
+        /** @internal */
+        [ErrorSteps]() {
+          ResetQueue(this);
+        }
+      }
+      Object.defineProperties(WritableStreamDefaultController.prototype, {
+        abortReason: { enumerable: true },
+        signal: { enumerable: true },
+        error: { enumerable: true }
+      });
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(WritableStreamDefaultController.prototype, Symbol.toStringTag, {
+          value: "WritableStreamDefaultController",
+          configurable: true
+        });
+      }
+      function IsWritableStreamDefaultController(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_controlledWritableStream")) {
+          return false;
+        }
+        return x2 instanceof WritableStreamDefaultController;
+      }
+      function SetUpWritableStreamDefaultController(stream, controller, startAlgorithm, writeAlgorithm, closeAlgorithm, abortAlgorithm, highWaterMark, sizeAlgorithm) {
+        controller._controlledWritableStream = stream;
+        stream._writableStreamController = controller;
+        controller._queue = void 0;
+        controller._queueTotalSize = void 0;
+        ResetQueue(controller);
+        controller._abortReason = void 0;
+        controller._abortController = createAbortController();
+        controller._started = false;
+        controller._strategySizeAlgorithm = sizeAlgorithm;
+        controller._strategyHWM = highWaterMark;
+        controller._writeAlgorithm = writeAlgorithm;
+        controller._closeAlgorithm = closeAlgorithm;
+        controller._abortAlgorithm = abortAlgorithm;
+        const backpressure = WritableStreamDefaultControllerGetBackpressure(controller);
+        WritableStreamUpdateBackpressure(stream, backpressure);
+        const startResult = startAlgorithm();
+        const startPromise = promiseResolvedWith(startResult);
+        uponPromise(startPromise, () => {
+          controller._started = true;
+          WritableStreamDefaultControllerAdvanceQueueIfNeeded(controller);
+          return null;
+        }, (r2) => {
+          controller._started = true;
+          WritableStreamDealWithRejection(stream, r2);
+          return null;
+        });
+      }
+      function SetUpWritableStreamDefaultControllerFromUnderlyingSink(stream, underlyingSink, highWaterMark, sizeAlgorithm) {
+        const controller = Object.create(WritableStreamDefaultController.prototype);
+        let startAlgorithm;
+        let writeAlgorithm;
+        let closeAlgorithm;
+        let abortAlgorithm;
+        if (underlyingSink.start !== void 0) {
+          startAlgorithm = () => underlyingSink.start(controller);
+        } else {
+          startAlgorithm = () => void 0;
+        }
+        if (underlyingSink.write !== void 0) {
+          writeAlgorithm = (chunk) => underlyingSink.write(chunk, controller);
+        } else {
+          writeAlgorithm = () => promiseResolvedWith(void 0);
+        }
+        if (underlyingSink.close !== void 0) {
+          closeAlgorithm = () => underlyingSink.close();
+        } else {
+          closeAlgorithm = () => promiseResolvedWith(void 0);
+        }
+        if (underlyingSink.abort !== void 0) {
+          abortAlgorithm = (reason) => underlyingSink.abort(reason);
+        } else {
+          abortAlgorithm = () => promiseResolvedWith(void 0);
+        }
+        SetUpWritableStreamDefaultController(stream, controller, startAlgorithm, writeAlgorithm, closeAlgorithm, abortAlgorithm, highWaterMark, sizeAlgorithm);
+      }
+      function WritableStreamDefaultControllerClearAlgorithms(controller) {
+        controller._writeAlgorithm = void 0;
+        controller._closeAlgorithm = void 0;
+        controller._abortAlgorithm = void 0;
+        controller._strategySizeAlgorithm = void 0;
+      }
+      function WritableStreamDefaultControllerClose(controller) {
+        EnqueueValueWithSize(controller, closeSentinel, 0);
+        WritableStreamDefaultControllerAdvanceQueueIfNeeded(controller);
+      }
+      function WritableStreamDefaultControllerGetChunkSize(controller, chunk) {
+        try {
+          return controller._strategySizeAlgorithm(chunk);
+        } catch (chunkSizeE) {
+          WritableStreamDefaultControllerErrorIfNeeded(controller, chunkSizeE);
+          return 1;
+        }
+      }
+      function WritableStreamDefaultControllerGetDesiredSize(controller) {
+        return controller._strategyHWM - controller._queueTotalSize;
+      }
+      function WritableStreamDefaultControllerWrite(controller, chunk, chunkSize) {
+        try {
+          EnqueueValueWithSize(controller, chunk, chunkSize);
+        } catch (enqueueE) {
+          WritableStreamDefaultControllerErrorIfNeeded(controller, enqueueE);
+          return;
+        }
+        const stream = controller._controlledWritableStream;
+        if (!WritableStreamCloseQueuedOrInFlight(stream) && stream._state === "writable") {
+          const backpressure = WritableStreamDefaultControllerGetBackpressure(controller);
+          WritableStreamUpdateBackpressure(stream, backpressure);
+        }
+        WritableStreamDefaultControllerAdvanceQueueIfNeeded(controller);
+      }
+      function WritableStreamDefaultControllerAdvanceQueueIfNeeded(controller) {
+        const stream = controller._controlledWritableStream;
+        if (!controller._started) {
+          return;
+        }
+        if (stream._inFlightWriteRequest !== void 0) {
+          return;
+        }
+        const state = stream._state;
+        if (state === "erroring") {
+          WritableStreamFinishErroring(stream);
+          return;
+        }
+        if (controller._queue.length === 0) {
+          return;
+        }
+        const value = PeekQueueValue(controller);
+        if (value === closeSentinel) {
+          WritableStreamDefaultControllerProcessClose(controller);
+        } else {
+          WritableStreamDefaultControllerProcessWrite(controller, value);
+        }
+      }
+      function WritableStreamDefaultControllerErrorIfNeeded(controller, error) {
+        if (controller._controlledWritableStream._state === "writable") {
+          WritableStreamDefaultControllerError(controller, error);
+        }
+      }
+      function WritableStreamDefaultControllerProcessClose(controller) {
+        const stream = controller._controlledWritableStream;
+        WritableStreamMarkCloseRequestInFlight(stream);
+        DequeueValue(controller);
+        const sinkClosePromise = controller._closeAlgorithm();
+        WritableStreamDefaultControllerClearAlgorithms(controller);
+        uponPromise(sinkClosePromise, () => {
+          WritableStreamFinishInFlightClose(stream);
+          return null;
+        }, (reason) => {
+          WritableStreamFinishInFlightCloseWithError(stream, reason);
+          return null;
+        });
+      }
+      function WritableStreamDefaultControllerProcessWrite(controller, chunk) {
+        const stream = controller._controlledWritableStream;
+        WritableStreamMarkFirstWriteRequestInFlight(stream);
+        const sinkWritePromise = controller._writeAlgorithm(chunk);
+        uponPromise(sinkWritePromise, () => {
+          WritableStreamFinishInFlightWrite(stream);
+          const state = stream._state;
+          DequeueValue(controller);
+          if (!WritableStreamCloseQueuedOrInFlight(stream) && state === "writable") {
+            const backpressure = WritableStreamDefaultControllerGetBackpressure(controller);
+            WritableStreamUpdateBackpressure(stream, backpressure);
+          }
+          WritableStreamDefaultControllerAdvanceQueueIfNeeded(controller);
+          return null;
+        }, (reason) => {
+          if (stream._state === "writable") {
+            WritableStreamDefaultControllerClearAlgorithms(controller);
+          }
+          WritableStreamFinishInFlightWriteWithError(stream, reason);
+          return null;
+        });
+      }
+      function WritableStreamDefaultControllerGetBackpressure(controller) {
+        const desiredSize = WritableStreamDefaultControllerGetDesiredSize(controller);
+        return desiredSize <= 0;
+      }
+      function WritableStreamDefaultControllerError(controller, error) {
+        const stream = controller._controlledWritableStream;
+        WritableStreamDefaultControllerClearAlgorithms(controller);
+        WritableStreamStartErroring(stream, error);
+      }
+      function streamBrandCheckException$2(name) {
+        return new TypeError(`WritableStream.prototype.${name} can only be used on a WritableStream`);
+      }
+      function defaultControllerBrandCheckException$2(name) {
+        return new TypeError(`WritableStreamDefaultController.prototype.${name} can only be used on a WritableStreamDefaultController`);
+      }
+      function defaultWriterBrandCheckException(name) {
+        return new TypeError(`WritableStreamDefaultWriter.prototype.${name} can only be used on a WritableStreamDefaultWriter`);
+      }
+      function defaultWriterLockException(name) {
+        return new TypeError("Cannot " + name + " a stream using a released writer");
+      }
+      function defaultWriterClosedPromiseInitialize(writer) {
+        writer._closedPromise = newPromise((resolve, reject) => {
+          writer._closedPromise_resolve = resolve;
+          writer._closedPromise_reject = reject;
+          writer._closedPromiseState = "pending";
+        });
+      }
+      function defaultWriterClosedPromiseInitializeAsRejected(writer, reason) {
+        defaultWriterClosedPromiseInitialize(writer);
+        defaultWriterClosedPromiseReject(writer, reason);
+      }
+      function defaultWriterClosedPromiseInitializeAsResolved(writer) {
+        defaultWriterClosedPromiseInitialize(writer);
+        defaultWriterClosedPromiseResolve(writer);
+      }
+      function defaultWriterClosedPromiseReject(writer, reason) {
+        if (writer._closedPromise_reject === void 0) {
+          return;
+        }
+        setPromiseIsHandledToTrue(writer._closedPromise);
+        writer._closedPromise_reject(reason);
+        writer._closedPromise_resolve = void 0;
+        writer._closedPromise_reject = void 0;
+        writer._closedPromiseState = "rejected";
+      }
+      function defaultWriterClosedPromiseResetToRejected(writer, reason) {
+        defaultWriterClosedPromiseInitializeAsRejected(writer, reason);
+      }
+      function defaultWriterClosedPromiseResolve(writer) {
+        if (writer._closedPromise_resolve === void 0) {
+          return;
+        }
+        writer._closedPromise_resolve(void 0);
+        writer._closedPromise_resolve = void 0;
+        writer._closedPromise_reject = void 0;
+        writer._closedPromiseState = "resolved";
+      }
+      function defaultWriterReadyPromiseInitialize(writer) {
+        writer._readyPromise = newPromise((resolve, reject) => {
+          writer._readyPromise_resolve = resolve;
+          writer._readyPromise_reject = reject;
+        });
+        writer._readyPromiseState = "pending";
+      }
+      function defaultWriterReadyPromiseInitializeAsRejected(writer, reason) {
+        defaultWriterReadyPromiseInitialize(writer);
+        defaultWriterReadyPromiseReject(writer, reason);
+      }
+      function defaultWriterReadyPromiseInitializeAsResolved(writer) {
+        defaultWriterReadyPromiseInitialize(writer);
+        defaultWriterReadyPromiseResolve(writer);
+      }
+      function defaultWriterReadyPromiseReject(writer, reason) {
+        if (writer._readyPromise_reject === void 0) {
+          return;
+        }
+        setPromiseIsHandledToTrue(writer._readyPromise);
+        writer._readyPromise_reject(reason);
+        writer._readyPromise_resolve = void 0;
+        writer._readyPromise_reject = void 0;
+        writer._readyPromiseState = "rejected";
+      }
+      function defaultWriterReadyPromiseReset(writer) {
+        defaultWriterReadyPromiseInitialize(writer);
+      }
+      function defaultWriterReadyPromiseResetToRejected(writer, reason) {
+        defaultWriterReadyPromiseInitializeAsRejected(writer, reason);
+      }
+      function defaultWriterReadyPromiseResolve(writer) {
+        if (writer._readyPromise_resolve === void 0) {
+          return;
+        }
+        writer._readyPromise_resolve(void 0);
+        writer._readyPromise_resolve = void 0;
+        writer._readyPromise_reject = void 0;
+        writer._readyPromiseState = "fulfilled";
+      }
+      function getGlobals() {
+        if (typeof globalThis !== "undefined") {
+          return globalThis;
+        } else if (typeof self !== "undefined") {
+          return self;
+        } else if (typeof global !== "undefined") {
+          return global;
+        }
+        return void 0;
+      }
+      const globals = getGlobals();
+      function isDOMExceptionConstructor(ctor) {
+        if (!(typeof ctor === "function" || typeof ctor === "object")) {
+          return false;
+        }
+        if (ctor.name !== "DOMException") {
+          return false;
+        }
+        try {
+          new ctor();
+          return true;
+        } catch (_a2) {
+          return false;
+        }
+      }
+      function getFromGlobal() {
+        const ctor = globals === null || globals === void 0 ? void 0 : globals.DOMException;
+        return isDOMExceptionConstructor(ctor) ? ctor : void 0;
+      }
+      function createPolyfill() {
+        const ctor = function DOMException3(message, name) {
+          this.message = message || "";
+          this.name = name || "Error";
+          if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, this.constructor);
+          }
+        };
+        setFunctionName(ctor, "DOMException");
+        ctor.prototype = Object.create(Error.prototype);
+        Object.defineProperty(ctor.prototype, "constructor", { value: ctor, writable: true, configurable: true });
+        return ctor;
+      }
+      const DOMException2 = getFromGlobal() || createPolyfill();
+      function ReadableStreamPipeTo(source, dest, preventClose, preventAbort, preventCancel, signal) {
+        const reader = AcquireReadableStreamDefaultReader(source);
+        const writer = AcquireWritableStreamDefaultWriter(dest);
+        source._disturbed = true;
+        let shuttingDown = false;
+        let currentWrite = promiseResolvedWith(void 0);
+        return newPromise((resolve, reject) => {
+          let abortAlgorithm;
+          if (signal !== void 0) {
+            abortAlgorithm = () => {
+              const error = signal.reason !== void 0 ? signal.reason : new DOMException2("Aborted", "AbortError");
+              const actions = [];
+              if (!preventAbort) {
+                actions.push(() => {
+                  if (dest._state === "writable") {
+                    return WritableStreamAbort(dest, error);
+                  }
+                  return promiseResolvedWith(void 0);
+                });
+              }
+              if (!preventCancel) {
+                actions.push(() => {
+                  if (source._state === "readable") {
+                    return ReadableStreamCancel(source, error);
+                  }
+                  return promiseResolvedWith(void 0);
+                });
+              }
+              shutdownWithAction(() => Promise.all(actions.map((action) => action())), true, error);
+            };
+            if (signal.aborted) {
+              abortAlgorithm();
+              return;
+            }
+            signal.addEventListener("abort", abortAlgorithm);
+          }
+          function pipeLoop() {
+            return newPromise((resolveLoop, rejectLoop) => {
+              function next(done) {
+                if (done) {
+                  resolveLoop();
+                } else {
+                  PerformPromiseThen(pipeStep(), next, rejectLoop);
+                }
+              }
+              next(false);
+            });
+          }
+          function pipeStep() {
+            if (shuttingDown) {
+              return promiseResolvedWith(true);
+            }
+            return PerformPromiseThen(writer._readyPromise, () => {
+              return newPromise((resolveRead, rejectRead) => {
+                ReadableStreamDefaultReaderRead(reader, {
+                  _chunkSteps: (chunk) => {
+                    currentWrite = PerformPromiseThen(WritableStreamDefaultWriterWrite(writer, chunk), void 0, noop2);
+                    resolveRead(false);
+                  },
+                  _closeSteps: () => resolveRead(true),
+                  _errorSteps: rejectRead
+                });
+              });
+            });
+          }
+          isOrBecomesErrored(source, reader._closedPromise, (storedError) => {
+            if (!preventAbort) {
+              shutdownWithAction(() => WritableStreamAbort(dest, storedError), true, storedError);
+            } else {
+              shutdown(true, storedError);
+            }
+            return null;
+          });
+          isOrBecomesErrored(dest, writer._closedPromise, (storedError) => {
+            if (!preventCancel) {
+              shutdownWithAction(() => ReadableStreamCancel(source, storedError), true, storedError);
+            } else {
+              shutdown(true, storedError);
+            }
+            return null;
+          });
+          isOrBecomesClosed(source, reader._closedPromise, () => {
+            if (!preventClose) {
+              shutdownWithAction(() => WritableStreamDefaultWriterCloseWithErrorPropagation(writer));
+            } else {
+              shutdown();
+            }
+            return null;
+          });
+          if (WritableStreamCloseQueuedOrInFlight(dest) || dest._state === "closed") {
+            const destClosed = new TypeError("the destination writable stream closed before all data could be piped to it");
+            if (!preventCancel) {
+              shutdownWithAction(() => ReadableStreamCancel(source, destClosed), true, destClosed);
+            } else {
+              shutdown(true, destClosed);
+            }
+          }
+          setPromiseIsHandledToTrue(pipeLoop());
+          function waitForWritesToFinish() {
+            const oldCurrentWrite = currentWrite;
+            return PerformPromiseThen(currentWrite, () => oldCurrentWrite !== currentWrite ? waitForWritesToFinish() : void 0);
+          }
+          function isOrBecomesErrored(stream, promise, action) {
+            if (stream._state === "errored") {
+              action(stream._storedError);
+            } else {
+              uponRejection(promise, action);
+            }
+          }
+          function isOrBecomesClosed(stream, promise, action) {
+            if (stream._state === "closed") {
+              action();
+            } else {
+              uponFulfillment(promise, action);
+            }
+          }
+          function shutdownWithAction(action, originalIsError, originalError) {
+            if (shuttingDown) {
+              return;
+            }
+            shuttingDown = true;
+            if (dest._state === "writable" && !WritableStreamCloseQueuedOrInFlight(dest)) {
+              uponFulfillment(waitForWritesToFinish(), doTheRest);
+            } else {
+              doTheRest();
+            }
+            function doTheRest() {
+              uponPromise(action(), () => finalize(originalIsError, originalError), (newError) => finalize(true, newError));
+              return null;
+            }
+          }
+          function shutdown(isError, error) {
+            if (shuttingDown) {
+              return;
+            }
+            shuttingDown = true;
+            if (dest._state === "writable" && !WritableStreamCloseQueuedOrInFlight(dest)) {
+              uponFulfillment(waitForWritesToFinish(), () => finalize(isError, error));
+            } else {
+              finalize(isError, error);
+            }
+          }
+          function finalize(isError, error) {
+            WritableStreamDefaultWriterRelease(writer);
+            ReadableStreamReaderGenericRelease(reader);
+            if (signal !== void 0) {
+              signal.removeEventListener("abort", abortAlgorithm);
+            }
+            if (isError) {
+              reject(error);
+            } else {
+              resolve(void 0);
+            }
+            return null;
+          }
+        });
+      }
+      class ReadableStreamDefaultController {
+        constructor() {
+          throw new TypeError("Illegal constructor");
+        }
+        /**
+         * Returns the desired size to fill the controlled stream's internal queue. It can be negative, if the queue is
+         * over-full. An underlying source ought to use this information to determine when and how to apply backpressure.
+         */
+        get desiredSize() {
+          if (!IsReadableStreamDefaultController(this)) {
+            throw defaultControllerBrandCheckException$1("desiredSize");
+          }
+          return ReadableStreamDefaultControllerGetDesiredSize(this);
+        }
+        /**
+         * Closes the controlled readable stream. Consumers will still be able to read any previously-enqueued chunks from
+         * the stream, but once those are read, the stream will become closed.
+         */
+        close() {
+          if (!IsReadableStreamDefaultController(this)) {
+            throw defaultControllerBrandCheckException$1("close");
+          }
+          if (!ReadableStreamDefaultControllerCanCloseOrEnqueue(this)) {
+            throw new TypeError("The stream is not in a state that permits close");
+          }
+          ReadableStreamDefaultControllerClose(this);
+        }
+        enqueue(chunk = void 0) {
+          if (!IsReadableStreamDefaultController(this)) {
+            throw defaultControllerBrandCheckException$1("enqueue");
+          }
+          if (!ReadableStreamDefaultControllerCanCloseOrEnqueue(this)) {
+            throw new TypeError("The stream is not in a state that permits enqueue");
+          }
+          return ReadableStreamDefaultControllerEnqueue(this, chunk);
+        }
+        /**
+         * Errors the controlled readable stream, making all future interactions with it fail with the given error `e`.
+         */
+        error(e2 = void 0) {
+          if (!IsReadableStreamDefaultController(this)) {
+            throw defaultControllerBrandCheckException$1("error");
+          }
+          ReadableStreamDefaultControllerError(this, e2);
+        }
+        /** @internal */
+        [CancelSteps](reason) {
+          ResetQueue(this);
+          const result = this._cancelAlgorithm(reason);
+          ReadableStreamDefaultControllerClearAlgorithms(this);
+          return result;
+        }
+        /** @internal */
+        [PullSteps](readRequest) {
+          const stream = this._controlledReadableStream;
+          if (this._queue.length > 0) {
+            const chunk = DequeueValue(this);
+            if (this._closeRequested && this._queue.length === 0) {
+              ReadableStreamDefaultControllerClearAlgorithms(this);
+              ReadableStreamClose(stream);
+            } else {
+              ReadableStreamDefaultControllerCallPullIfNeeded(this);
+            }
+            readRequest._chunkSteps(chunk);
+          } else {
+            ReadableStreamAddReadRequest(stream, readRequest);
+            ReadableStreamDefaultControllerCallPullIfNeeded(this);
+          }
+        }
+        /** @internal */
+        [ReleaseSteps]() {
+        }
+      }
+      Object.defineProperties(ReadableStreamDefaultController.prototype, {
+        close: { enumerable: true },
+        enqueue: { enumerable: true },
+        error: { enumerable: true },
+        desiredSize: { enumerable: true }
+      });
+      setFunctionName(ReadableStreamDefaultController.prototype.close, "close");
+      setFunctionName(ReadableStreamDefaultController.prototype.enqueue, "enqueue");
+      setFunctionName(ReadableStreamDefaultController.prototype.error, "error");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ReadableStreamDefaultController.prototype, Symbol.toStringTag, {
+          value: "ReadableStreamDefaultController",
+          configurable: true
+        });
+      }
+      function IsReadableStreamDefaultController(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_controlledReadableStream")) {
+          return false;
+        }
+        return x2 instanceof ReadableStreamDefaultController;
+      }
+      function ReadableStreamDefaultControllerCallPullIfNeeded(controller) {
+        const shouldPull = ReadableStreamDefaultControllerShouldCallPull(controller);
+        if (!shouldPull) {
+          return;
+        }
+        if (controller._pulling) {
+          controller._pullAgain = true;
+          return;
+        }
+        controller._pulling = true;
+        const pullPromise = controller._pullAlgorithm();
+        uponPromise(pullPromise, () => {
+          controller._pulling = false;
+          if (controller._pullAgain) {
+            controller._pullAgain = false;
+            ReadableStreamDefaultControllerCallPullIfNeeded(controller);
+          }
+          return null;
+        }, (e2) => {
+          ReadableStreamDefaultControllerError(controller, e2);
+          return null;
+        });
+      }
+      function ReadableStreamDefaultControllerShouldCallPull(controller) {
+        const stream = controller._controlledReadableStream;
+        if (!ReadableStreamDefaultControllerCanCloseOrEnqueue(controller)) {
+          return false;
+        }
+        if (!controller._started) {
+          return false;
+        }
+        if (IsReadableStreamLocked(stream) && ReadableStreamGetNumReadRequests(stream) > 0) {
+          return true;
+        }
+        const desiredSize = ReadableStreamDefaultControllerGetDesiredSize(controller);
+        if (desiredSize > 0) {
+          return true;
+        }
+        return false;
+      }
+      function ReadableStreamDefaultControllerClearAlgorithms(controller) {
+        controller._pullAlgorithm = void 0;
+        controller._cancelAlgorithm = void 0;
+        controller._strategySizeAlgorithm = void 0;
+      }
+      function ReadableStreamDefaultControllerClose(controller) {
+        if (!ReadableStreamDefaultControllerCanCloseOrEnqueue(controller)) {
+          return;
+        }
+        const stream = controller._controlledReadableStream;
+        controller._closeRequested = true;
+        if (controller._queue.length === 0) {
+          ReadableStreamDefaultControllerClearAlgorithms(controller);
+          ReadableStreamClose(stream);
+        }
+      }
+      function ReadableStreamDefaultControllerEnqueue(controller, chunk) {
+        if (!ReadableStreamDefaultControllerCanCloseOrEnqueue(controller)) {
+          return;
+        }
+        const stream = controller._controlledReadableStream;
+        if (IsReadableStreamLocked(stream) && ReadableStreamGetNumReadRequests(stream) > 0) {
+          ReadableStreamFulfillReadRequest(stream, chunk, false);
+        } else {
+          let chunkSize;
+          try {
+            chunkSize = controller._strategySizeAlgorithm(chunk);
+          } catch (chunkSizeE) {
+            ReadableStreamDefaultControllerError(controller, chunkSizeE);
+            throw chunkSizeE;
+          }
+          try {
+            EnqueueValueWithSize(controller, chunk, chunkSize);
+          } catch (enqueueE) {
+            ReadableStreamDefaultControllerError(controller, enqueueE);
+            throw enqueueE;
+          }
+        }
+        ReadableStreamDefaultControllerCallPullIfNeeded(controller);
+      }
+      function ReadableStreamDefaultControllerError(controller, e2) {
+        const stream = controller._controlledReadableStream;
+        if (stream._state !== "readable") {
+          return;
+        }
+        ResetQueue(controller);
+        ReadableStreamDefaultControllerClearAlgorithms(controller);
+        ReadableStreamError(stream, e2);
+      }
+      function ReadableStreamDefaultControllerGetDesiredSize(controller) {
+        const state = controller._controlledReadableStream._state;
+        if (state === "errored") {
+          return null;
+        }
+        if (state === "closed") {
+          return 0;
+        }
+        return controller._strategyHWM - controller._queueTotalSize;
+      }
+      function ReadableStreamDefaultControllerHasBackpressure(controller) {
+        if (ReadableStreamDefaultControllerShouldCallPull(controller)) {
+          return false;
+        }
+        return true;
+      }
+      function ReadableStreamDefaultControllerCanCloseOrEnqueue(controller) {
+        const state = controller._controlledReadableStream._state;
+        if (!controller._closeRequested && state === "readable") {
+          return true;
+        }
+        return false;
+      }
+      function SetUpReadableStreamDefaultController(stream, controller, startAlgorithm, pullAlgorithm, cancelAlgorithm, highWaterMark, sizeAlgorithm) {
+        controller._controlledReadableStream = stream;
+        controller._queue = void 0;
+        controller._queueTotalSize = void 0;
+        ResetQueue(controller);
+        controller._started = false;
+        controller._closeRequested = false;
+        controller._pullAgain = false;
+        controller._pulling = false;
+        controller._strategySizeAlgorithm = sizeAlgorithm;
+        controller._strategyHWM = highWaterMark;
+        controller._pullAlgorithm = pullAlgorithm;
+        controller._cancelAlgorithm = cancelAlgorithm;
+        stream._readableStreamController = controller;
+        const startResult = startAlgorithm();
+        uponPromise(promiseResolvedWith(startResult), () => {
+          controller._started = true;
+          ReadableStreamDefaultControllerCallPullIfNeeded(controller);
+          return null;
+        }, (r2) => {
+          ReadableStreamDefaultControllerError(controller, r2);
+          return null;
+        });
+      }
+      function SetUpReadableStreamDefaultControllerFromUnderlyingSource(stream, underlyingSource, highWaterMark, sizeAlgorithm) {
+        const controller = Object.create(ReadableStreamDefaultController.prototype);
+        let startAlgorithm;
+        let pullAlgorithm;
+        let cancelAlgorithm;
+        if (underlyingSource.start !== void 0) {
+          startAlgorithm = () => underlyingSource.start(controller);
+        } else {
+          startAlgorithm = () => void 0;
+        }
+        if (underlyingSource.pull !== void 0) {
+          pullAlgorithm = () => underlyingSource.pull(controller);
+        } else {
+          pullAlgorithm = () => promiseResolvedWith(void 0);
+        }
+        if (underlyingSource.cancel !== void 0) {
+          cancelAlgorithm = (reason) => underlyingSource.cancel(reason);
+        } else {
+          cancelAlgorithm = () => promiseResolvedWith(void 0);
+        }
+        SetUpReadableStreamDefaultController(stream, controller, startAlgorithm, pullAlgorithm, cancelAlgorithm, highWaterMark, sizeAlgorithm);
+      }
+      function defaultControllerBrandCheckException$1(name) {
+        return new TypeError(`ReadableStreamDefaultController.prototype.${name} can only be used on a ReadableStreamDefaultController`);
+      }
+      function ReadableStreamTee(stream, cloneForBranch2) {
+        if (IsReadableByteStreamController(stream._readableStreamController)) {
+          return ReadableByteStreamTee(stream);
+        }
+        return ReadableStreamDefaultTee(stream);
+      }
+      function ReadableStreamDefaultTee(stream, cloneForBranch2) {
+        const reader = AcquireReadableStreamDefaultReader(stream);
+        let reading = false;
+        let readAgain = false;
+        let canceled1 = false;
+        let canceled2 = false;
+        let reason1;
+        let reason2;
+        let branch1;
+        let branch2;
+        let resolveCancelPromise;
+        const cancelPromise = newPromise((resolve) => {
+          resolveCancelPromise = resolve;
+        });
+        function pullAlgorithm() {
+          if (reading) {
+            readAgain = true;
+            return promiseResolvedWith(void 0);
+          }
+          reading = true;
+          const readRequest = {
+            _chunkSteps: (chunk) => {
+              _queueMicrotask(() => {
+                readAgain = false;
+                const chunk1 = chunk;
+                const chunk2 = chunk;
+                if (!canceled1) {
+                  ReadableStreamDefaultControllerEnqueue(branch1._readableStreamController, chunk1);
+                }
+                if (!canceled2) {
+                  ReadableStreamDefaultControllerEnqueue(branch2._readableStreamController, chunk2);
+                }
+                reading = false;
+                if (readAgain) {
+                  pullAlgorithm();
+                }
+              });
+            },
+            _closeSteps: () => {
+              reading = false;
+              if (!canceled1) {
+                ReadableStreamDefaultControllerClose(branch1._readableStreamController);
+              }
+              if (!canceled2) {
+                ReadableStreamDefaultControllerClose(branch2._readableStreamController);
+              }
+              if (!canceled1 || !canceled2) {
+                resolveCancelPromise(void 0);
+              }
+            },
+            _errorSteps: () => {
+              reading = false;
+            }
+          };
+          ReadableStreamDefaultReaderRead(reader, readRequest);
+          return promiseResolvedWith(void 0);
+        }
+        function cancel1Algorithm(reason) {
+          canceled1 = true;
+          reason1 = reason;
+          if (canceled2) {
+            const compositeReason = CreateArrayFromList([reason1, reason2]);
+            const cancelResult = ReadableStreamCancel(stream, compositeReason);
+            resolveCancelPromise(cancelResult);
+          }
+          return cancelPromise;
+        }
+        function cancel2Algorithm(reason) {
+          canceled2 = true;
+          reason2 = reason;
+          if (canceled1) {
+            const compositeReason = CreateArrayFromList([reason1, reason2]);
+            const cancelResult = ReadableStreamCancel(stream, compositeReason);
+            resolveCancelPromise(cancelResult);
+          }
+          return cancelPromise;
+        }
+        function startAlgorithm() {
+        }
+        branch1 = CreateReadableStream(startAlgorithm, pullAlgorithm, cancel1Algorithm);
+        branch2 = CreateReadableStream(startAlgorithm, pullAlgorithm, cancel2Algorithm);
+        uponRejection(reader._closedPromise, (r2) => {
+          ReadableStreamDefaultControllerError(branch1._readableStreamController, r2);
+          ReadableStreamDefaultControllerError(branch2._readableStreamController, r2);
+          if (!canceled1 || !canceled2) {
+            resolveCancelPromise(void 0);
+          }
+          return null;
+        });
+        return [branch1, branch2];
+      }
+      function ReadableByteStreamTee(stream) {
+        let reader = AcquireReadableStreamDefaultReader(stream);
+        let reading = false;
+        let readAgainForBranch1 = false;
+        let readAgainForBranch2 = false;
+        let canceled1 = false;
+        let canceled2 = false;
+        let reason1;
+        let reason2;
+        let branch1;
+        let branch2;
+        let resolveCancelPromise;
+        const cancelPromise = newPromise((resolve) => {
+          resolveCancelPromise = resolve;
+        });
+        function forwardReaderError(thisReader) {
+          uponRejection(thisReader._closedPromise, (r2) => {
+            if (thisReader !== reader) {
+              return null;
+            }
+            ReadableByteStreamControllerError(branch1._readableStreamController, r2);
+            ReadableByteStreamControllerError(branch2._readableStreamController, r2);
+            if (!canceled1 || !canceled2) {
+              resolveCancelPromise(void 0);
+            }
+            return null;
+          });
+        }
+        function pullWithDefaultReader() {
+          if (IsReadableStreamBYOBReader(reader)) {
+            ReadableStreamReaderGenericRelease(reader);
+            reader = AcquireReadableStreamDefaultReader(stream);
+            forwardReaderError(reader);
+          }
+          const readRequest = {
+            _chunkSteps: (chunk) => {
+              _queueMicrotask(() => {
+                readAgainForBranch1 = false;
+                readAgainForBranch2 = false;
+                const chunk1 = chunk;
+                let chunk2 = chunk;
+                if (!canceled1 && !canceled2) {
+                  try {
+                    chunk2 = CloneAsUint8Array(chunk);
+                  } catch (cloneE) {
+                    ReadableByteStreamControllerError(branch1._readableStreamController, cloneE);
+                    ReadableByteStreamControllerError(branch2._readableStreamController, cloneE);
+                    resolveCancelPromise(ReadableStreamCancel(stream, cloneE));
+                    return;
+                  }
+                }
+                if (!canceled1) {
+                  ReadableByteStreamControllerEnqueue(branch1._readableStreamController, chunk1);
+                }
+                if (!canceled2) {
+                  ReadableByteStreamControllerEnqueue(branch2._readableStreamController, chunk2);
+                }
+                reading = false;
+                if (readAgainForBranch1) {
+                  pull1Algorithm();
+                } else if (readAgainForBranch2) {
+                  pull2Algorithm();
+                }
+              });
+            },
+            _closeSteps: () => {
+              reading = false;
+              if (!canceled1) {
+                ReadableByteStreamControllerClose(branch1._readableStreamController);
+              }
+              if (!canceled2) {
+                ReadableByteStreamControllerClose(branch2._readableStreamController);
+              }
+              if (branch1._readableStreamController._pendingPullIntos.length > 0) {
+                ReadableByteStreamControllerRespond(branch1._readableStreamController, 0);
+              }
+              if (branch2._readableStreamController._pendingPullIntos.length > 0) {
+                ReadableByteStreamControllerRespond(branch2._readableStreamController, 0);
+              }
+              if (!canceled1 || !canceled2) {
+                resolveCancelPromise(void 0);
+              }
+            },
+            _errorSteps: () => {
+              reading = false;
+            }
+          };
+          ReadableStreamDefaultReaderRead(reader, readRequest);
+        }
+        function pullWithBYOBReader(view, forBranch2) {
+          if (IsReadableStreamDefaultReader(reader)) {
+            ReadableStreamReaderGenericRelease(reader);
+            reader = AcquireReadableStreamBYOBReader(stream);
+            forwardReaderError(reader);
+          }
+          const byobBranch = forBranch2 ? branch2 : branch1;
+          const otherBranch = forBranch2 ? branch1 : branch2;
+          const readIntoRequest = {
+            _chunkSteps: (chunk) => {
+              _queueMicrotask(() => {
+                readAgainForBranch1 = false;
+                readAgainForBranch2 = false;
+                const byobCanceled = forBranch2 ? canceled2 : canceled1;
+                const otherCanceled = forBranch2 ? canceled1 : canceled2;
+                if (!otherCanceled) {
+                  let clonedChunk;
+                  try {
+                    clonedChunk = CloneAsUint8Array(chunk);
+                  } catch (cloneE) {
+                    ReadableByteStreamControllerError(byobBranch._readableStreamController, cloneE);
+                    ReadableByteStreamControllerError(otherBranch._readableStreamController, cloneE);
+                    resolveCancelPromise(ReadableStreamCancel(stream, cloneE));
+                    return;
+                  }
+                  if (!byobCanceled) {
+                    ReadableByteStreamControllerRespondWithNewView(byobBranch._readableStreamController, chunk);
+                  }
+                  ReadableByteStreamControllerEnqueue(otherBranch._readableStreamController, clonedChunk);
+                } else if (!byobCanceled) {
+                  ReadableByteStreamControllerRespondWithNewView(byobBranch._readableStreamController, chunk);
+                }
+                reading = false;
+                if (readAgainForBranch1) {
+                  pull1Algorithm();
+                } else if (readAgainForBranch2) {
+                  pull2Algorithm();
+                }
+              });
+            },
+            _closeSteps: (chunk) => {
+              reading = false;
+              const byobCanceled = forBranch2 ? canceled2 : canceled1;
+              const otherCanceled = forBranch2 ? canceled1 : canceled2;
+              if (!byobCanceled) {
+                ReadableByteStreamControllerClose(byobBranch._readableStreamController);
+              }
+              if (!otherCanceled) {
+                ReadableByteStreamControllerClose(otherBranch._readableStreamController);
+              }
+              if (chunk !== void 0) {
+                if (!byobCanceled) {
+                  ReadableByteStreamControllerRespondWithNewView(byobBranch._readableStreamController, chunk);
+                }
+                if (!otherCanceled && otherBranch._readableStreamController._pendingPullIntos.length > 0) {
+                  ReadableByteStreamControllerRespond(otherBranch._readableStreamController, 0);
+                }
+              }
+              if (!byobCanceled || !otherCanceled) {
+                resolveCancelPromise(void 0);
+              }
+            },
+            _errorSteps: () => {
+              reading = false;
+            }
+          };
+          ReadableStreamBYOBReaderRead(reader, view, 1, readIntoRequest);
+        }
+        function pull1Algorithm() {
+          if (reading) {
+            readAgainForBranch1 = true;
+            return promiseResolvedWith(void 0);
+          }
+          reading = true;
+          const byobRequest = ReadableByteStreamControllerGetBYOBRequest(branch1._readableStreamController);
+          if (byobRequest === null) {
+            pullWithDefaultReader();
+          } else {
+            pullWithBYOBReader(byobRequest._view, false);
+          }
+          return promiseResolvedWith(void 0);
+        }
+        function pull2Algorithm() {
+          if (reading) {
+            readAgainForBranch2 = true;
+            return promiseResolvedWith(void 0);
+          }
+          reading = true;
+          const byobRequest = ReadableByteStreamControllerGetBYOBRequest(branch2._readableStreamController);
+          if (byobRequest === null) {
+            pullWithDefaultReader();
+          } else {
+            pullWithBYOBReader(byobRequest._view, true);
+          }
+          return promiseResolvedWith(void 0);
+        }
+        function cancel1Algorithm(reason) {
+          canceled1 = true;
+          reason1 = reason;
+          if (canceled2) {
+            const compositeReason = CreateArrayFromList([reason1, reason2]);
+            const cancelResult = ReadableStreamCancel(stream, compositeReason);
+            resolveCancelPromise(cancelResult);
+          }
+          return cancelPromise;
+        }
+        function cancel2Algorithm(reason) {
+          canceled2 = true;
+          reason2 = reason;
+          if (canceled1) {
+            const compositeReason = CreateArrayFromList([reason1, reason2]);
+            const cancelResult = ReadableStreamCancel(stream, compositeReason);
+            resolveCancelPromise(cancelResult);
+          }
+          return cancelPromise;
+        }
+        function startAlgorithm() {
+          return;
+        }
+        branch1 = CreateReadableByteStream(startAlgorithm, pull1Algorithm, cancel1Algorithm);
+        branch2 = CreateReadableByteStream(startAlgorithm, pull2Algorithm, cancel2Algorithm);
+        forwardReaderError(reader);
+        return [branch1, branch2];
+      }
+      function isReadableStreamLike(stream) {
+        return typeIsObject(stream) && typeof stream.getReader !== "undefined";
+      }
+      function ReadableStreamFrom(source) {
+        if (isReadableStreamLike(source)) {
+          return ReadableStreamFromDefaultReader(source.getReader());
+        }
+        return ReadableStreamFromIterable(source);
+      }
+      function ReadableStreamFromIterable(asyncIterable) {
+        let stream;
+        const iteratorRecord = GetIterator(asyncIterable, "async");
+        const startAlgorithm = noop2;
+        function pullAlgorithm() {
+          let nextResult;
+          try {
+            nextResult = IteratorNext(iteratorRecord);
+          } catch (e2) {
+            return promiseRejectedWith(e2);
+          }
+          const nextPromise = promiseResolvedWith(nextResult);
+          return transformPromiseWith(nextPromise, (iterResult) => {
+            if (!typeIsObject(iterResult)) {
+              throw new TypeError("The promise returned by the iterator.next() method must fulfill with an object");
+            }
+            const done = IteratorComplete(iterResult);
+            if (done) {
+              ReadableStreamDefaultControllerClose(stream._readableStreamController);
+            } else {
+              const value = IteratorValue(iterResult);
+              ReadableStreamDefaultControllerEnqueue(stream._readableStreamController, value);
+            }
+          });
+        }
+        function cancelAlgorithm(reason) {
+          const iterator = iteratorRecord.iterator;
+          let returnMethod;
+          try {
+            returnMethod = GetMethod(iterator, "return");
+          } catch (e2) {
+            return promiseRejectedWith(e2);
+          }
+          if (returnMethod === void 0) {
+            return promiseResolvedWith(void 0);
+          }
+          let returnResult;
+          try {
+            returnResult = reflectCall(returnMethod, iterator, [reason]);
+          } catch (e2) {
+            return promiseRejectedWith(e2);
+          }
+          const returnPromise = promiseResolvedWith(returnResult);
+          return transformPromiseWith(returnPromise, (iterResult) => {
+            if (!typeIsObject(iterResult)) {
+              throw new TypeError("The promise returned by the iterator.return() method must fulfill with an object");
+            }
+            return void 0;
+          });
+        }
+        stream = CreateReadableStream(startAlgorithm, pullAlgorithm, cancelAlgorithm, 0);
+        return stream;
+      }
+      function ReadableStreamFromDefaultReader(reader) {
+        let stream;
+        const startAlgorithm = noop2;
+        function pullAlgorithm() {
+          let readPromise;
+          try {
+            readPromise = reader.read();
+          } catch (e2) {
+            return promiseRejectedWith(e2);
+          }
+          return transformPromiseWith(readPromise, (readResult) => {
+            if (!typeIsObject(readResult)) {
+              throw new TypeError("The promise returned by the reader.read() method must fulfill with an object");
+            }
+            if (readResult.done) {
+              ReadableStreamDefaultControllerClose(stream._readableStreamController);
+            } else {
+              const value = readResult.value;
+              ReadableStreamDefaultControllerEnqueue(stream._readableStreamController, value);
+            }
+          });
+        }
+        function cancelAlgorithm(reason) {
+          try {
+            return promiseResolvedWith(reader.cancel(reason));
+          } catch (e2) {
+            return promiseRejectedWith(e2);
+          }
+        }
+        stream = CreateReadableStream(startAlgorithm, pullAlgorithm, cancelAlgorithm, 0);
+        return stream;
+      }
+      function convertUnderlyingDefaultOrByteSource(source, context) {
+        assertDictionary(source, context);
+        const original = source;
+        const autoAllocateChunkSize = original === null || original === void 0 ? void 0 : original.autoAllocateChunkSize;
+        const cancel = original === null || original === void 0 ? void 0 : original.cancel;
+        const pull = original === null || original === void 0 ? void 0 : original.pull;
+        const start = original === null || original === void 0 ? void 0 : original.start;
+        const type = original === null || original === void 0 ? void 0 : original.type;
+        return {
+          autoAllocateChunkSize: autoAllocateChunkSize === void 0 ? void 0 : convertUnsignedLongLongWithEnforceRange(autoAllocateChunkSize, `${context} has member 'autoAllocateChunkSize' that`),
+          cancel: cancel === void 0 ? void 0 : convertUnderlyingSourceCancelCallback(cancel, original, `${context} has member 'cancel' that`),
+          pull: pull === void 0 ? void 0 : convertUnderlyingSourcePullCallback(pull, original, `${context} has member 'pull' that`),
+          start: start === void 0 ? void 0 : convertUnderlyingSourceStartCallback(start, original, `${context} has member 'start' that`),
+          type: type === void 0 ? void 0 : convertReadableStreamType(type, `${context} has member 'type' that`)
+        };
+      }
+      function convertUnderlyingSourceCancelCallback(fn, original, context) {
+        assertFunction(fn, context);
+        return (reason) => promiseCall(fn, original, [reason]);
+      }
+      function convertUnderlyingSourcePullCallback(fn, original, context) {
+        assertFunction(fn, context);
+        return (controller) => promiseCall(fn, original, [controller]);
+      }
+      function convertUnderlyingSourceStartCallback(fn, original, context) {
+        assertFunction(fn, context);
+        return (controller) => reflectCall(fn, original, [controller]);
+      }
+      function convertReadableStreamType(type, context) {
+        type = `${type}`;
+        if (type !== "bytes") {
+          throw new TypeError(`${context} '${type}' is not a valid enumeration value for ReadableStreamType`);
+        }
+        return type;
+      }
+      function convertIteratorOptions(options, context) {
+        assertDictionary(options, context);
+        const preventCancel = options === null || options === void 0 ? void 0 : options.preventCancel;
+        return { preventCancel: Boolean(preventCancel) };
+      }
+      function convertPipeOptions(options, context) {
+        assertDictionary(options, context);
+        const preventAbort = options === null || options === void 0 ? void 0 : options.preventAbort;
+        const preventCancel = options === null || options === void 0 ? void 0 : options.preventCancel;
+        const preventClose = options === null || options === void 0 ? void 0 : options.preventClose;
+        const signal = options === null || options === void 0 ? void 0 : options.signal;
+        if (signal !== void 0) {
+          assertAbortSignal(signal, `${context} has member 'signal' that`);
+        }
+        return {
+          preventAbort: Boolean(preventAbort),
+          preventCancel: Boolean(preventCancel),
+          preventClose: Boolean(preventClose),
+          signal
+        };
+      }
+      function assertAbortSignal(signal, context) {
+        if (!isAbortSignal2(signal)) {
+          throw new TypeError(`${context} is not an AbortSignal.`);
+        }
+      }
+      function convertReadableWritablePair(pair, context) {
+        assertDictionary(pair, context);
+        const readable = pair === null || pair === void 0 ? void 0 : pair.readable;
+        assertRequiredField(readable, "readable", "ReadableWritablePair");
+        assertReadableStream(readable, `${context} has member 'readable' that`);
+        const writable = pair === null || pair === void 0 ? void 0 : pair.writable;
+        assertRequiredField(writable, "writable", "ReadableWritablePair");
+        assertWritableStream(writable, `${context} has member 'writable' that`);
+        return { readable, writable };
+      }
+      class ReadableStream2 {
+        constructor(rawUnderlyingSource = {}, rawStrategy = {}) {
+          if (rawUnderlyingSource === void 0) {
+            rawUnderlyingSource = null;
+          } else {
+            assertObject(rawUnderlyingSource, "First parameter");
+          }
+          const strategy = convertQueuingStrategy(rawStrategy, "Second parameter");
+          const underlyingSource = convertUnderlyingDefaultOrByteSource(rawUnderlyingSource, "First parameter");
+          InitializeReadableStream(this);
+          if (underlyingSource.type === "bytes") {
+            if (strategy.size !== void 0) {
+              throw new RangeError("The strategy for a byte stream cannot have a size function");
+            }
+            const highWaterMark = ExtractHighWaterMark(strategy, 0);
+            SetUpReadableByteStreamControllerFromUnderlyingSource(this, underlyingSource, highWaterMark);
+          } else {
+            const sizeAlgorithm = ExtractSizeAlgorithm(strategy);
+            const highWaterMark = ExtractHighWaterMark(strategy, 1);
+            SetUpReadableStreamDefaultControllerFromUnderlyingSource(this, underlyingSource, highWaterMark, sizeAlgorithm);
+          }
+        }
+        /**
+         * Whether or not the readable stream is locked to a {@link ReadableStreamDefaultReader | reader}.
+         */
+        get locked() {
+          if (!IsReadableStream(this)) {
+            throw streamBrandCheckException$1("locked");
+          }
+          return IsReadableStreamLocked(this);
+        }
+        /**
+         * Cancels the stream, signaling a loss of interest in the stream by a consumer.
+         *
+         * The supplied `reason` argument will be given to the underlying source's {@link UnderlyingSource.cancel | cancel()}
+         * method, which might or might not use it.
+         */
+        cancel(reason = void 0) {
+          if (!IsReadableStream(this)) {
+            return promiseRejectedWith(streamBrandCheckException$1("cancel"));
+          }
+          if (IsReadableStreamLocked(this)) {
+            return promiseRejectedWith(new TypeError("Cannot cancel a stream that already has a reader"));
+          }
+          return ReadableStreamCancel(this, reason);
+        }
+        getReader(rawOptions = void 0) {
+          if (!IsReadableStream(this)) {
+            throw streamBrandCheckException$1("getReader");
+          }
+          const options = convertReaderOptions(rawOptions, "First parameter");
+          if (options.mode === void 0) {
+            return AcquireReadableStreamDefaultReader(this);
+          }
+          return AcquireReadableStreamBYOBReader(this);
+        }
+        pipeThrough(rawTransform, rawOptions = {}) {
+          if (!IsReadableStream(this)) {
+            throw streamBrandCheckException$1("pipeThrough");
+          }
+          assertRequiredArgument(rawTransform, 1, "pipeThrough");
+          const transform = convertReadableWritablePair(rawTransform, "First parameter");
+          const options = convertPipeOptions(rawOptions, "Second parameter");
+          if (IsReadableStreamLocked(this)) {
+            throw new TypeError("ReadableStream.prototype.pipeThrough cannot be used on a locked ReadableStream");
+          }
+          if (IsWritableStreamLocked(transform.writable)) {
+            throw new TypeError("ReadableStream.prototype.pipeThrough cannot be used on a locked WritableStream");
+          }
+          const promise = ReadableStreamPipeTo(this, transform.writable, options.preventClose, options.preventAbort, options.preventCancel, options.signal);
+          setPromiseIsHandledToTrue(promise);
+          return transform.readable;
+        }
+        pipeTo(destination, rawOptions = {}) {
+          if (!IsReadableStream(this)) {
+            return promiseRejectedWith(streamBrandCheckException$1("pipeTo"));
+          }
+          if (destination === void 0) {
+            return promiseRejectedWith(`Parameter 1 is required in 'pipeTo'.`);
+          }
+          if (!IsWritableStream(destination)) {
+            return promiseRejectedWith(new TypeError(`ReadableStream.prototype.pipeTo's first argument must be a WritableStream`));
+          }
+          let options;
+          try {
+            options = convertPipeOptions(rawOptions, "Second parameter");
+          } catch (e2) {
+            return promiseRejectedWith(e2);
+          }
+          if (IsReadableStreamLocked(this)) {
+            return promiseRejectedWith(new TypeError("ReadableStream.prototype.pipeTo cannot be used on a locked ReadableStream"));
+          }
+          if (IsWritableStreamLocked(destination)) {
+            return promiseRejectedWith(new TypeError("ReadableStream.prototype.pipeTo cannot be used on a locked WritableStream"));
+          }
+          return ReadableStreamPipeTo(this, destination, options.preventClose, options.preventAbort, options.preventCancel, options.signal);
+        }
+        /**
+         * Tees this readable stream, returning a two-element array containing the two resulting branches as
+         * new {@link ReadableStream} instances.
+         *
+         * Teeing a stream will lock it, preventing any other consumer from acquiring a reader.
+         * To cancel the stream, cancel both of the resulting branches; a composite cancellation reason will then be
+         * propagated to the stream's underlying source.
+         *
+         * Note that the chunks seen in each branch will be the same object. If the chunks are not immutable,
+         * this could allow interference between the two branches.
+         */
+        tee() {
+          if (!IsReadableStream(this)) {
+            throw streamBrandCheckException$1("tee");
+          }
+          const branches = ReadableStreamTee(this);
+          return CreateArrayFromList(branches);
+        }
+        values(rawOptions = void 0) {
+          if (!IsReadableStream(this)) {
+            throw streamBrandCheckException$1("values");
+          }
+          const options = convertIteratorOptions(rawOptions, "First parameter");
+          return AcquireReadableStreamAsyncIterator(this, options.preventCancel);
+        }
+        [SymbolAsyncIterator](options) {
+          return this.values(options);
+        }
+        /**
+         * Creates a new ReadableStream wrapping the provided iterable or async iterable.
+         *
+         * This can be used to adapt various kinds of objects into a readable stream,
+         * such as an array, an async generator, or a Node.js readable stream.
+         */
+        static from(asyncIterable) {
+          return ReadableStreamFrom(asyncIterable);
+        }
+      }
+      Object.defineProperties(ReadableStream2, {
+        from: { enumerable: true }
+      });
+      Object.defineProperties(ReadableStream2.prototype, {
+        cancel: { enumerable: true },
+        getReader: { enumerable: true },
+        pipeThrough: { enumerable: true },
+        pipeTo: { enumerable: true },
+        tee: { enumerable: true },
+        values: { enumerable: true },
+        locked: { enumerable: true }
+      });
+      setFunctionName(ReadableStream2.from, "from");
+      setFunctionName(ReadableStream2.prototype.cancel, "cancel");
+      setFunctionName(ReadableStream2.prototype.getReader, "getReader");
+      setFunctionName(ReadableStream2.prototype.pipeThrough, "pipeThrough");
+      setFunctionName(ReadableStream2.prototype.pipeTo, "pipeTo");
+      setFunctionName(ReadableStream2.prototype.tee, "tee");
+      setFunctionName(ReadableStream2.prototype.values, "values");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ReadableStream2.prototype, Symbol.toStringTag, {
+          value: "ReadableStream",
+          configurable: true
+        });
+      }
+      Object.defineProperty(ReadableStream2.prototype, SymbolAsyncIterator, {
+        value: ReadableStream2.prototype.values,
+        writable: true,
+        configurable: true
+      });
+      function CreateReadableStream(startAlgorithm, pullAlgorithm, cancelAlgorithm, highWaterMark = 1, sizeAlgorithm = () => 1) {
+        const stream = Object.create(ReadableStream2.prototype);
+        InitializeReadableStream(stream);
+        const controller = Object.create(ReadableStreamDefaultController.prototype);
+        SetUpReadableStreamDefaultController(stream, controller, startAlgorithm, pullAlgorithm, cancelAlgorithm, highWaterMark, sizeAlgorithm);
+        return stream;
+      }
+      function CreateReadableByteStream(startAlgorithm, pullAlgorithm, cancelAlgorithm) {
+        const stream = Object.create(ReadableStream2.prototype);
+        InitializeReadableStream(stream);
+        const controller = Object.create(ReadableByteStreamController.prototype);
+        SetUpReadableByteStreamController(stream, controller, startAlgorithm, pullAlgorithm, cancelAlgorithm, 0, void 0);
+        return stream;
+      }
+      function InitializeReadableStream(stream) {
+        stream._state = "readable";
+        stream._reader = void 0;
+        stream._storedError = void 0;
+        stream._disturbed = false;
+      }
+      function IsReadableStream(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_readableStreamController")) {
+          return false;
+        }
+        return x2 instanceof ReadableStream2;
+      }
+      function IsReadableStreamLocked(stream) {
+        if (stream._reader === void 0) {
+          return false;
+        }
+        return true;
+      }
+      function ReadableStreamCancel(stream, reason) {
+        stream._disturbed = true;
+        if (stream._state === "closed") {
+          return promiseResolvedWith(void 0);
+        }
+        if (stream._state === "errored") {
+          return promiseRejectedWith(stream._storedError);
+        }
+        ReadableStreamClose(stream);
+        const reader = stream._reader;
+        if (reader !== void 0 && IsReadableStreamBYOBReader(reader)) {
+          const readIntoRequests = reader._readIntoRequests;
+          reader._readIntoRequests = new SimpleQueue();
+          readIntoRequests.forEach((readIntoRequest) => {
+            readIntoRequest._closeSteps(void 0);
+          });
+        }
+        const sourceCancelPromise = stream._readableStreamController[CancelSteps](reason);
+        return transformPromiseWith(sourceCancelPromise, noop2);
+      }
+      function ReadableStreamClose(stream) {
+        stream._state = "closed";
+        const reader = stream._reader;
+        if (reader === void 0) {
+          return;
+        }
+        defaultReaderClosedPromiseResolve(reader);
+        if (IsReadableStreamDefaultReader(reader)) {
+          const readRequests = reader._readRequests;
+          reader._readRequests = new SimpleQueue();
+          readRequests.forEach((readRequest) => {
+            readRequest._closeSteps();
+          });
+        }
+      }
+      function ReadableStreamError(stream, e2) {
+        stream._state = "errored";
+        stream._storedError = e2;
+        const reader = stream._reader;
+        if (reader === void 0) {
+          return;
+        }
+        defaultReaderClosedPromiseReject(reader, e2);
+        if (IsReadableStreamDefaultReader(reader)) {
+          ReadableStreamDefaultReaderErrorReadRequests(reader, e2);
+        } else {
+          ReadableStreamBYOBReaderErrorReadIntoRequests(reader, e2);
+        }
+      }
+      function streamBrandCheckException$1(name) {
+        return new TypeError(`ReadableStream.prototype.${name} can only be used on a ReadableStream`);
+      }
+      function convertQueuingStrategyInit(init, context) {
+        assertDictionary(init, context);
+        const highWaterMark = init === null || init === void 0 ? void 0 : init.highWaterMark;
+        assertRequiredField(highWaterMark, "highWaterMark", "QueuingStrategyInit");
+        return {
+          highWaterMark: convertUnrestrictedDouble(highWaterMark)
+        };
+      }
+      const byteLengthSizeFunction = (chunk) => {
+        return chunk.byteLength;
+      };
+      setFunctionName(byteLengthSizeFunction, "size");
+      class ByteLengthQueuingStrategy {
+        constructor(options) {
+          assertRequiredArgument(options, 1, "ByteLengthQueuingStrategy");
+          options = convertQueuingStrategyInit(options, "First parameter");
+          this._byteLengthQueuingStrategyHighWaterMark = options.highWaterMark;
+        }
+        /**
+         * Returns the high water mark provided to the constructor.
+         */
+        get highWaterMark() {
+          if (!IsByteLengthQueuingStrategy(this)) {
+            throw byteLengthBrandCheckException("highWaterMark");
+          }
+          return this._byteLengthQueuingStrategyHighWaterMark;
+        }
+        /**
+         * Measures the size of `chunk` by returning the value of its `byteLength` property.
+         */
+        get size() {
+          if (!IsByteLengthQueuingStrategy(this)) {
+            throw byteLengthBrandCheckException("size");
+          }
+          return byteLengthSizeFunction;
+        }
+      }
+      Object.defineProperties(ByteLengthQueuingStrategy.prototype, {
+        highWaterMark: { enumerable: true },
+        size: { enumerable: true }
+      });
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(ByteLengthQueuingStrategy.prototype, Symbol.toStringTag, {
+          value: "ByteLengthQueuingStrategy",
+          configurable: true
+        });
+      }
+      function byteLengthBrandCheckException(name) {
+        return new TypeError(`ByteLengthQueuingStrategy.prototype.${name} can only be used on a ByteLengthQueuingStrategy`);
+      }
+      function IsByteLengthQueuingStrategy(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_byteLengthQueuingStrategyHighWaterMark")) {
+          return false;
+        }
+        return x2 instanceof ByteLengthQueuingStrategy;
+      }
+      const countSizeFunction = () => {
+        return 1;
+      };
+      setFunctionName(countSizeFunction, "size");
+      class CountQueuingStrategy {
+        constructor(options) {
+          assertRequiredArgument(options, 1, "CountQueuingStrategy");
+          options = convertQueuingStrategyInit(options, "First parameter");
+          this._countQueuingStrategyHighWaterMark = options.highWaterMark;
+        }
+        /**
+         * Returns the high water mark provided to the constructor.
+         */
+        get highWaterMark() {
+          if (!IsCountQueuingStrategy(this)) {
+            throw countBrandCheckException("highWaterMark");
+          }
+          return this._countQueuingStrategyHighWaterMark;
+        }
+        /**
+         * Measures the size of `chunk` by always returning 1.
+         * This ensures that the total queue size is a count of the number of chunks in the queue.
+         */
+        get size() {
+          if (!IsCountQueuingStrategy(this)) {
+            throw countBrandCheckException("size");
+          }
+          return countSizeFunction;
+        }
+      }
+      Object.defineProperties(CountQueuingStrategy.prototype, {
+        highWaterMark: { enumerable: true },
+        size: { enumerable: true }
+      });
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(CountQueuingStrategy.prototype, Symbol.toStringTag, {
+          value: "CountQueuingStrategy",
+          configurable: true
+        });
+      }
+      function countBrandCheckException(name) {
+        return new TypeError(`CountQueuingStrategy.prototype.${name} can only be used on a CountQueuingStrategy`);
+      }
+      function IsCountQueuingStrategy(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_countQueuingStrategyHighWaterMark")) {
+          return false;
+        }
+        return x2 instanceof CountQueuingStrategy;
+      }
+      function convertTransformer(original, context) {
+        assertDictionary(original, context);
+        const cancel = original === null || original === void 0 ? void 0 : original.cancel;
+        const flush = original === null || original === void 0 ? void 0 : original.flush;
+        const readableType = original === null || original === void 0 ? void 0 : original.readableType;
+        const start = original === null || original === void 0 ? void 0 : original.start;
+        const transform = original === null || original === void 0 ? void 0 : original.transform;
+        const writableType = original === null || original === void 0 ? void 0 : original.writableType;
+        return {
+          cancel: cancel === void 0 ? void 0 : convertTransformerCancelCallback(cancel, original, `${context} has member 'cancel' that`),
+          flush: flush === void 0 ? void 0 : convertTransformerFlushCallback(flush, original, `${context} has member 'flush' that`),
+          readableType,
+          start: start === void 0 ? void 0 : convertTransformerStartCallback(start, original, `${context} has member 'start' that`),
+          transform: transform === void 0 ? void 0 : convertTransformerTransformCallback(transform, original, `${context} has member 'transform' that`),
+          writableType
+        };
+      }
+      function convertTransformerFlushCallback(fn, original, context) {
+        assertFunction(fn, context);
+        return (controller) => promiseCall(fn, original, [controller]);
+      }
+      function convertTransformerStartCallback(fn, original, context) {
+        assertFunction(fn, context);
+        return (controller) => reflectCall(fn, original, [controller]);
+      }
+      function convertTransformerTransformCallback(fn, original, context) {
+        assertFunction(fn, context);
+        return (chunk, controller) => promiseCall(fn, original, [chunk, controller]);
+      }
+      function convertTransformerCancelCallback(fn, original, context) {
+        assertFunction(fn, context);
+        return (reason) => promiseCall(fn, original, [reason]);
+      }
+      class TransformStream {
+        constructor(rawTransformer = {}, rawWritableStrategy = {}, rawReadableStrategy = {}) {
+          if (rawTransformer === void 0) {
+            rawTransformer = null;
+          }
+          const writableStrategy = convertQueuingStrategy(rawWritableStrategy, "Second parameter");
+          const readableStrategy = convertQueuingStrategy(rawReadableStrategy, "Third parameter");
+          const transformer = convertTransformer(rawTransformer, "First parameter");
+          if (transformer.readableType !== void 0) {
+            throw new RangeError("Invalid readableType specified");
+          }
+          if (transformer.writableType !== void 0) {
+            throw new RangeError("Invalid writableType specified");
+          }
+          const readableHighWaterMark = ExtractHighWaterMark(readableStrategy, 0);
+          const readableSizeAlgorithm = ExtractSizeAlgorithm(readableStrategy);
+          const writableHighWaterMark = ExtractHighWaterMark(writableStrategy, 1);
+          const writableSizeAlgorithm = ExtractSizeAlgorithm(writableStrategy);
+          let startPromise_resolve;
+          const startPromise = newPromise((resolve) => {
+            startPromise_resolve = resolve;
+          });
+          InitializeTransformStream(this, startPromise, writableHighWaterMark, writableSizeAlgorithm, readableHighWaterMark, readableSizeAlgorithm);
+          SetUpTransformStreamDefaultControllerFromTransformer(this, transformer);
+          if (transformer.start !== void 0) {
+            startPromise_resolve(transformer.start(this._transformStreamController));
+          } else {
+            startPromise_resolve(void 0);
+          }
+        }
+        /**
+         * The readable side of the transform stream.
+         */
+        get readable() {
+          if (!IsTransformStream(this)) {
+            throw streamBrandCheckException("readable");
+          }
+          return this._readable;
+        }
+        /**
+         * The writable side of the transform stream.
+         */
+        get writable() {
+          if (!IsTransformStream(this)) {
+            throw streamBrandCheckException("writable");
+          }
+          return this._writable;
+        }
+      }
+      Object.defineProperties(TransformStream.prototype, {
+        readable: { enumerable: true },
+        writable: { enumerable: true }
+      });
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(TransformStream.prototype, Symbol.toStringTag, {
+          value: "TransformStream",
+          configurable: true
+        });
+      }
+      function InitializeTransformStream(stream, startPromise, writableHighWaterMark, writableSizeAlgorithm, readableHighWaterMark, readableSizeAlgorithm) {
+        function startAlgorithm() {
+          return startPromise;
+        }
+        function writeAlgorithm(chunk) {
+          return TransformStreamDefaultSinkWriteAlgorithm(stream, chunk);
+        }
+        function abortAlgorithm(reason) {
+          return TransformStreamDefaultSinkAbortAlgorithm(stream, reason);
+        }
+        function closeAlgorithm() {
+          return TransformStreamDefaultSinkCloseAlgorithm(stream);
+        }
+        stream._writable = CreateWritableStream(startAlgorithm, writeAlgorithm, closeAlgorithm, abortAlgorithm, writableHighWaterMark, writableSizeAlgorithm);
+        function pullAlgorithm() {
+          return TransformStreamDefaultSourcePullAlgorithm(stream);
+        }
+        function cancelAlgorithm(reason) {
+          return TransformStreamDefaultSourceCancelAlgorithm(stream, reason);
+        }
+        stream._readable = CreateReadableStream(startAlgorithm, pullAlgorithm, cancelAlgorithm, readableHighWaterMark, readableSizeAlgorithm);
+        stream._backpressure = void 0;
+        stream._backpressureChangePromise = void 0;
+        stream._backpressureChangePromise_resolve = void 0;
+        TransformStreamSetBackpressure(stream, true);
+        stream._transformStreamController = void 0;
+      }
+      function IsTransformStream(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_transformStreamController")) {
+          return false;
+        }
+        return x2 instanceof TransformStream;
+      }
+      function TransformStreamError(stream, e2) {
+        ReadableStreamDefaultControllerError(stream._readable._readableStreamController, e2);
+        TransformStreamErrorWritableAndUnblockWrite(stream, e2);
+      }
+      function TransformStreamErrorWritableAndUnblockWrite(stream, e2) {
+        TransformStreamDefaultControllerClearAlgorithms(stream._transformStreamController);
+        WritableStreamDefaultControllerErrorIfNeeded(stream._writable._writableStreamController, e2);
+        TransformStreamUnblockWrite(stream);
+      }
+      function TransformStreamUnblockWrite(stream) {
+        if (stream._backpressure) {
+          TransformStreamSetBackpressure(stream, false);
+        }
+      }
+      function TransformStreamSetBackpressure(stream, backpressure) {
+        if (stream._backpressureChangePromise !== void 0) {
+          stream._backpressureChangePromise_resolve();
+        }
+        stream._backpressureChangePromise = newPromise((resolve) => {
+          stream._backpressureChangePromise_resolve = resolve;
+        });
+        stream._backpressure = backpressure;
+      }
+      class TransformStreamDefaultController {
+        constructor() {
+          throw new TypeError("Illegal constructor");
+        }
+        /**
+         * Returns the desired size to fill the readable side’s internal queue. It can be negative, if the queue is over-full.
+         */
+        get desiredSize() {
+          if (!IsTransformStreamDefaultController(this)) {
+            throw defaultControllerBrandCheckException("desiredSize");
+          }
+          const readableController = this._controlledTransformStream._readable._readableStreamController;
+          return ReadableStreamDefaultControllerGetDesiredSize(readableController);
+        }
+        enqueue(chunk = void 0) {
+          if (!IsTransformStreamDefaultController(this)) {
+            throw defaultControllerBrandCheckException("enqueue");
+          }
+          TransformStreamDefaultControllerEnqueue(this, chunk);
+        }
+        /**
+         * Errors both the readable side and the writable side of the controlled transform stream, making all future
+         * interactions with it fail with the given error `e`. Any chunks queued for transformation will be discarded.
+         */
+        error(reason = void 0) {
+          if (!IsTransformStreamDefaultController(this)) {
+            throw defaultControllerBrandCheckException("error");
+          }
+          TransformStreamDefaultControllerError(this, reason);
+        }
+        /**
+         * Closes the readable side and errors the writable side of the controlled transform stream. This is useful when the
+         * transformer only needs to consume a portion of the chunks written to the writable side.
+         */
+        terminate() {
+          if (!IsTransformStreamDefaultController(this)) {
+            throw defaultControllerBrandCheckException("terminate");
+          }
+          TransformStreamDefaultControllerTerminate(this);
+        }
+      }
+      Object.defineProperties(TransformStreamDefaultController.prototype, {
+        enqueue: { enumerable: true },
+        error: { enumerable: true },
+        terminate: { enumerable: true },
+        desiredSize: { enumerable: true }
+      });
+      setFunctionName(TransformStreamDefaultController.prototype.enqueue, "enqueue");
+      setFunctionName(TransformStreamDefaultController.prototype.error, "error");
+      setFunctionName(TransformStreamDefaultController.prototype.terminate, "terminate");
+      if (typeof Symbol.toStringTag === "symbol") {
+        Object.defineProperty(TransformStreamDefaultController.prototype, Symbol.toStringTag, {
+          value: "TransformStreamDefaultController",
+          configurable: true
+        });
+      }
+      function IsTransformStreamDefaultController(x2) {
+        if (!typeIsObject(x2)) {
+          return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(x2, "_controlledTransformStream")) {
+          return false;
+        }
+        return x2 instanceof TransformStreamDefaultController;
+      }
+      function SetUpTransformStreamDefaultController(stream, controller, transformAlgorithm, flushAlgorithm, cancelAlgorithm) {
+        controller._controlledTransformStream = stream;
+        stream._transformStreamController = controller;
+        controller._transformAlgorithm = transformAlgorithm;
+        controller._flushAlgorithm = flushAlgorithm;
+        controller._cancelAlgorithm = cancelAlgorithm;
+        controller._finishPromise = void 0;
+        controller._finishPromise_resolve = void 0;
+        controller._finishPromise_reject = void 0;
+      }
+      function SetUpTransformStreamDefaultControllerFromTransformer(stream, transformer) {
+        const controller = Object.create(TransformStreamDefaultController.prototype);
+        let transformAlgorithm;
+        let flushAlgorithm;
+        let cancelAlgorithm;
+        if (transformer.transform !== void 0) {
+          transformAlgorithm = (chunk) => transformer.transform(chunk, controller);
+        } else {
+          transformAlgorithm = (chunk) => {
+            try {
+              TransformStreamDefaultControllerEnqueue(controller, chunk);
+              return promiseResolvedWith(void 0);
+            } catch (transformResultE) {
+              return promiseRejectedWith(transformResultE);
+            }
+          };
+        }
+        if (transformer.flush !== void 0) {
+          flushAlgorithm = () => transformer.flush(controller);
+        } else {
+          flushAlgorithm = () => promiseResolvedWith(void 0);
+        }
+        if (transformer.cancel !== void 0) {
+          cancelAlgorithm = (reason) => transformer.cancel(reason);
+        } else {
+          cancelAlgorithm = () => promiseResolvedWith(void 0);
+        }
+        SetUpTransformStreamDefaultController(stream, controller, transformAlgorithm, flushAlgorithm, cancelAlgorithm);
+      }
+      function TransformStreamDefaultControllerClearAlgorithms(controller) {
+        controller._transformAlgorithm = void 0;
+        controller._flushAlgorithm = void 0;
+        controller._cancelAlgorithm = void 0;
+      }
+      function TransformStreamDefaultControllerEnqueue(controller, chunk) {
+        const stream = controller._controlledTransformStream;
+        const readableController = stream._readable._readableStreamController;
+        if (!ReadableStreamDefaultControllerCanCloseOrEnqueue(readableController)) {
+          throw new TypeError("Readable side is not in a state that permits enqueue");
+        }
+        try {
+          ReadableStreamDefaultControllerEnqueue(readableController, chunk);
+        } catch (e2) {
+          TransformStreamErrorWritableAndUnblockWrite(stream, e2);
+          throw stream._readable._storedError;
+        }
+        const backpressure = ReadableStreamDefaultControllerHasBackpressure(readableController);
+        if (backpressure !== stream._backpressure) {
+          TransformStreamSetBackpressure(stream, true);
+        }
+      }
+      function TransformStreamDefaultControllerError(controller, e2) {
+        TransformStreamError(controller._controlledTransformStream, e2);
+      }
+      function TransformStreamDefaultControllerPerformTransform(controller, chunk) {
+        const transformPromise = controller._transformAlgorithm(chunk);
+        return transformPromiseWith(transformPromise, void 0, (r2) => {
+          TransformStreamError(controller._controlledTransformStream, r2);
+          throw r2;
+        });
+      }
+      function TransformStreamDefaultControllerTerminate(controller) {
+        const stream = controller._controlledTransformStream;
+        const readableController = stream._readable._readableStreamController;
+        ReadableStreamDefaultControllerClose(readableController);
+        const error = new TypeError("TransformStream terminated");
+        TransformStreamErrorWritableAndUnblockWrite(stream, error);
+      }
+      function TransformStreamDefaultSinkWriteAlgorithm(stream, chunk) {
+        const controller = stream._transformStreamController;
+        if (stream._backpressure) {
+          const backpressureChangePromise = stream._backpressureChangePromise;
+          return transformPromiseWith(backpressureChangePromise, () => {
+            const writable = stream._writable;
+            const state = writable._state;
+            if (state === "erroring") {
+              throw writable._storedError;
+            }
+            return TransformStreamDefaultControllerPerformTransform(controller, chunk);
+          });
+        }
+        return TransformStreamDefaultControllerPerformTransform(controller, chunk);
+      }
+      function TransformStreamDefaultSinkAbortAlgorithm(stream, reason) {
+        const controller = stream._transformStreamController;
+        if (controller._finishPromise !== void 0) {
+          return controller._finishPromise;
+        }
+        const readable = stream._readable;
+        controller._finishPromise = newPromise((resolve, reject) => {
+          controller._finishPromise_resolve = resolve;
+          controller._finishPromise_reject = reject;
+        });
+        const cancelPromise = controller._cancelAlgorithm(reason);
+        TransformStreamDefaultControllerClearAlgorithms(controller);
+        uponPromise(cancelPromise, () => {
+          if (readable._state === "errored") {
+            defaultControllerFinishPromiseReject(controller, readable._storedError);
+          } else {
+            ReadableStreamDefaultControllerError(readable._readableStreamController, reason);
+            defaultControllerFinishPromiseResolve(controller);
+          }
+          return null;
+        }, (r2) => {
+          ReadableStreamDefaultControllerError(readable._readableStreamController, r2);
+          defaultControllerFinishPromiseReject(controller, r2);
+          return null;
+        });
+        return controller._finishPromise;
+      }
+      function TransformStreamDefaultSinkCloseAlgorithm(stream) {
+        const controller = stream._transformStreamController;
+        if (controller._finishPromise !== void 0) {
+          return controller._finishPromise;
+        }
+        const readable = stream._readable;
+        controller._finishPromise = newPromise((resolve, reject) => {
+          controller._finishPromise_resolve = resolve;
+          controller._finishPromise_reject = reject;
+        });
+        const flushPromise = controller._flushAlgorithm();
+        TransformStreamDefaultControllerClearAlgorithms(controller);
+        uponPromise(flushPromise, () => {
+          if (readable._state === "errored") {
+            defaultControllerFinishPromiseReject(controller, readable._storedError);
+          } else {
+            ReadableStreamDefaultControllerClose(readable._readableStreamController);
+            defaultControllerFinishPromiseResolve(controller);
+          }
+          return null;
+        }, (r2) => {
+          ReadableStreamDefaultControllerError(readable._readableStreamController, r2);
+          defaultControllerFinishPromiseReject(controller, r2);
+          return null;
+        });
+        return controller._finishPromise;
+      }
+      function TransformStreamDefaultSourcePullAlgorithm(stream) {
+        TransformStreamSetBackpressure(stream, false);
+        return stream._backpressureChangePromise;
+      }
+      function TransformStreamDefaultSourceCancelAlgorithm(stream, reason) {
+        const controller = stream._transformStreamController;
+        if (controller._finishPromise !== void 0) {
+          return controller._finishPromise;
+        }
+        const writable = stream._writable;
+        controller._finishPromise = newPromise((resolve, reject) => {
+          controller._finishPromise_resolve = resolve;
+          controller._finishPromise_reject = reject;
+        });
+        const cancelPromise = controller._cancelAlgorithm(reason);
+        TransformStreamDefaultControllerClearAlgorithms(controller);
+        uponPromise(cancelPromise, () => {
+          if (writable._state === "errored") {
+            defaultControllerFinishPromiseReject(controller, writable._storedError);
+          } else {
+            WritableStreamDefaultControllerErrorIfNeeded(writable._writableStreamController, reason);
+            TransformStreamUnblockWrite(stream);
+            defaultControllerFinishPromiseResolve(controller);
+          }
+          return null;
+        }, (r2) => {
+          WritableStreamDefaultControllerErrorIfNeeded(writable._writableStreamController, r2);
+          TransformStreamUnblockWrite(stream);
+          defaultControllerFinishPromiseReject(controller, r2);
+          return null;
+        });
+        return controller._finishPromise;
+      }
+      function defaultControllerBrandCheckException(name) {
+        return new TypeError(`TransformStreamDefaultController.prototype.${name} can only be used on a TransformStreamDefaultController`);
+      }
+      function defaultControllerFinishPromiseResolve(controller) {
+        if (controller._finishPromise_resolve === void 0) {
+          return;
+        }
+        controller._finishPromise_resolve();
+        controller._finishPromise_resolve = void 0;
+        controller._finishPromise_reject = void 0;
+      }
+      function defaultControllerFinishPromiseReject(controller, reason) {
+        if (controller._finishPromise_reject === void 0) {
+          return;
+        }
+        setPromiseIsHandledToTrue(controller._finishPromise);
+        controller._finishPromise_reject(reason);
+        controller._finishPromise_resolve = void 0;
+        controller._finishPromise_reject = void 0;
+      }
+      function streamBrandCheckException(name) {
+        return new TypeError(`TransformStream.prototype.${name} can only be used on a TransformStream`);
+      }
+      exports3.ByteLengthQueuingStrategy = ByteLengthQueuingStrategy;
+      exports3.CountQueuingStrategy = CountQueuingStrategy;
+      exports3.ReadableByteStreamController = ReadableByteStreamController;
+      exports3.ReadableStream = ReadableStream2;
+      exports3.ReadableStreamBYOBReader = ReadableStreamBYOBReader;
+      exports3.ReadableStreamBYOBRequest = ReadableStreamBYOBRequest;
+      exports3.ReadableStreamDefaultController = ReadableStreamDefaultController;
+      exports3.ReadableStreamDefaultReader = ReadableStreamDefaultReader;
+      exports3.TransformStream = TransformStream;
+      exports3.TransformStreamDefaultController = TransformStreamDefaultController;
+      exports3.WritableStream = WritableStream;
+      exports3.WritableStreamDefaultController = WritableStreamDefaultController;
+      exports3.WritableStreamDefaultWriter = WritableStreamDefaultWriter;
+    });
+  }
+});
+
+// node_modules/fetch-blob/streams.cjs
+var require_streams = __commonJS({
+  "node_modules/fetch-blob/streams.cjs"() {
+    var POOL_SIZE2 = 65536;
+    if (!globalThis.ReadableStream) {
+      try {
+        const process2 = require("node:process");
+        const { emitWarning } = process2;
+        try {
+          process2.emitWarning = () => {
+          };
+          Object.assign(globalThis, require("node:stream/web"));
+          process2.emitWarning = emitWarning;
+        } catch (error) {
+          process2.emitWarning = emitWarning;
+          throw error;
+        }
+      } catch (error) {
+        Object.assign(globalThis, require_ponyfill_es2018());
+      }
+    }
+    try {
+      const { Blob: Blob3 } = require("buffer");
+      if (Blob3 && !Blob3.prototype.stream) {
+        Blob3.prototype.stream = function name(params) {
+          let position = 0;
+          const blob = this;
+          return new ReadableStream({
+            type: "bytes",
+            async pull(ctrl) {
+              const chunk = blob.slice(position, Math.min(blob.size, position + POOL_SIZE2));
+              const buffer = await chunk.arrayBuffer();
+              position += buffer.byteLength;
+              ctrl.enqueue(new Uint8Array(buffer));
+              if (position === blob.size) {
+                ctrl.close();
+              }
+            }
+          });
+        };
+      }
+    } catch (error) {
+    }
+  }
+});
+
+// node_modules/fetch-blob/index.js
+async function* toIterator(parts, clone2 = true) {
+  for (const part of parts) {
+    if ("stream" in part) {
+      yield* (
+        /** @type {AsyncIterableIterator<Uint8Array>} */
+        part.stream()
+      );
+    } else if (ArrayBuffer.isView(part)) {
+      if (clone2) {
+        let position = part.byteOffset;
+        const end = part.byteOffset + part.byteLength;
+        while (position !== end) {
+          const size = Math.min(end - position, POOL_SIZE);
+          const chunk = part.buffer.slice(position, position + size);
+          position += chunk.byteLength;
+          yield new Uint8Array(chunk);
+        }
+      } else {
+        yield part;
+      }
+    } else {
+      let position = 0, b = (
+        /** @type {Blob} */
+        part
+      );
+      while (position !== b.size) {
+        const chunk = b.slice(position, Math.min(b.size, position + POOL_SIZE));
+        const buffer = await chunk.arrayBuffer();
+        position += buffer.byteLength;
+        yield new Uint8Array(buffer);
+      }
+    }
+  }
+}
+var import_streams, POOL_SIZE, _Blob, Blob2, fetch_blob_default;
+var init_fetch_blob = __esm({
+  "node_modules/fetch-blob/index.js"() {
+    import_streams = __toESM(require_streams(), 1);
+    POOL_SIZE = 65536;
+    _Blob = class Blob {
+      /** @type {Array.<(Blob|Uint8Array)>} */
+      #parts = [];
+      #type = "";
+      #size = 0;
+      #endings = "transparent";
+      /**
+       * The Blob() constructor returns a new Blob object. The content
+       * of the blob consists of the concatenation of the values given
+       * in the parameter array.
+       *
+       * @param {*} blobParts
+       * @param {{ type?: string, endings?: string }} [options]
+       */
+      constructor(blobParts = [], options = {}) {
+        if (typeof blobParts !== "object" || blobParts === null) {
+          throw new TypeError("Failed to construct 'Blob': The provided value cannot be converted to a sequence.");
+        }
+        if (typeof blobParts[Symbol.iterator] !== "function") {
+          throw new TypeError("Failed to construct 'Blob': The object must have a callable @@iterator property.");
+        }
+        if (typeof options !== "object" && typeof options !== "function") {
+          throw new TypeError("Failed to construct 'Blob': parameter 2 cannot convert to dictionary.");
+        }
+        if (options === null)
+          options = {};
+        const encoder = new TextEncoder();
+        for (const element of blobParts) {
+          let part;
+          if (ArrayBuffer.isView(element)) {
+            part = new Uint8Array(element.buffer.slice(element.byteOffset, element.byteOffset + element.byteLength));
+          } else if (element instanceof ArrayBuffer) {
+            part = new Uint8Array(element.slice(0));
+          } else if (element instanceof Blob) {
+            part = element;
+          } else {
+            part = encoder.encode(`${element}`);
+          }
+          this.#size += ArrayBuffer.isView(part) ? part.byteLength : part.size;
+          this.#parts.push(part);
+        }
+        this.#endings = `${options.endings === void 0 ? "transparent" : options.endings}`;
+        const type = options.type === void 0 ? "" : String(options.type);
+        this.#type = /^[\x20-\x7E]*$/.test(type) ? type : "";
+      }
+      /**
+       * The Blob interface's size property returns the
+       * size of the Blob in bytes.
+       */
+      get size() {
+        return this.#size;
+      }
+      /**
+       * The type property of a Blob object returns the MIME type of the file.
+       */
+      get type() {
+        return this.#type;
+      }
+      /**
+       * The text() method in the Blob interface returns a Promise
+       * that resolves with a string containing the contents of
+       * the blob, interpreted as UTF-8.
+       *
+       * @return {Promise<string>}
+       */
+      async text() {
+        const decoder = new TextDecoder();
+        let str = "";
+        for await (const part of toIterator(this.#parts, false)) {
+          str += decoder.decode(part, { stream: true });
+        }
+        str += decoder.decode();
+        return str;
+      }
+      /**
+       * The arrayBuffer() method in the Blob interface returns a
+       * Promise that resolves with the contents of the blob as
+       * binary data contained in an ArrayBuffer.
+       *
+       * @return {Promise<ArrayBuffer>}
+       */
+      async arrayBuffer() {
+        const data = new Uint8Array(this.size);
+        let offset = 0;
+        for await (const chunk of toIterator(this.#parts, false)) {
+          data.set(chunk, offset);
+          offset += chunk.length;
+        }
+        return data.buffer;
+      }
+      stream() {
+        const it = toIterator(this.#parts, true);
+        return new globalThis.ReadableStream({
+          // @ts-ignore
+          type: "bytes",
+          async pull(ctrl) {
+            const chunk = await it.next();
+            chunk.done ? ctrl.close() : ctrl.enqueue(chunk.value);
+          },
+          async cancel() {
+            await it.return();
+          }
+        });
+      }
+      /**
+       * The Blob interface's slice() method creates and returns a
+       * new Blob object which contains data from a subset of the
+       * blob on which it's called.
+       *
+       * @param {number} [start]
+       * @param {number} [end]
+       * @param {string} [type]
+       */
+      slice(start = 0, end = this.size, type = "") {
+        const { size } = this;
+        let relativeStart = start < 0 ? Math.max(size + start, 0) : Math.min(start, size);
+        let relativeEnd = end < 0 ? Math.max(size + end, 0) : Math.min(end, size);
+        const span = Math.max(relativeEnd - relativeStart, 0);
+        const parts = this.#parts;
+        const blobParts = [];
+        let added = 0;
+        for (const part of parts) {
+          if (added >= span) {
+            break;
+          }
+          const size2 = ArrayBuffer.isView(part) ? part.byteLength : part.size;
+          if (relativeStart && size2 <= relativeStart) {
+            relativeStart -= size2;
+            relativeEnd -= size2;
+          } else {
+            let chunk;
+            if (ArrayBuffer.isView(part)) {
+              chunk = part.subarray(relativeStart, Math.min(size2, relativeEnd));
+              added += chunk.byteLength;
+            } else {
+              chunk = part.slice(relativeStart, Math.min(size2, relativeEnd));
+              added += chunk.size;
+            }
+            relativeEnd -= size2;
+            blobParts.push(chunk);
+            relativeStart = 0;
+          }
+        }
+        const blob = new Blob([], { type: String(type).toLowerCase() });
+        blob.#size = span;
+        blob.#parts = blobParts;
+        return blob;
+      }
+      get [Symbol.toStringTag]() {
+        return "Blob";
+      }
+      static [Symbol.hasInstance](object) {
+        return object && typeof object === "object" && typeof object.constructor === "function" && (typeof object.stream === "function" || typeof object.arrayBuffer === "function") && /^(Blob|File)$/.test(object[Symbol.toStringTag]);
+      }
+    };
+    Object.defineProperties(_Blob.prototype, {
+      size: { enumerable: true },
+      type: { enumerable: true },
+      slice: { enumerable: true }
+    });
+    Blob2 = _Blob;
+    fetch_blob_default = Blob2;
+  }
+});
+
+// node_modules/fetch-blob/file.js
+var _File, File2, file_default;
+var init_file = __esm({
+  "node_modules/fetch-blob/file.js"() {
+    init_fetch_blob();
+    _File = class File extends fetch_blob_default {
+      #lastModified = 0;
+      #name = "";
+      /**
+       * @param {*[]} fileBits
+       * @param {string} fileName
+       * @param {{lastModified?: number, type?: string}} options
+       */
+      // @ts-ignore
+      constructor(fileBits, fileName, options = {}) {
+        if (arguments.length < 2) {
+          throw new TypeError(`Failed to construct 'File': 2 arguments required, but only ${arguments.length} present.`);
+        }
+        super(fileBits, options);
+        if (options === null)
+          options = {};
+        const lastModified = options.lastModified === void 0 ? Date.now() : Number(options.lastModified);
+        if (!Number.isNaN(lastModified)) {
+          this.#lastModified = lastModified;
+        }
+        this.#name = String(fileName);
+      }
+      get name() {
+        return this.#name;
+      }
+      get lastModified() {
+        return this.#lastModified;
+      }
+      get [Symbol.toStringTag]() {
+        return "File";
+      }
+      static [Symbol.hasInstance](object) {
+        return !!object && object instanceof fetch_blob_default && /^(File)$/.test(object[Symbol.toStringTag]);
+      }
+    };
+    File2 = _File;
+    file_default = File2;
+  }
+});
+
+// node_modules/formdata-polyfill/esm.min.js
+function formDataToBlob(F2, B = fetch_blob_default) {
+  var b = `${r()}${r()}`.replace(/\./g, "").slice(-28).padStart(32, "-"), c = [], p = `--${b}\r
+Content-Disposition: form-data; name="`;
+  F2.forEach((v, n) => typeof v == "string" ? c.push(p + e(n) + `"\r
+\r
+${v.replace(/\r(?!\n)|(?<!\r)\n/g, "\r\n")}\r
+`) : c.push(p + e(n) + `"; filename="${e(v.name, 1)}"\r
+Content-Type: ${v.type || "application/octet-stream"}\r
+\r
+`, v, "\r\n"));
+  c.push(`--${b}--`);
+  return new B(c, { type: "multipart/form-data; boundary=" + b });
+}
+var t, i, h, r, m, f, e, x, FormData;
+var init_esm_min = __esm({
+  "node_modules/formdata-polyfill/esm.min.js"() {
+    init_fetch_blob();
+    init_file();
+    ({ toStringTag: t, iterator: i, hasInstance: h } = Symbol);
+    r = Math.random;
+    m = "append,set,get,getAll,delete,keys,values,entries,forEach,constructor".split(",");
+    f = (a, b, c) => (a += "", /^(Blob|File)$/.test(b && b[t]) ? [(c = c !== void 0 ? c + "" : b[t] == "File" ? b.name : "blob", a), b.name !== c || b[t] == "blob" ? new file_default([b], c, b) : b] : [a, b + ""]);
+    e = (c, f3) => (f3 ? c : c.replace(/\r?\n|\r/g, "\r\n")).replace(/\n/g, "%0A").replace(/\r/g, "%0D").replace(/"/g, "%22");
+    x = (n, a, e2) => {
+      if (a.length < e2) {
+        throw new TypeError(`Failed to execute '${n}' on 'FormData': ${e2} arguments required, but only ${a.length} present.`);
+      }
+    };
+    FormData = class FormData2 {
+      #d = [];
+      constructor(...a) {
+        if (a.length)
+          throw new TypeError(`Failed to construct 'FormData': parameter 1 is not of type 'HTMLFormElement'.`);
+      }
+      get [t]() {
+        return "FormData";
+      }
+      [i]() {
+        return this.entries();
+      }
+      static [h](o) {
+        return o && typeof o === "object" && o[t] === "FormData" && !m.some((m2) => typeof o[m2] != "function");
+      }
+      append(...a) {
+        x("append", arguments, 2);
+        this.#d.push(f(...a));
+      }
+      delete(a) {
+        x("delete", arguments, 1);
+        a += "";
+        this.#d = this.#d.filter(([b]) => b !== a);
+      }
+      get(a) {
+        x("get", arguments, 1);
+        a += "";
+        for (var b = this.#d, l = b.length, c = 0; c < l; c++)
+          if (b[c][0] === a)
+            return b[c][1];
+        return null;
+      }
+      getAll(a, b) {
+        x("getAll", arguments, 1);
+        b = [];
+        a += "";
+        this.#d.forEach((c) => c[0] === a && b.push(c[1]));
+        return b;
+      }
+      has(a) {
+        x("has", arguments, 1);
+        a += "";
+        return this.#d.some((b) => b[0] === a);
+      }
+      forEach(a, b) {
+        x("forEach", arguments, 1);
+        for (var [c, d] of this)
+          a.call(b, d, c, this);
+      }
+      set(...a) {
+        x("set", arguments, 2);
+        var b = [], c = true;
+        a = f(...a);
+        this.#d.forEach((d) => {
+          d[0] === a[0] ? c && (c = !b.push(a)) : b.push(d);
+        });
+        c && b.push(a);
+        this.#d = b;
+      }
+      *entries() {
+        yield* this.#d;
+      }
+      *keys() {
+        for (var [a] of this)
+          yield a;
+      }
+      *values() {
+        for (var [, a] of this)
+          yield a;
+      }
+    };
+  }
+});
+
+// node_modules/node-domexception/index.js
+var require_node_domexception = __commonJS({
+  "node_modules/node-domexception/index.js"(exports2, module2) {
+    if (!globalThis.DOMException) {
+      try {
+        const { MessageChannel } = require("worker_threads"), port = new MessageChannel().port1, ab = new ArrayBuffer();
+        port.postMessage(ab, [ab, ab]);
+      } catch (err) {
+        err.constructor.name === "DOMException" && (globalThis.DOMException = err.constructor);
+      }
+    }
+    module2.exports = globalThis.DOMException;
+  }
+});
+
+// node_modules/fetch-blob/from.js
+var import_node_fs, import_node_domexception, stat;
+var init_from = __esm({
+  "node_modules/fetch-blob/from.js"() {
+    import_node_fs = require("node:fs");
+    import_node_domexception = __toESM(require_node_domexception(), 1);
+    init_file();
+    init_fetch_blob();
+    ({ stat } = import_node_fs.promises);
+  }
+});
+
+// node_modules/node-fetch/src/utils/multipart-parser.js
+var multipart_parser_exports = {};
+__export(multipart_parser_exports, {
+  toFormData: () => toFormData
+});
+function _fileName(headerValue) {
+  const m2 = headerValue.match(/\bfilename=("(.*?)"|([^()<>@,;:\\"/[\]?={}\s\t]+))($|;\s)/i);
+  if (!m2) {
+    return;
+  }
+  const match = m2[2] || m2[3] || "";
+  let filename = match.slice(match.lastIndexOf("\\") + 1);
+  filename = filename.replace(/%22/g, '"');
+  filename = filename.replace(/&#(\d{4});/g, (m3, code) => {
+    return String.fromCharCode(code);
+  });
+  return filename;
+}
+async function toFormData(Body2, ct) {
+  if (!/multipart/i.test(ct)) {
+    throw new TypeError("Failed to fetch");
+  }
+  const m2 = ct.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+  if (!m2) {
+    throw new TypeError("no or bad content-type header, no multipart boundary");
+  }
+  const parser = new MultipartParser(m2[1] || m2[2]);
+  let headerField;
+  let headerValue;
+  let entryValue;
+  let entryName;
+  let contentType;
+  let filename;
+  const entryChunks = [];
+  const formData = new FormData();
+  const onPartData = (ui8a) => {
+    entryValue += decoder.decode(ui8a, { stream: true });
+  };
+  const appendToFile = (ui8a) => {
+    entryChunks.push(ui8a);
+  };
+  const appendFileToFormData = () => {
+    const file = new file_default(entryChunks, filename, { type: contentType });
+    formData.append(entryName, file);
+  };
+  const appendEntryToFormData = () => {
+    formData.append(entryName, entryValue);
+  };
+  const decoder = new TextDecoder("utf-8");
+  decoder.decode();
+  parser.onPartBegin = function() {
+    parser.onPartData = onPartData;
+    parser.onPartEnd = appendEntryToFormData;
+    headerField = "";
+    headerValue = "";
+    entryValue = "";
+    entryName = "";
+    contentType = "";
+    filename = null;
+    entryChunks.length = 0;
+  };
+  parser.onHeaderField = function(ui8a) {
+    headerField += decoder.decode(ui8a, { stream: true });
+  };
+  parser.onHeaderValue = function(ui8a) {
+    headerValue += decoder.decode(ui8a, { stream: true });
+  };
+  parser.onHeaderEnd = function() {
+    headerValue += decoder.decode();
+    headerField = headerField.toLowerCase();
+    if (headerField === "content-disposition") {
+      const m3 = headerValue.match(/\bname=("([^"]*)"|([^()<>@,;:\\"/[\]?={}\s\t]+))/i);
+      if (m3) {
+        entryName = m3[2] || m3[3] || "";
+      }
+      filename = _fileName(headerValue);
+      if (filename) {
+        parser.onPartData = appendToFile;
+        parser.onPartEnd = appendFileToFormData;
+      }
+    } else if (headerField === "content-type") {
+      contentType = headerValue;
+    }
+    headerValue = "";
+    headerField = "";
+  };
+  for await (const chunk of Body2) {
+    parser.write(chunk);
+  }
+  parser.end();
+  return formData;
+}
+var s, S, f2, F, LF, CR, SPACE, HYPHEN, COLON, A, Z, lower, noop, MultipartParser;
+var init_multipart_parser = __esm({
+  "node_modules/node-fetch/src/utils/multipart-parser.js"() {
+    init_from();
+    init_esm_min();
+    s = 0;
+    S = {
+      START_BOUNDARY: s++,
+      HEADER_FIELD_START: s++,
+      HEADER_FIELD: s++,
+      HEADER_VALUE_START: s++,
+      HEADER_VALUE: s++,
+      HEADER_VALUE_ALMOST_DONE: s++,
+      HEADERS_ALMOST_DONE: s++,
+      PART_DATA_START: s++,
+      PART_DATA: s++,
+      END: s++
+    };
+    f2 = 1;
+    F = {
+      PART_BOUNDARY: f2,
+      LAST_BOUNDARY: f2 *= 2
+    };
+    LF = 10;
+    CR = 13;
+    SPACE = 32;
+    HYPHEN = 45;
+    COLON = 58;
+    A = 97;
+    Z = 122;
+    lower = (c) => c | 32;
+    noop = () => {
+    };
+    MultipartParser = class {
+      /**
+       * @param {string} boundary
+       */
+      constructor(boundary) {
+        this.index = 0;
+        this.flags = 0;
+        this.onHeaderEnd = noop;
+        this.onHeaderField = noop;
+        this.onHeadersEnd = noop;
+        this.onHeaderValue = noop;
+        this.onPartBegin = noop;
+        this.onPartData = noop;
+        this.onPartEnd = noop;
+        this.boundaryChars = {};
+        boundary = "\r\n--" + boundary;
+        const ui8a = new Uint8Array(boundary.length);
+        for (let i2 = 0; i2 < boundary.length; i2++) {
+          ui8a[i2] = boundary.charCodeAt(i2);
+          this.boundaryChars[ui8a[i2]] = true;
+        }
+        this.boundary = ui8a;
+        this.lookbehind = new Uint8Array(this.boundary.length + 8);
+        this.state = S.START_BOUNDARY;
+      }
+      /**
+       * @param {Uint8Array} data
+       */
+      write(data) {
+        let i2 = 0;
+        const length_ = data.length;
+        let previousIndex = this.index;
+        let { lookbehind, boundary, boundaryChars, index, state, flags } = this;
+        const boundaryLength = this.boundary.length;
+        const boundaryEnd = boundaryLength - 1;
+        const bufferLength = data.length;
+        let c;
+        let cl;
+        const mark = (name) => {
+          this[name + "Mark"] = i2;
+        };
+        const clear = (name) => {
+          delete this[name + "Mark"];
+        };
+        const callback = (callbackSymbol, start, end, ui8a) => {
+          if (start === void 0 || start !== end) {
+            this[callbackSymbol](ui8a && ui8a.subarray(start, end));
+          }
+        };
+        const dataCallback = (name, clear2) => {
+          const markSymbol = name + "Mark";
+          if (!(markSymbol in this)) {
+            return;
+          }
+          if (clear2) {
+            callback(name, this[markSymbol], i2, data);
+            delete this[markSymbol];
+          } else {
+            callback(name, this[markSymbol], data.length, data);
+            this[markSymbol] = 0;
+          }
+        };
+        for (i2 = 0; i2 < length_; i2++) {
+          c = data[i2];
+          switch (state) {
+            case S.START_BOUNDARY:
+              if (index === boundary.length - 2) {
+                if (c === HYPHEN) {
+                  flags |= F.LAST_BOUNDARY;
+                } else if (c !== CR) {
+                  return;
+                }
+                index++;
+                break;
+              } else if (index - 1 === boundary.length - 2) {
+                if (flags & F.LAST_BOUNDARY && c === HYPHEN) {
+                  state = S.END;
+                  flags = 0;
+                } else if (!(flags & F.LAST_BOUNDARY) && c === LF) {
+                  index = 0;
+                  callback("onPartBegin");
+                  state = S.HEADER_FIELD_START;
+                } else {
+                  return;
+                }
+                break;
+              }
+              if (c !== boundary[index + 2]) {
+                index = -2;
+              }
+              if (c === boundary[index + 2]) {
+                index++;
+              }
+              break;
+            case S.HEADER_FIELD_START:
+              state = S.HEADER_FIELD;
+              mark("onHeaderField");
+              index = 0;
+            case S.HEADER_FIELD:
+              if (c === CR) {
+                clear("onHeaderField");
+                state = S.HEADERS_ALMOST_DONE;
+                break;
+              }
+              index++;
+              if (c === HYPHEN) {
+                break;
+              }
+              if (c === COLON) {
+                if (index === 1) {
+                  return;
+                }
+                dataCallback("onHeaderField", true);
+                state = S.HEADER_VALUE_START;
+                break;
+              }
+              cl = lower(c);
+              if (cl < A || cl > Z) {
+                return;
+              }
+              break;
+            case S.HEADER_VALUE_START:
+              if (c === SPACE) {
+                break;
+              }
+              mark("onHeaderValue");
+              state = S.HEADER_VALUE;
+            case S.HEADER_VALUE:
+              if (c === CR) {
+                dataCallback("onHeaderValue", true);
+                callback("onHeaderEnd");
+                state = S.HEADER_VALUE_ALMOST_DONE;
+              }
+              break;
+            case S.HEADER_VALUE_ALMOST_DONE:
+              if (c !== LF) {
+                return;
+              }
+              state = S.HEADER_FIELD_START;
+              break;
+            case S.HEADERS_ALMOST_DONE:
+              if (c !== LF) {
+                return;
+              }
+              callback("onHeadersEnd");
+              state = S.PART_DATA_START;
+              break;
+            case S.PART_DATA_START:
+              state = S.PART_DATA;
+              mark("onPartData");
+            case S.PART_DATA:
+              previousIndex = index;
+              if (index === 0) {
+                i2 += boundaryEnd;
+                while (i2 < bufferLength && !(data[i2] in boundaryChars)) {
+                  i2 += boundaryLength;
+                }
+                i2 -= boundaryEnd;
+                c = data[i2];
+              }
+              if (index < boundary.length) {
+                if (boundary[index] === c) {
+                  if (index === 0) {
+                    dataCallback("onPartData", true);
+                  }
+                  index++;
+                } else {
+                  index = 0;
+                }
+              } else if (index === boundary.length) {
+                index++;
+                if (c === CR) {
+                  flags |= F.PART_BOUNDARY;
+                } else if (c === HYPHEN) {
+                  flags |= F.LAST_BOUNDARY;
+                } else {
+                  index = 0;
+                }
+              } else if (index - 1 === boundary.length) {
+                if (flags & F.PART_BOUNDARY) {
+                  index = 0;
+                  if (c === LF) {
+                    flags &= ~F.PART_BOUNDARY;
+                    callback("onPartEnd");
+                    callback("onPartBegin");
+                    state = S.HEADER_FIELD_START;
+                    break;
+                  }
+                } else if (flags & F.LAST_BOUNDARY) {
+                  if (c === HYPHEN) {
+                    callback("onPartEnd");
+                    state = S.END;
+                    flags = 0;
+                  } else {
+                    index = 0;
+                  }
+                } else {
+                  index = 0;
+                }
+              }
+              if (index > 0) {
+                lookbehind[index - 1] = c;
+              } else if (previousIndex > 0) {
+                const _lookbehind = new Uint8Array(lookbehind.buffer, lookbehind.byteOffset, lookbehind.byteLength);
+                callback("onPartData", 0, previousIndex, _lookbehind);
+                previousIndex = 0;
+                mark("onPartData");
+                i2--;
+              }
+              break;
+            case S.END:
+              break;
+            default:
+              throw new Error(`Unexpected state entered: ${state}`);
+          }
+        }
+        dataCallback("onHeaderField");
+        dataCallback("onHeaderValue");
+        dataCallback("onPartData");
+        this.index = index;
+        this.state = state;
+        this.flags = flags;
+      }
+      end() {
+        if (this.state === S.HEADER_FIELD_START && this.index === 0 || this.state === S.PART_DATA && this.index === this.boundary.length) {
+          this.onPartEnd();
+        } else if (this.state !== S.END) {
+          throw new Error("MultipartParser.end(): stream ended unexpectedly");
+        }
+      }
+    };
+  }
+});
+
+// src/extension.ts
+var extension_exports = {};
+__export(extension_exports, {
+  activate: () => activate,
+  deactivate: () => deactivate
+});
+module.exports = __toCommonJS(extension_exports);
+
+// src/ExtensionManager.ts
+var vscode20 = __toESM(require("vscode"));
+
+// src/commands/ChatCommands.ts
+var vscode = __toESM(require("vscode"));
+
+// src/utils/Logger.ts
+var Logger = class {
+  static {
+    this.outputChannel = null;
+  }
+  static init(outputChannel) {
+    this.outputChannel = outputChannel;
+  }
+  static info(message, ...args) {
+    const log = `[INFO] ${message}`;
+    console.log(log, ...args);
+    this.outputChannel?.appendLine(log);
+  }
+  static error(message, error) {
+    const log = `[ERROR] ${message}`;
+    console.error(log, error);
+    this.outputChannel?.appendLine(log);
+    if (error) {
+      this.outputChannel?.appendLine(JSON.stringify(error, null, 2));
+    }
+  }
+  static warn(message, ...args) {
+    const log = `[WARN] ${message}`;
+    console.warn(log, ...args);
+    this.outputChannel?.appendLine(log);
+  }
+  static debug(message, ...args) {
+    const log = `[DEBUG] ${message}`;
+    console.log(log, ...args);
+    this.outputChannel?.appendLine(log);
+  }
+};
+
+// src/commands/ChatCommands.ts
+var ChatCommands = class {
+  constructor(chatProvider) {
+    this.chatProvider = chatProvider;
+  }
+  /**
+   * Registra todos os comandos da extensão
+   */
+  registerCommands(context) {
+    const askCommand = vscode.commands.registerCommand("xcopilot.ask", async () => {
+      await this.handleAskCommand();
+    });
+    const testCommand = vscode.commands.registerCommand("xcopilot.test", () => {
+      this.handleTestCommand();
+    });
+    context.subscriptions.push(askCommand, testCommand);
+    Logger.info("All commands registered successfully");
+  }
+  /**
+   * Lida com o comando xcopilot.ask
+   */
+  async handleAskCommand() {
+    try {
+      await vscode.commands.executeCommand("workbench.view.extension.xcopilot");
+      const prompt = await vscode.window.showInputBox({
+        placeHolder: "Pergunte ao xCopilot",
+        prompt: "Digite sua pergunta para o xCopilot"
+      });
+      if (!prompt) {
+        return;
+      }
+      if (!this.chatProvider.isActive()) {
+        vscode.window.showWarningMessage("View xCopilot ainda n\xE3o inicializada. Tente novamente em alguns segundos.");
+        return;
+      }
+      await this.chatProvider.askQuestion(prompt);
+      Logger.info(`Question sent via command: ${prompt}`);
+    } catch (error) {
+      Logger.error("Error in ask command:", error);
+      vscode.window.showErrorMessage(`Erro ao executar comando: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+    }
+  }
+  /**
+   * Lida com o comando de teste
+   */
+  handleTestCommand() {
+    vscode.window.showInformationMessage("xCopilot est\xE1 funcionando!");
+    Logger.info("Test command executed");
+  }
+  /**
+   * Lida com o comando para abrir o chat
+   */
+  async handleOpenChatCommand() {
+    try {
+      await vscode.commands.executeCommand("workbench.view.extension.xcopilot");
+      Logger.info("Chat opened via command");
+    } catch (error) {
+      Logger.error("Error opening chat:", error);
+      vscode.window.showErrorMessage("Erro ao abrir o chat do xCopilot");
+    }
+  }
+};
+
+// src/commands/CodeGenerationCommands.ts
+var vscode4 = __toESM(require("vscode"));
+
+// src/services/MultilineCodeGenerationService.ts
+var vscode3 = __toESM(require("vscode"));
+
+// src/services/CommentAnalysisService.ts
+var vscode2 = __toESM(require("vscode"));
+var CommentAnalysisService = class _CommentAnalysisService {
+  static getInstance() {
+    if (!_CommentAnalysisService.instance) {
+      _CommentAnalysisService.instance = new _CommentAnalysisService();
+    }
+    return _CommentAnalysisService.instance;
+  }
+  /**
+   * Analisa comentários em um documento
+   */
+  analyzeDocument(document) {
+    const analyses = [];
+    const text = document.getText();
+    const lines = text.split("\n");
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2];
+      const analysis = this.analyzeLine(line, i2);
+      if (analysis) {
+        analyses.push(analysis);
+      }
+    }
+    return analyses;
+  }
+  /**
+   * Analisa uma linha específica em busca de comentários
+   */
+  analyzeLine(line, lineNumber) {
+    const trimmedLine = line.trim();
+    const todoMatch = trimmedLine.match(/\/\/\s*TODO:?\s*(.+)/i) || trimmedLine.match(/#\s*TODO:?\s*(.+)/i);
+    if (todoMatch) {
+      return this.createCommentAnalysis("TODO", todoMatch[1], lineNumber);
+    }
+    const fixmeMatch = trimmedLine.match(/\/\/\s*FIXME:?\s*(.+)/i) || trimmedLine.match(/#\s*FIXME:?\s*(.+)/i);
+    if (fixmeMatch) {
+      return this.createCommentAnalysis("FIXME", fixmeMatch[1], lineNumber);
+    }
+    if (trimmedLine.includes("/**") || trimmedLine.includes("*")) {
+      const jsdocMatch = trimmedLine.match(/\*\s*(.+)/);
+      if (jsdocMatch) {
+        return this.createCommentAnalysis("JSDoc", jsdocMatch[1], lineNumber);
+      }
+    }
+    return null;
+  }
+  /**
+   * Extrai intenção e requisitos de um comentário
+   */
+  createCommentAnalysis(type, content, line) {
+    const intention = this.extractIntention(content);
+    const requirements = this.extractRequirements(content);
+    const parameters = this.extractParameters(content);
+    const returnType = this.extractReturnType(content);
+    return {
+      type,
+      content,
+      line,
+      intention,
+      requirements,
+      parameters,
+      returnType
+    };
+  }
+  /**
+   * Extrai a intenção do desenvolvedor do comentário
+   */
+  extractIntention(content) {
+    const cleaned = content.replace(/^(implement|create|add|fix|update|refactor)\s*/i, "").replace(/\s*(function|method|class|interface)\s*/i, "").trim();
+    return cleaned || content;
+  }
+  /**
+   * Extrai requisitos específicos do comentário
+   */
+  extractRequirements(content) {
+    const requirements = [];
+    const listMatches = content.match(/(?:should|must|needs?to|requires?)\s+(.+)/gi);
+    if (listMatches) {
+      listMatches.forEach((match) => {
+        const requirement = match.replace(/^(?:should|must|needs?to|requires?)\s+/i, "").trim();
+        requirements.push(requirement);
+      });
+    }
+    const paramMatches = content.match(/(?:with|using|takes?|accepts?)\s+(.+?)(?:\s+and|\s*$)/gi);
+    if (paramMatches) {
+      paramMatches.forEach((match) => {
+        const requirement = match.replace(/^(?:with|using|takes?|accepts?)\s+/i, "").replace(/\s+and\s*$/, "").trim();
+        requirements.push(requirement);
+      });
+    }
+    return requirements;
+  }
+  /**
+   * Extrai parâmetros mencionados no comentário
+   */
+  extractParameters(content) {
+    const parameters = [];
+    const paramListMatch = content.match(/\(([^)]+)\)/);
+    if (paramListMatch) {
+      const params = paramListMatch[1].split(",").map((p) => p.trim());
+      parameters.push(...params);
+    }
+    const paramMentions = content.match(/(?:parameter|param|argument|arg)\s+(\w+)/gi);
+    if (paramMentions) {
+      paramMentions.forEach((match) => {
+        const param = match.replace(/^(?:parameter|param|argument|arg)\s+/i, "").trim();
+        parameters.push(param);
+      });
+    }
+    return parameters;
+  }
+  /**
+   * Extrai tipo de retorno mencionado no comentário
+   */
+  extractReturnType(content) {
+    const returnMatches = content.match(/(?:returns?|return type)\s+(\w+)/i);
+    if (returnMatches) {
+      return returnMatches[1];
+    }
+    const typeMatches = content.match(/\b(string|number|boolean|object|array|Promise|void)\b/i);
+    if (typeMatches) {
+      return typeMatches[1];
+    }
+    return void 0;
+  }
+  /**
+   * Encontra todos os comentários TODO/FIXME no workspace
+   */
+  async findAllComments(pattern = "**/*.{js,ts,py,java}") {
+    const allComments = [];
+    try {
+      const files = await vscode2.workspace.findFiles(pattern);
+      for (const file of files) {
+        const document = await vscode2.workspace.openTextDocument(file);
+        const comments = this.analyzeDocument(document);
+        allComments.push(...comments);
+      }
+    } catch (error) {
+      console.error("Error finding comments:", error);
+    }
+    return allComments;
+  }
+  /**
+   * Verifica se uma linha contém um comentário de implementação
+   */
+  isImplementationComment(line) {
+    const implementationKeywords = [
+      "TODO",
+      "FIXME",
+      "implement",
+      "create",
+      "add",
+      "generate",
+      "build",
+      "make",
+      "write"
+    ];
+    const lowerLine = line.toLowerCase();
+    return implementationKeywords.some(
+      (keyword) => lowerLine.includes(keyword.toLowerCase())
+    );
+  }
+  /**
+   * Detecta o tipo de implementação necessária baseado no comentário
+   */
+  detectImplementationType(analysis) {
+    const content = analysis.content.toLowerCase();
+    if (content.includes("function") || content.includes("method")) {
+      return "function";
+    }
+    if (content.includes("class")) {
+      return "class";
+    }
+    if (content.includes("interface")) {
+      return "interface";
+    }
+    if (content.includes("variable") || content.includes("constant")) {
+      return "variable";
+    }
+    if (analysis.parameters && analysis.parameters.length > 0) {
+      return "function";
+    }
+    return "unknown";
+  }
+};
+
+// src/services/CodeGenerationService.ts
+var CodeGenerationService = class _CodeGenerationService {
+  constructor() {
+    this.templates = /* @__PURE__ */ new Map();
+  }
+  static getInstance() {
+    if (!_CodeGenerationService.instance) {
+      _CodeGenerationService.instance = new _CodeGenerationService();
+      _CodeGenerationService.instance.initializeTemplates();
+    }
+    return _CodeGenerationService.instance;
+  }
+  /**
+   * Inicializa templates padrão
+   */
+  initializeTemplates() {
+    this.addTemplate({
+      id: "ts-function",
+      name: "TypeScript Function",
+      description: "Gera uma fun\xE7\xE3o TypeScript com tipos",
+      pattern: "Function",
+      language: "typescript",
+      template: `/**
+ * {{description}}
+ * {{#each params}}
+ * @param {{{type}}} {{name}} - {{description}}
+ * {{/each}}
+ * @returns {{{returnType}}} {{returnDescription}}
+ */
+{{#if isAsync}}async {{/if}}function {{name}}({{#each params}}{{name}}{{#if type}}: {{type}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}){{#if returnType}}: {{returnType}}{{/if}} {
+    {{#if isAsync}}
+    // TODO: Implement async logic
+    {{else}}
+    // TODO: Implement function logic
+    {{/if}}
+    {{#if returnType}}
+    {{#unless (eq returnType 'void')}}
+    return {{defaultReturn}};
+    {{/unless}}
+    {{/if}}
+}`,
+      variables: ["name", "description", "params", "returnType", "isAsync", "returnDescription", "defaultReturn"]
+    });
+    this.addTemplate({
+      id: "ts-class",
+      name: "TypeScript Class",
+      description: "Gera uma classe TypeScript completa",
+      pattern: "Class",
+      language: "typescript",
+      template: `/**
+ * {{description}}
+ */
+export class {{name}}{{#if extends}} extends {{extends}}{{/if}}{{#if implements}} implements {{implements}}{{/if}} {
+    {{#each properties}}
+    {{#if isPrivate}}private {{/if}}{{#if isProtected}}protected {{/if}}{{#if isReadonly}}readonly {{/if}}{{name}}{{#if isOptional}}?{{/if}}{{#if type}}: {{type}}{{/if}};
+    {{/each}}
+
+    constructor({{#each constructorParams}}{{name}}{{#if type}}: {{type}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}) {
+        {{#if extends}}
+        super({{#each superParams}}{{name}}{{#unless @last}}, {{/unless}}{{/each}});
+        {{/if}}
+        {{#each constructorParams}}
+        this.{{name}} = {{name}};
+        {{/each}}
+    }
+
+    {{#each methods}}
+    /**
+     * {{description}}
+     */
+    {{#if isPrivate}}private {{/if}}{{#if isProtected}}protected {{/if}}{{#if isAsync}}async {{/if}}{{name}}({{#each params}}{{name}}{{#if type}}: {{type}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}){{#if returnType}}: {{returnType}}{{/if}} {
+        // TODO: Implement {{name}} logic
+        {{#if returnType}}
+        {{#unless (eq returnType 'void')}}
+        return {{defaultReturn}};
+        {{/unless}}
+        {{/if}}
+    }
+
+    {{/each}}
+}`,
+      variables: ["name", "description", "extends", "implements", "properties", "constructorParams", "methods"]
+    });
+    this.addTemplate({
+      id: "ts-interface",
+      name: "TypeScript Interface",
+      description: "Implementa uma interface TypeScript",
+      pattern: "Interface",
+      language: "typescript",
+      template: `/**
+ * Implementation of {{interfaceName}}
+ */
+export class {{className}} implements {{interfaceName}} {
+    {{#each properties}}
+    {{name}}{{#if isOptional}}?{{/if}}: {{type}};
+    {{/each}}
+
+    {{#each methods}}
+    {{#if isAsync}}async {{/if}}{{name}}({{#each params}}{{name}}: {{type}}{{#unless @last}}, {{/unless}}{{/each}}): {{returnType}} {
+        // TODO: Implement {{name}}
+        {{#if returnType}}
+        {{#unless (eq returnType 'void')}}
+        throw new Error('Method {{name}} not implemented');
+        {{/unless}}
+        {{/if}}
+    }
+
+    {{/each}}
+}`,
+      variables: ["className", "interfaceName", "properties", "methods"]
+    });
+    this.addTemplate({
+      id: "ts-crud-service",
+      name: "CRUD Service",
+      description: "Gera um servi\xE7o CRUD completo",
+      pattern: "CRUD",
+      language: "typescript",
+      template: `/**
+ * CRUD Service for {{entityName}}
+ */
+export class {{entityName}}Service {
+    private repository: {{entityName}}Repository;
+
+    constructor(repository: {{entityName}}Repository) {
+        this.repository = repository;
+    }
+
+    /**
+     * Create a new {{entityName}}
+     */
+    async create(data: Create{{entityName}}Dto): Promise<{{entityName}}> {
+        const entity = new {{entityName}}(data);
+        return await this.repository.save(entity);
+    }
+
+    /**
+     * Find {{entityName}} by ID
+     */
+    async findById(id: string): Promise<{{entityName}} | null> {
+        return await this.repository.findById(id);
+    }
+
+    /**
+     * Find all {{entityName}}s
+     */
+    async findAll(options?: FindOptions): Promise<{{entityName}}[]> {
+        return await this.repository.findAll(options);
+    }
+
+    /**
+     * Update {{entityName}}
+     */
+    async update(id: string, data: Update{{entityName}}Dto): Promise<{{entityName}} | null> {
+        const entity = await this.repository.findById(id);
+        if (!entity) {
+            return null;
+        }
+        
+        Object.assign(entity, data);
+        return await this.repository.save(entity);
+    }
+
+    /**
+     * Delete {{entityName}}
+     */
+    async delete(id: string): Promise<boolean> {
+        return await this.repository.delete(id);
+    }
+}`,
+      variables: ["entityName"]
+    });
+    this.addTemplate({
+      id: "ts-repository",
+      name: "Repository Pattern",
+      description: "Gera um reposit\xF3rio com padr\xE3o Repository",
+      pattern: "Repository",
+      language: "typescript",
+      template: `/**
+ * Repository for {{entityName}}
+ */
+export interface {{entityName}}Repository {
+    save(entity: {{entityName}}): Promise<{{entityName}}>;
+    findById(id: string): Promise<{{entityName}} | null>;
+    findAll(options?: FindOptions): Promise<{{entityName}}[]>;
+    delete(id: string): Promise<boolean>;
+}
+
+/**
+ * In-memory implementation of {{entityName}}Repository
+ */
+export class InMemory{{entityName}}Repository implements {{entityName}}Repository {
+    private entities: Map<string, {{entityName}}> = new Map();
+
+    async save(entity: {{entityName}}): Promise<{{entityName}}> {
+        this.entities.set(entity.id, entity);
+        return entity;
+    }
+
+    async findById(id: string): Promise<{{entityName}} | null> {
+        return this.entities.get(id) || null;
+    }
+
+    async findAll(options?: FindOptions): Promise<{{entityName}}[]> {
+        return Array.from(this.entities.values());
+    }
+
+    async delete(id: string): Promise<boolean> {
+        return this.entities.delete(id);
+    }
+}`,
+      variables: ["entityName"]
+    });
+    this.addTemplate({
+      id: "py-function",
+      name: "Python Function",
+      description: "Gera uma fun\xE7\xE3o Python com type hints",
+      pattern: "Function",
+      language: "python",
+      template: `def {{name}}({{#each params}}{{name}}{{#if type}}: {{type}}{{/if}}{{#if defaultValue}} = {{defaultValue}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}){{#if returnType}} -> {{returnType}}{{/if}}:
+    """
+    {{description}}
+    
+    {{#each params}}
+    Args:
+        {{name}} ({{type}}): {{description}}
+    {{/each}}
+    
+    Returns:
+        {{returnType}}: {{returnDescription}}
+    """
+    # TODO: Implement function logic
+    {{#if returnType}}
+    {{#unless (eq returnType 'None')}}
+    pass  # Replace with actual implementation
+    {{/unless}}
+    {{/if}}`,
+      variables: ["name", "description", "params", "returnType", "returnDescription"]
+    });
+    this.addTemplate({
+      id: "py-class",
+      name: "Python Class",
+      description: "Gera uma classe Python completa",
+      pattern: "Class",
+      language: "python",
+      template: `class {{name}}{{#if extends}}({{extends}}){{/if}}:
+    """{{description}}"""
+    
+    def __init__(self{{#each constructorParams}}, {{name}}{{#if type}}: {{type}}{{/if}}{{/each}}):
+        """Initialize {{name}}"""
+        {{#if extends}}
+        super().__init__({{#each superParams}}{{name}}{{#unless @last}}, {{/unless}}{{/each}})
+        {{/if}}
+        {{#each constructorParams}}
+        self.{{name}} = {{name}}
+        {{/each}}
+    
+    {{#each methods}}
+    def {{name}}(self{{#each params}}, {{name}}{{#if type}}: {{type}}{{/if}}{{/each}}){{#if returnType}} -> {{returnType}}{{/if}}:
+        """{{description}}"""
+        # TODO: Implement {{name}} logic
+        {{#if returnType}}
+        {{#unless (eq returnType 'None')}}
+        pass  # Replace with actual implementation
+        {{/unless}}
+        {{/if}}
+    
+    {{/each}}`,
+      variables: ["name", "description", "extends", "constructorParams", "methods"]
+    });
+    this.addTemplate({
+      id: "java-class",
+      name: "Java Class",
+      description: "Gera uma classe Java completa",
+      pattern: "Class",
+      language: "java",
+      template: `/**
+ * {{description}}
+ */
+public class {{name}}{{#if extends}} extends {{extends}}{{/if}}{{#if implements}} implements {{implements}}{{/if}} {
+    
+    {{#each fields}}
+    private {{type}} {{name}};
+    {{/each}}
+    
+    /**
+     * Constructor for {{name}}
+     */
+    public {{name}}({{#each constructorParams}}{{type}} {{name}}{{#unless @last}}, {{/unless}}{{/each}}) {
+        {{#if extends}}
+        super({{#each superParams}}{{name}}{{#unless @last}}, {{/unless}}{{/each}});
+        {{/if}}
+        {{#each constructorParams}}
+        this.{{name}} = {{name}};
+        {{/each}}
+    }
+    
+    {{#each methods}}
+    /**
+     * {{description}}
+     */
+    public {{returnType}} {{name}}({{#each params}}{{type}} {{name}}{{#unless @last}}, {{/unless}}{{/each}}) {
+        // TODO: Implement {{name}} logic
+        {{#if returnType}}
+        {{#unless (eq returnType 'void')}}
+        return null; // Replace with actual implementation
+        {{/unless}}
+        {{/if}}
+    }
+    
+    {{/each}}
+    
+    {{#each fields}}
+    // Getter and Setter for {{name}}
+    public {{type}} get{{capitalize name}}() {
+        return this.{{name}};
+    }
+    
+    public void set{{capitalize name}}({{type}} {{name}}) {
+        this.{{name}} = {{name}};
+    }
+    
+    {{/each}}
+}`,
+      variables: ["name", "description", "extends", "implements", "fields", "constructorParams", "methods"]
+    });
+  }
+  /**
+   * Adiciona um template
+   */
+  addTemplate(template) {
+    this.templates.set(template.id, template);
+  }
+  /**
+   * Obtém um template por ID
+   */
+  getTemplate(id) {
+    return this.templates.get(id);
+  }
+  /**
+   * Lista templates por linguagem
+   */
+  getTemplatesByLanguage(language) {
+    return Array.from(this.templates.values()).filter((t2) => t2.language === language);
+  }
+  /**
+   * Lista templates por padrão
+   */
+  getTemplatesByPattern(pattern) {
+    return Array.from(this.templates.values()).filter((t2) => t2.pattern === pattern);
+  }
+  /**
+   * Gera código baseado em um comentário analisado
+   */
+  async generateFromComment(analysis, language) {
+    try {
+      const implementationType = this.detectImplementationType(analysis);
+      const template = this.selectBestTemplate(implementationType, language);
+      if (!template) {
+        return {
+          success: false,
+          code: "",
+          description: "Template not found",
+          language,
+          error: `No template found for ${implementationType} in ${language}`
+        };
+      }
+      const variables = this.extractVariablesFromComment(analysis);
+      const code = this.renderTemplate(template, variables);
+      return {
+        success: true,
+        code,
+        description: `Generated ${implementationType} from comment: ${analysis.intention}`,
+        language,
+        insertPosition: {
+          line: analysis.line + 1,
+          character: 0
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: "",
+        description: "Generation failed",
+        language,
+        error: error instanceof Error ? error.message : "Unknown error"
+      };
+    }
+  }
+  /**
+   * Gera código baseado em uma solicitação específica
+   */
+  async generateCode(request) {
+    try {
+      const template = request.template || this.selectBestTemplate(request.type, request.language);
+      if (!template) {
+        return {
+          success: false,
+          code: "",
+          description: "Template not found",
+          language: request.language,
+          error: `No template found for ${request.type} in ${request.language}`
+        };
+      }
+      const variables = this.extractVariablesFromRequest(request);
+      const code = this.renderTemplate(template, variables);
+      return {
+        success: true,
+        code,
+        description: `Generated ${request.type} code`,
+        language: request.language
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: "",
+        description: "Generation failed",
+        language: request.language,
+        error: error instanceof Error ? error.message : "Unknown error"
+      };
+    }
+  }
+  /**
+   * Detecta o tipo de implementação baseado no comentário
+   */
+  detectImplementationType(analysis) {
+    const content = analysis.content.toLowerCase();
+    if (content.includes("function") || content.includes("method")) {
+      return "Function";
+    }
+    if (content.includes("class")) {
+      return "Class";
+    }
+    if (content.includes("interface")) {
+      return "Interface";
+    }
+    if (content.includes("crud") || content.includes("service")) {
+      return "CRUD";
+    }
+    if (content.includes("repository")) {
+      return "Repository";
+    }
+    if (analysis.parameters && analysis.parameters.length > 0) {
+      return "Function";
+    }
+    return "Function";
+  }
+  /**
+   * Seleciona o melhor template baseado no tipo e linguagem
+   */
+  selectBestTemplate(type, language) {
+    const templates = this.getTemplatesByLanguage(language);
+    let template = templates.find((t2) => t2.pattern === type);
+    if (!template) {
+      const typeKey = `${language.substring(0, 2)}-${type.toLowerCase()}`;
+      template = this.templates.get(typeKey);
+    }
+    if (!template) {
+      template = templates.find((t2) => t2.pattern === "Function");
+    }
+    return template;
+  }
+  /**
+   * Extrai variáveis de um comentário analisado
+   */
+  extractVariablesFromComment(analysis) {
+    const variables = {
+      name: this.extractFunctionName(analysis.content),
+      description: analysis.intention,
+      params: this.convertParametersToTemplateFormat(analysis.parameters || []),
+      returnType: analysis.returnType || "void",
+      isAsync: analysis.content.toLowerCase().includes("async"),
+      returnDescription: `Result of ${analysis.intention}`,
+      defaultReturn: this.getDefaultReturn(analysis.returnType)
+    };
+    return variables;
+  }
+  /**
+   * Extrai variáveis de uma solicitação de geração
+   */
+  extractVariablesFromRequest(request) {
+    const variables = {
+      name: "GeneratedCode",
+      description: request.specification || "Generated code",
+      params: [],
+      returnType: "void",
+      isAsync: false
+    };
+    if (request.context.selectedText) {
+      const name = this.extractFunctionName(request.context.selectedText);
+      if (name) {
+        variables.name = name;
+      }
+    }
+    return variables;
+  }
+  /**
+   * Extrai nome de função de um texto
+   */
+  extractFunctionName(text) {
+    const patterns = [
+      /function\s+(\w+)/i,
+      /def\s+(\w+)/i,
+      /(\w+)\s*\(/,
+      /create\s+(\w+)/i,
+      /implement\s+(\w+)/i,
+      /\b(\w+)\s+function/i
+    ];
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    return "generatedFunction";
+  }
+  /**
+   * Converte parâmetros para formato de template
+   */
+  convertParametersToTemplateFormat(parameters) {
+    return parameters.map((param) => {
+      const parts = param.split(":").map((p) => p.trim());
+      return {
+        name: parts[0],
+        type: parts[1] || "any",
+        description: `Parameter ${parts[0]}`
+      };
+    });
+  }
+  /**
+   * Obtém valor de retorno padrão baseado no tipo
+   */
+  getDefaultReturn(returnType) {
+    if (!returnType || returnType === "void") {
+      return "";
+    }
+    const defaults = {
+      "string": "''",
+      "number": "0",
+      "boolean": "false",
+      "array": "[]",
+      "object": "{}",
+      "Promise": "Promise.resolve()",
+      "null": "null",
+      "undefined": "undefined"
+    };
+    return defaults[returnType] || "null";
+  }
+  /**
+   * Renderiza um template com variáveis (implementação simples)
+   */
+  renderTemplate(template, variables) {
+    let result = template.template;
+    Object.keys(variables).forEach((key) => {
+      const value = variables[key];
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g");
+      if (typeof value === "string") {
+        result = result.replace(regex, value);
+      } else if (Array.isArray(value)) {
+        const arrayString = value.map(
+          (item) => typeof item === "object" ? JSON.stringify(item) : String(item)
+        ).join(", ");
+        result = result.replace(regex, arrayString);
+      } else {
+        result = result.replace(regex, String(value));
+      }
+    });
+    result = result.replace(/\{\{[^}]+\}\}/g, "");
+    result = result.replace(/\n\s*\n\s*\n/g, "\n\n");
+    return result.trim();
+  }
+};
+
+// src/services/ASTAnalysisService.ts
+var ASTAnalysisService = class _ASTAnalysisService {
+  static getInstance() {
+    if (!_ASTAnalysisService.instance) {
+      _ASTAnalysisService.instance = new _ASTAnalysisService();
+    }
+    return _ASTAnalysisService.instance;
+  }
+  /**
+   * Analisa um documento TypeScript/JavaScript
+   */
+  analyzeDocument(document) {
+    const text = document.getText();
+    const lines = text.split("\n");
+    const analysis = {
+      imports: this.extractImports(lines),
+      interfaces: this.extractInterfaces(lines),
+      classes: this.extractClasses(lines),
+      functions: this.extractFunctions(lines),
+      patterns: this.detectPatterns(lines),
+      suggestions: []
+    };
+    analysis.suggestions = this.generateSuggestions(analysis);
+    return analysis;
+  }
+  /**
+   * Extrai imports do código
+   */
+  extractImports(lines) {
+    const imports = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      const importMatch = trimmed.match(/^import\s+(.+?)\s+from\s+['"](.+?)['"];?$/);
+      if (importMatch) {
+        imports.push(importMatch[2]);
+        continue;
+      }
+      const requireMatch = trimmed.match(/(?:const|let|var)\s+.+?\s*=\s*require\(['"](.+?)['"]\)/);
+      if (requireMatch) {
+        imports.push(requireMatch[1]);
+      }
+    }
+    return [...new Set(imports)];
+  }
+  /**
+   * Extrai interfaces do código
+   */
+  extractInterfaces(lines) {
+    const interfaces = [];
+    let currentInterface = null;
+    let braceLevel = 0;
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2].trim();
+      const interfaceMatch = line.match(/^(?:export\s+)?interface\s+(\w+)(?:\s+extends\s+[\w,\s]+)?\s*\{?/);
+      if (interfaceMatch) {
+        currentInterface = {
+          name: interfaceMatch[1],
+          properties: [],
+          methods: [],
+          isEmpty: true,
+          line: i2
+        };
+        braceLevel = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+        continue;
+      }
+      if (currentInterface) {
+        braceLevel += (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+        if (braceLevel > 0 && line && !line.startsWith("//") && !line.startsWith("*")) {
+          const property = this.parseProperty(line);
+          if (property) {
+            currentInterface.properties.push(property);
+            currentInterface.isEmpty = false;
+          }
+          const method = this.parseMethod(line);
+          if (method) {
+            currentInterface.methods.push(method);
+            currentInterface.isEmpty = false;
+          }
+        }
+        if (braceLevel <= 0) {
+          currentInterface.endLine = i2;
+          interfaces.push(currentInterface);
+          currentInterface = null;
+        }
+      }
+    }
+    return interfaces;
+  }
+  /**
+   * Extrai classes do código
+   */
+  extractClasses(lines) {
+    const classes = [];
+    let currentClass = null;
+    let braceLevel = 0;
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2].trim();
+      const classMatch = line.match(/^(?:export\s+)?(?:abstract\s+)?class\s+(\w+)(?:\s+extends\s+(\w+))?(?:\s+implements\s+([\w,\s]+))?\s*\{?/);
+      if (classMatch) {
+        currentClass = {
+          name: classMatch[1],
+          extends: classMatch[2],
+          implements: classMatch[3] ? classMatch[3].split(",").map((i3) => i3.trim()) : void 0,
+          properties: [],
+          methods: [],
+          constructor: void 0,
+          line: i2
+        };
+        braceLevel = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+        continue;
+      }
+      if (currentClass) {
+        braceLevel += (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+        if (braceLevel > 0 && line && !line.startsWith("//") && !line.startsWith("*")) {
+          const property = this.parseProperty(line);
+          if (property) {
+            currentClass.properties.push(property);
+          }
+          const method = this.parseMethod(line);
+          if (method) {
+            currentClass.methods.push(method);
+          }
+          if (line.includes("constructor")) {
+            currentClass.constructor = this.parseConstructor(line);
+          }
+        }
+        if (braceLevel <= 0) {
+          currentClass.endLine = i2;
+          classes.push(currentClass);
+          currentClass = null;
+        }
+      }
+    }
+    return classes;
+  }
+  /**
+   * Extrai funções do código
+   */
+  extractFunctions(lines) {
+    const functions = [];
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2].trim();
+      const funcMatch = line.match(/^(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\((.*?)\)(?:\s*:\s*([^{]+))?\s*\{?/);
+      if (funcMatch) {
+        functions.push({
+          name: funcMatch[1],
+          parameters: this.parseParameters(funcMatch[2]),
+          returnType: funcMatch[3]?.trim(),
+          isAsync: line.includes("async"),
+          isExported: line.includes("export"),
+          hasImplementation: true,
+          line: i2
+        });
+        continue;
+      }
+      const arrowMatch = line.match(/^(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\((.*?)\)(?:\s*:\s*([^=]+))?\s*=>/);
+      if (arrowMatch) {
+        functions.push({
+          name: arrowMatch[1],
+          parameters: this.parseParameters(arrowMatch[2]),
+          returnType: arrowMatch[3]?.trim(),
+          isAsync: line.includes("async"),
+          isExported: line.includes("export"),
+          hasImplementation: true,
+          line: i2,
+          endLine: i2
+        });
+      }
+    }
+    return functions;
+  }
+  /**
+   * Detecta padrões arquiteturais no código
+   */
+  detectPatterns(lines) {
+    const patterns = /* @__PURE__ */ new Set();
+    const text = lines.join("\n").toLowerCase();
+    const patternDetectors = [
+      { pattern: "Repository", keywords: ["repository", "findById", "save", "delete"] },
+      { pattern: "Factory", keywords: ["factory", "create", "build"] },
+      { pattern: "Singleton", keywords: ["getInstance", "instance", "singleton"] },
+      { pattern: "Observer", keywords: ["subscribe", "observer", "notify", "emit"] },
+      { pattern: "Strategy", keywords: ["strategy", "algorithm", "execute"] },
+      { pattern: "CRUD", keywords: ["create", "read", "update", "delete", "findAll"] },
+      { pattern: "MVC", keywords: ["controller", "model", "view"] },
+      { pattern: "Service", keywords: ["service", "business logic", "usecase"] },
+      { pattern: "DTO", keywords: ["dto", "data transfer", "request", "response"] },
+      { pattern: "Decorator", keywords: ["decorator", "@", "wrapper"] }
+    ];
+    for (const detector of patternDetectors) {
+      const matchCount = detector.keywords.filter((keyword) => text.includes(keyword)).length;
+      if (matchCount >= 2) {
+        patterns.add(detector.pattern);
+      }
+    }
+    return Array.from(patterns);
+  }
+  /**
+   * Gera sugestões baseadas na análise
+   */
+  generateSuggestions(analysis) {
+    const suggestions = [];
+    const emptyInterfaces = analysis.interfaces.filter((i2) => i2.isEmpty);
+    if (emptyInterfaces.length > 0) {
+      suggestions.push(`Found ${emptyInterfaces.length} empty interface(s). Consider implementing them.`);
+    }
+    const classesWithoutMethods = analysis.classes.filter((c) => c.methods.length === 0);
+    if (classesWithoutMethods.length > 0) {
+      suggestions.push(`Found ${classesWithoutMethods.length} class(es) without methods. Consider adding functionality.`);
+    }
+    if (analysis.patterns.includes("CRUD") && !analysis.patterns.includes("Repository")) {
+      suggestions.push("Consider implementing Repository pattern for better data access abstraction.");
+    }
+    if (analysis.classes.length > 0 && !analysis.patterns.includes("Factory")) {
+      suggestions.push("Consider using Factory pattern for complex object creation.");
+    }
+    const functionsWithoutImpl = analysis.functions.filter((f3) => !f3.hasImplementation);
+    if (functionsWithoutImpl.length > 0) {
+      suggestions.push(`Found ${functionsWithoutImpl.length} function(s) without implementation.`);
+    }
+    return suggestions;
+  }
+  /**
+   * Extrai informações de uma propriedade
+   */
+  parseProperty(line) {
+    const cleanLine = line.replace(/^(private|protected|public|readonly|static)\s+/, "");
+    const propertyMatch = cleanLine.match(/^(\w+)(\?)?\s*:\s*([^;=]+)/);
+    if (propertyMatch) {
+      return {
+        name: propertyMatch[1],
+        type: propertyMatch[3].trim(),
+        isOptional: !!propertyMatch[2],
+        isReadonly: line.includes("readonly")
+      };
+    }
+    return null;
+  }
+  /**
+   * Extrai informações de um método
+   */
+  parseMethod(line) {
+    const methodMatch = line.match(/^(?:(?:private|protected|public|static|abstract|readonly)\s+)*\s*(?:async\s+)?(\w+)\s*\(([^)]*)\)\s*(?::\s*([^{{;=]+))?\s*(?:\{|;)?/);
+    if (methodMatch) {
+      return {
+        name: methodMatch[1],
+        parameters: this.parseParameters(methodMatch[2]),
+        returnType: methodMatch[3]?.trim(),
+        isAsync: line.includes("async"),
+        isAbstract: line.includes("abstract"),
+        hasImplementation: line.includes("{") || !line.includes(";")
+      };
+    }
+    return null;
+  }
+  /**
+   * Extrai informações do constructor
+   */
+  parseConstructor(line) {
+    const paramMatch = line.match(/constructor\s*\((.*?)\)/);
+    const parameters = paramMatch ? this.parseParameters(paramMatch[1]) : [];
+    return {
+      name: "constructor",
+      parameters,
+      isAsync: false,
+      isAbstract: false,
+      hasImplementation: line.includes("{")
+    };
+  }
+  /**
+   * Extrai parâmetros de uma string
+   */
+  parseParameters(paramString) {
+    if (!paramString.trim()) {
+      return [];
+    }
+    return paramString.split(",").map((param) => {
+      const trimmed = param.trim();
+      const parts = trimmed.split(":").map((p) => p.trim());
+      const namePart = parts[0];
+      const typePart = parts[1];
+      const defaultMatch = namePart.match(/(\w+)(?:\s*=\s*(.+))?/);
+      const name = defaultMatch ? defaultMatch[1] : namePart.replace(/[?=].*/, "").trim();
+      const isOptional = namePart.includes("?") || namePart.includes("=");
+      const defaultValue = defaultMatch && defaultMatch[2] ? defaultMatch[2] : void 0;
+      return {
+        name,
+        type: typePart,
+        isOptional,
+        defaultValue
+      };
+    });
+  }
+  /**
+   * Encontra interfaces vazias em um documento
+   */
+  findEmptyInterfaces(document) {
+    const analysis = this.analyzeDocument(document);
+    return analysis.interfaces.filter((i2) => i2.isEmpty);
+  }
+  /**
+   * Encontra funções sem implementação
+   */
+  findUnimplementedFunctions(document) {
+    const analysis = this.analyzeDocument(document);
+    return analysis.functions.filter((f3) => !f3.hasImplementation);
+  }
+  /**
+   * Detecta o tipo de linguagem do arquivo
+   */
+  detectLanguage(document) {
+    const fileName = document.fileName.toLowerCase();
+    if (fileName.endsWith(".ts") || fileName.endsWith(".tsx")) {
+      return "typescript";
+    }
+    if (fileName.endsWith(".js") || fileName.endsWith(".jsx")) {
+      return "javascript";
+    }
+    if (fileName.endsWith(".py")) {
+      return "python";
+    }
+    if (fileName.endsWith(".java")) {
+      return "java";
+    }
+    return "unknown";
+  }
+  /**
+   * Obtém contexto semântico em uma posição específica
+   */
+  getSemanticContext(document, position) {
+    const analysis = this.analyzeDocument(document);
+    const line = position.line;
+    const context = {
+      availableTypes: [],
+      nearbySymbols: []
+    };
+    for (const cls of analysis.classes) {
+      if (cls.line <= line && (typeof cls.endLine === "undefined" || line <= cls.endLine)) {
+        context.insideClass = cls.name;
+        context.availableTypes.push(...cls.properties.map((p) => p.type).filter(Boolean));
+      }
+    }
+    for (const func of analysis.functions) {
+      if (func.line <= line && (typeof func.endLine === "undefined" || func.endLine >= line)) {
+        context.insideFunction = func.name;
+      }
+    }
+    context.availableTypes.push(...analysis.interfaces.map((i2) => i2.name));
+    context.availableTypes.push(...analysis.classes.map((c) => c.name));
+    context.availableTypes = [...new Set(context.availableTypes)];
+    return context;
+  }
+};
+
+// src/services/MultilineCodeGenerationService.ts
+var MultilineCodeGenerationService = class _MultilineCodeGenerationService {
+  constructor() {
+    this.commentAnalysis = CommentAnalysisService.getInstance();
+    this.codeGeneration = CodeGenerationService.getInstance();
+    this.astAnalysis = ASTAnalysisService.getInstance();
+  }
+  static getInstance() {
+    if (!_MultilineCodeGenerationService.instance) {
+      _MultilineCodeGenerationService.instance = new _MultilineCodeGenerationService();
+    }
+    return _MultilineCodeGenerationService.instance;
+  }
+  /**
+   * Detecta comentários TODO/FIXME automaticamente e oferece geração de código
+   */
+  async detectAndGenerateFromComments(document) {
+    const doc = document || vscode3.window.activeTextEditor?.document;
+    if (!doc) {
+      vscode3.window.showErrorMessage("No active document found");
+      return;
+    }
+    try {
+      const comments = this.commentAnalysis.analyzeDocument(doc);
+      const implementationComments = comments.filter(
+        (c) => c.type === "TODO" || c.type === "FIXME" || this.commentAnalysis.isImplementationComment(c.content)
+      );
+      if (implementationComments.length === 0) {
+        vscode3.window.showInformationMessage("No implementation comments found");
+        return;
+      }
+      const items = implementationComments.map((comment) => ({
+        label: `Line ${comment.line + 1}: ${comment.intention}`,
+        description: comment.type,
+        detail: comment.content,
+        comment
+      }));
+      const selected = await vscode3.window.showQuickPick(items, {
+        placeHolder: "Select a comment to generate code for",
+        matchOnDescription: true,
+        matchOnDetail: true
+      });
+      if (selected) {
+        await this.generateCodeFromComment(doc, selected.comment);
+      }
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error detecting comments: ${error}`);
+    }
+  }
+  /**
+   * Gera código a partir de um comentário específico
+   */
+  async generateCodeFromComment(document, comment) {
+    try {
+      const language = this.astAnalysis.detectLanguage(document);
+      const result = await this.codeGeneration.generateFromComment(comment, language);
+      if (result.success) {
+        await this.insertOrPreviewCode(document, result, comment.line + 1);
+      } else {
+        vscode3.window.showErrorMessage(`Code generation failed: ${result.error}`);
+      }
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error generating code: ${error}`);
+    }
+  }
+  /**
+   * Implementa interfaces vazias automaticamente
+   */
+  async implementEmptyInterfaces(document) {
+    const doc = document || vscode3.window.activeTextEditor?.document;
+    if (!doc) {
+      vscode3.window.showErrorMessage("No active document found");
+      return;
+    }
+    try {
+      const emptyInterfaces = this.astAnalysis.findEmptyInterfaces(doc);
+      if (emptyInterfaces.length === 0) {
+        vscode3.window.showInformationMessage("No empty interfaces found");
+        return;
+      }
+      const items = emptyInterfaces.map((iface) => ({
+        label: iface.name,
+        description: `Line ${iface.line + 1}`,
+        detail: "Empty interface",
+        interface: iface
+      }));
+      const selected = await vscode3.window.showQuickPick(items, {
+        placeHolder: "Select an interface to implement",
+        canPickMany: true
+      });
+      if (selected && selected.length > 0) {
+        for (const item of selected) {
+          await this.generateInterfaceImplementation(doc, item.interface);
+        }
+      }
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error implementing interfaces: ${error}`);
+    }
+  }
+  /**
+   * Gera implementação para uma interface
+   */
+  async generateInterfaceImplementation(document, interfaceInfo) {
+    try {
+      const language = this.astAnalysis.detectLanguage(document);
+      const className = `${interfaceInfo.name}Impl`;
+      const request = {
+        type: "interface",
+        language,
+        context: {
+          fileName: document.fileName,
+          fileType: language,
+          selectedText: interfaceInfo.name
+        },
+        specification: `Implement interface ${interfaceInfo.name}`,
+        template: this.codeGeneration.getTemplate(`${_MultilineCodeGenerationService.languageCodeMap[language] || language}-interface`)
+      };
+      const result = await this.codeGeneration.generateCode(request);
+      if (result.success) {
+        const insertLine = this.findBestInsertionPoint(document, interfaceInfo.line);
+        await this.insertOrPreviewCode(document, result, insertLine);
+      } else {
+        vscode3.window.showErrorMessage(`Implementation generation failed: ${result.error}`);
+      }
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error generating implementation: ${error}`);
+    }
+  }
+  /**
+   * Gera funções completas a partir de especificação
+   */
+  async generateCompleteFunction() {
+    const editor = vscode3.window.activeTextEditor;
+    if (!editor) {
+      vscode3.window.showErrorMessage("No active editor found");
+      return;
+    }
+    try {
+      const specification = await vscode3.window.showInputBox({
+        prompt: 'Enter function specification (e.g., "function calculateTax(amount: number, rate: number): number")',
+        placeHolder: "function name(params): returnType - description"
+      });
+      if (!specification) {
+        return;
+      }
+      const language = this.astAnalysis.detectLanguage(editor.document);
+      const position = editor.selection.active;
+      const request = {
+        type: "function",
+        language,
+        context: {
+          fileName: editor.document.fileName,
+          fileType: language,
+          cursorPosition: {
+            line: position.line,
+            character: position.character
+          }
+        },
+        specification,
+        preview: true
+      };
+      const result = await this.codeGeneration.generateCode(request);
+      if (result.success) {
+        await this.insertOrPreviewCode(editor.document, result, position.line);
+      } else {
+        vscode3.window.showErrorMessage(`Function generation failed: ${result.error}`);
+      }
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error generating function: ${error}`);
+    }
+  }
+  /**
+   * Gera código baseado em padrões (CRUD, Repository, Factory, etc.)
+   */
+  async generateFromPattern() {
+    const editor = vscode3.window.activeTextEditor;
+    if (!editor) {
+      vscode3.window.showErrorMessage("No active editor found");
+      return;
+    }
+    try {
+      const language = this.astAnalysis.detectLanguage(editor.document);
+      const templates = this.codeGeneration.getTemplatesByLanguage(language);
+      if (templates.length === 0) {
+        vscode3.window.showErrorMessage(`No templates available for ${language}`);
+        return;
+      }
+      const items = templates.map((template) => ({
+        label: template.name,
+        description: template.pattern,
+        detail: template.description,
+        template
+      }));
+      const selected = await vscode3.window.showQuickPick(items, {
+        placeHolder: "Select a pattern to generate"
+      });
+      if (!selected) {
+        return;
+      }
+      let entityName = "Entity";
+      if (["CRUD", "Repository", "Factory"].includes(selected.template.pattern)) {
+        const input = await vscode3.window.showInputBox({
+          prompt: `Enter entity name for ${selected.template.pattern} pattern`,
+          placeHolder: "e.g., User, Product, Order"
+        });
+        if (input) {
+          entityName = input;
+        }
+      }
+      const position = editor.selection.active;
+      const request = {
+        type: "pattern",
+        language,
+        context: {
+          fileName: editor.document.fileName,
+          fileType: language,
+          cursorPosition: {
+            line: position.line,
+            character: position.character
+          }
+        },
+        specification: `Generate ${selected.template.pattern} pattern for ${entityName}`,
+        template: selected.template,
+        preview: true
+      };
+      const result = await this.codeGeneration.generateCode(request);
+      if (result.success) {
+        await this.insertOrPreviewCode(editor.document, result, position.line);
+      } else {
+        vscode3.window.showErrorMessage(`Pattern generation failed: ${result.error}`);
+      }
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error generating pattern: ${error}`);
+    }
+  }
+  /**
+   * Analisa padrões arquiteturais no código atual
+   */
+  async analyzeCodePatterns() {
+    const editor = vscode3.window.activeTextEditor;
+    if (!editor) {
+      vscode3.window.showErrorMessage("No active editor found");
+      return;
+    }
+    try {
+      const analysis = this.astAnalysis.analyzeDocument(editor.document);
+      const info = [
+        `**Code Analysis for ${editor.document.fileName}**`,
+        "",
+        `**Imports:** ${analysis.imports.length}`,
+        ...analysis.imports.slice(0, 5).map((imp) => `  - ${imp}`),
+        analysis.imports.length > 5 ? `  ... and ${analysis.imports.length - 5} more` : "",
+        "",
+        `**Interfaces:** ${analysis.interfaces.length}`,
+        ...analysis.interfaces.map((iface) => `  - ${iface.name} (${iface.isEmpty ? "empty" : "implemented"})`),
+        "",
+        `**Classes:** ${analysis.classes.length}`,
+        ...analysis.classes.map((cls) => `  - ${cls.name} (${cls.methods.length} methods)`),
+        "",
+        `**Functions:** ${analysis.functions.length}`,
+        ...analysis.functions.slice(0, 3).map((func) => `  - ${func.name}(${func.parameters.length} params)`),
+        "",
+        `**Detected Patterns:** ${analysis.patterns.length}`,
+        ...analysis.patterns.map((pattern) => `  - ${pattern}`),
+        "",
+        `**Suggestions:**`,
+        ...analysis.suggestions.map((suggestion) => `  - ${suggestion}`)
+      ].filter((line) => line !== "").join("\n");
+      const panel = vscode3.window.createWebviewPanel(
+        "codeAnalysis",
+        "Code Analysis",
+        vscode3.ViewColumn.Beside,
+        { enableScripts: false }
+      );
+      panel.webview.html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; }
+                        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; }
+                        h3 { color: #007acc; }
+                    </style>
+                </head>
+                <body>
+                    <pre>${info}</pre>
+                </body>
+                </html>
+            `;
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error analyzing code: ${error}`);
+    }
+  }
+  /**
+   * Insere código ou mostra preview
+   */
+  async insertOrPreviewCode(document, result, insertLine) {
+    const action = await vscode3.window.showInformationMessage(
+      `Generated ${result.description}. Do you want to insert it?`,
+      { modal: false },
+      "Insert",
+      "Preview",
+      "Cancel"
+    );
+    if (action === "Preview") {
+      await this.showCodePreview(result);
+      return;
+    }
+    if (action === "Insert") {
+      const editor = await vscode3.window.showTextDocument(document);
+      const position = new vscode3.Position(insertLine, 0);
+      await editor.edit((editBuilder) => {
+        editBuilder.insert(position, result.code + "\n\n");
+      });
+      vscode3.window.showInformationMessage("Code inserted successfully!");
+    }
+  }
+  /**
+   * Mostra preview do código gerado
+   */
+  async showCodePreview(result) {
+    const panel = vscode3.window.createWebviewPanel(
+      "codePreview",
+      "Generated Code Preview",
+      vscode3.ViewColumn.Beside,
+      { enableScripts: true }
+    );
+    panel.webview.html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { 
+                        font-family: 'Courier New', monospace; 
+                        padding: 20px; 
+                        background: #1e1e1e; 
+                        color: #d4d4d4; 
+                    }
+                    .header { 
+                        background: #007acc; 
+                        color: white; 
+                        padding: 10px; 
+                        border-radius: 5px; 
+                        margin-bottom: 20px; 
+                    }
+                    .code { 
+                        background: #2d2d2d; 
+                        padding: 15px; 
+                        border-radius: 5px; 
+                        border: 1px solid #555; 
+                        white-space: pre-wrap;
+                        overflow-x: auto;
+                    }
+                    .actions {
+                        margin-top: 20px;
+                        text-align: center;
+                    }
+                    button {
+                        background: #007acc;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        margin: 0 10px;
+                    }
+                    button:hover {
+                        background: #005a9e;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h3>\u{1F4DD} ${result.description}</h3>
+                    <p>Language: ${result.language}</p>
+                </div>
+                <div class="code">${this.escapeHtml(result.code)}</div>
+                <div class="actions">
+                    <button onclick="copyToClipboard()">\u{1F4CB} Copy</button>
+                    <button onclick="closePreview()">\u274C Close</button>
+                </div>
+                
+                <script>
+                    function copyToClipboard() {
+                        navigator.clipboard.writeText(\`${result.code.replace(/`/g, "\\`")}\`);
+                        alert('Code copied to clipboard!');
+                    }
+                    
+                    function closePreview() {
+                        window.close();
+                    }
+                </script>
+            </body>
+            </html>
+        `;
+  }
+  /**
+   * Encontra o melhor ponto de inserção para novo código
+   */
+  findBestInsertionPoint(document, nearLine) {
+    const lines = document.getText().split("\n");
+    for (let i2 = nearLine + 1; i2 < Math.min(nearLine + 10, lines.length); i2++) {
+      if (lines[i2].trim() === "") {
+        return i2;
+      }
+    }
+    return nearLine + 1;
+  }
+  /**
+   * Escapa HTML para preview
+   */
+  escapeHtml(text) {
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  /**
+   * Detecta automaticamente comentários TODO/FIXME em todos os arquivos do workspace
+   */
+  async scanWorkspaceForComments() {
+    try {
+      const comments = await this.commentAnalysis.findAllComments();
+      if (comments.length === 0) {
+        vscode3.window.showInformationMessage("No TODO/FIXME comments found in workspace");
+        return;
+      }
+      const commentsByFile = /* @__PURE__ */ new Map();
+      comments.forEach((comment) => {
+        const file = comment.file || "unknown";
+        if (!commentsByFile.has(file)) {
+          commentsByFile.set(file, []);
+        }
+        commentsByFile.get(file).push(comment);
+      });
+      const info = [
+        `**TODO/FIXME Comments in Workspace**`,
+        `Found ${comments.length} comments`,
+        ""
+      ];
+      commentsByFile.forEach((fileComments, file) => {
+        info.push(`**${file}:**`);
+        fileComments.forEach((comment) => {
+          info.push(`  - Line ${comment.line + 1}: ${comment.intention} (${comment.type})`);
+        });
+        info.push("");
+      });
+      const panel = vscode3.window.createWebviewPanel(
+        "todoReport",
+        "TODO/FIXME Report",
+        vscode3.ViewColumn.Beside,
+        { enableScripts: false }
+      );
+      panel.webview.html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; }
+                        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; }
+                        h3 { color: #007acc; }
+                    </style>
+                </head>
+                <body>
+                    <pre>${info.join("\n")}</pre>
+                </body>
+                </html>
+            `;
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error scanning workspace: ${error}`);
+    }
+  }
+};
+
+// src/commands/CodeGenerationCommands.ts
+var CodeGenerationCommands = class {
+  constructor() {
+    this.multilineService = MultilineCodeGenerationService.getInstance();
+  }
+  /**
+   * Registra todos os comandos de geração de código
+   */
+  registerCommands(context) {
+    const generateFromComments = vscode4.commands.registerCommand(
+      "xcopilot.generateFromComments",
+      () => this.multilineService.detectAndGenerateFromComments()
+    );
+    const implementInterfaces = vscode4.commands.registerCommand(
+      "xcopilot.implementInterfaces",
+      () => this.multilineService.implementEmptyInterfaces()
+    );
+    const generateFunction = vscode4.commands.registerCommand(
+      "xcopilot.generateFunction",
+      () => this.multilineService.generateCompleteFunction()
+    );
+    const generatePattern = vscode4.commands.registerCommand(
+      "xcopilot.generatePattern",
+      () => this.multilineService.generateFromPattern()
+    );
+    const scanTodoComments = vscode4.commands.registerCommand(
+      "xcopilot.scanTodoComments",
+      () => this.multilineService.scanWorkspaceForComments()
+    );
+    context.subscriptions.push(
+      generateFromComments,
+      implementInterfaces,
+      generateFunction,
+      generatePattern,
+      scanTodoComments
+    );
+    console.log("xCopilot Multi-line Code Generation commands registered");
+  }
+};
+
+// node_modules/node-fetch/src/index.js
+var import_node_http2 = __toESM(require("node:http"), 1);
+var import_node_https = __toESM(require("node:https"), 1);
+var import_node_zlib = __toESM(require("node:zlib"), 1);
+var import_node_stream2 = __toESM(require("node:stream"), 1);
+var import_node_buffer2 = require("node:buffer");
+
+// node_modules/data-uri-to-buffer/dist/index.js
+function dataUriToBuffer(uri) {
+  if (!/^data:/i.test(uri)) {
+    throw new TypeError('`uri` does not appear to be a Data URI (must begin with "data:")');
+  }
+  uri = uri.replace(/\r?\n/g, "");
+  const firstComma = uri.indexOf(",");
+  if (firstComma === -1 || firstComma <= 4) {
+    throw new TypeError("malformed data: URI");
+  }
+  const meta = uri.substring(5, firstComma).split(";");
+  let charset = "";
+  let base64 = false;
+  const type = meta[0] || "text/plain";
+  let typeFull = type;
+  for (let i2 = 1; i2 < meta.length; i2++) {
+    if (meta[i2] === "base64") {
+      base64 = true;
+    } else if (meta[i2]) {
+      typeFull += `;${meta[i2]}`;
+      if (meta[i2].indexOf("charset=") === 0) {
+        charset = meta[i2].substring(8);
+      }
+    }
+  }
+  if (!meta[0] && !charset.length) {
+    typeFull += ";charset=US-ASCII";
+    charset = "US-ASCII";
+  }
+  const encoding = base64 ? "base64" : "ascii";
+  const data = unescape(uri.substring(firstComma + 1));
+  const buffer = Buffer.from(data, encoding);
+  buffer.type = type;
+  buffer.typeFull = typeFull;
+  buffer.charset = charset;
+  return buffer;
+}
+var dist_default = dataUriToBuffer;
+
+// node_modules/node-fetch/src/body.js
+var import_node_stream = __toESM(require("node:stream"), 1);
+var import_node_util = require("node:util");
+var import_node_buffer = require("node:buffer");
+init_fetch_blob();
+init_esm_min();
+
+// node_modules/node-fetch/src/errors/base.js
+var FetchBaseError = class extends Error {
+  constructor(message, type) {
+    super(message);
+    Error.captureStackTrace(this, this.constructor);
+    this.type = type;
+  }
+  get name() {
+    return this.constructor.name;
+  }
+  get [Symbol.toStringTag]() {
+    return this.constructor.name;
+  }
+};
+
+// node_modules/node-fetch/src/errors/fetch-error.js
+var FetchError = class extends FetchBaseError {
+  /**
+   * @param  {string} message -      Error message for human
+   * @param  {string} [type] -        Error type for machine
+   * @param  {SystemError} [systemError] - For Node.js system error
+   */
+  constructor(message, type, systemError) {
+    super(message, type);
+    if (systemError) {
+      this.code = this.errno = systemError.code;
+      this.erroredSysCall = systemError.syscall;
+    }
+  }
+};
+
+// node_modules/node-fetch/src/utils/is.js
+var NAME = Symbol.toStringTag;
+var isURLSearchParameters = (object) => {
+  return typeof object === "object" && typeof object.append === "function" && typeof object.delete === "function" && typeof object.get === "function" && typeof object.getAll === "function" && typeof object.has === "function" && typeof object.set === "function" && typeof object.sort === "function" && object[NAME] === "URLSearchParams";
+};
+var isBlob = (object) => {
+  return object && typeof object === "object" && typeof object.arrayBuffer === "function" && typeof object.type === "string" && typeof object.stream === "function" && typeof object.constructor === "function" && /^(Blob|File)$/.test(object[NAME]);
+};
+var isAbortSignal = (object) => {
+  return typeof object === "object" && (object[NAME] === "AbortSignal" || object[NAME] === "EventTarget");
+};
+var isDomainOrSubdomain = (destination, original) => {
+  const orig = new URL(original).hostname;
+  const dest = new URL(destination).hostname;
+  return orig === dest || orig.endsWith(`.${dest}`);
+};
+var isSameProtocol = (destination, original) => {
+  const orig = new URL(original).protocol;
+  const dest = new URL(destination).protocol;
+  return orig === dest;
+};
+
+// node_modules/node-fetch/src/body.js
+var pipeline = (0, import_node_util.promisify)(import_node_stream.default.pipeline);
+var INTERNALS = Symbol("Body internals");
+var Body = class {
+  constructor(body, {
+    size = 0
+  } = {}) {
+    let boundary = null;
+    if (body === null) {
+      body = null;
+    } else if (isURLSearchParameters(body)) {
+      body = import_node_buffer.Buffer.from(body.toString());
+    } else if (isBlob(body)) {
+    } else if (import_node_buffer.Buffer.isBuffer(body)) {
+    } else if (import_node_util.types.isAnyArrayBuffer(body)) {
+      body = import_node_buffer.Buffer.from(body);
+    } else if (ArrayBuffer.isView(body)) {
+      body = import_node_buffer.Buffer.from(body.buffer, body.byteOffset, body.byteLength);
+    } else if (body instanceof import_node_stream.default) {
+    } else if (body instanceof FormData) {
+      body = formDataToBlob(body);
+      boundary = body.type.split("=")[1];
+    } else {
+      body = import_node_buffer.Buffer.from(String(body));
+    }
+    let stream = body;
+    if (import_node_buffer.Buffer.isBuffer(body)) {
+      stream = import_node_stream.default.Readable.from(body);
+    } else if (isBlob(body)) {
+      stream = import_node_stream.default.Readable.from(body.stream());
+    }
+    this[INTERNALS] = {
+      body,
+      stream,
+      boundary,
+      disturbed: false,
+      error: null
+    };
+    this.size = size;
+    if (body instanceof import_node_stream.default) {
+      body.on("error", (error_) => {
+        const error = error_ instanceof FetchBaseError ? error_ : new FetchError(`Invalid response body while trying to fetch ${this.url}: ${error_.message}`, "system", error_);
+        this[INTERNALS].error = error;
+      });
+    }
+  }
+  get body() {
+    return this[INTERNALS].stream;
+  }
+  get bodyUsed() {
+    return this[INTERNALS].disturbed;
+  }
+  /**
+   * Decode response as ArrayBuffer
+   *
+   * @return  Promise
+   */
+  async arrayBuffer() {
+    const { buffer, byteOffset, byteLength } = await consumeBody(this);
+    return buffer.slice(byteOffset, byteOffset + byteLength);
+  }
+  async formData() {
+    const ct = this.headers.get("content-type");
+    if (ct.startsWith("application/x-www-form-urlencoded")) {
+      const formData = new FormData();
+      const parameters = new URLSearchParams(await this.text());
+      for (const [name, value] of parameters) {
+        formData.append(name, value);
+      }
+      return formData;
+    }
+    const { toFormData: toFormData2 } = await Promise.resolve().then(() => (init_multipart_parser(), multipart_parser_exports));
+    return toFormData2(this.body, ct);
+  }
+  /**
+   * Return raw response as Blob
+   *
+   * @return Promise
+   */
+  async blob() {
+    const ct = this.headers && this.headers.get("content-type") || this[INTERNALS].body && this[INTERNALS].body.type || "";
+    const buf = await this.arrayBuffer();
+    return new fetch_blob_default([buf], {
+      type: ct
+    });
+  }
+  /**
+   * Decode response as json
+   *
+   * @return  Promise
+   */
+  async json() {
+    const text = await this.text();
+    return JSON.parse(text);
+  }
+  /**
+   * Decode response as text
+   *
+   * @return  Promise
+   */
+  async text() {
+    const buffer = await consumeBody(this);
+    return new TextDecoder().decode(buffer);
+  }
+  /**
+   * Decode response as buffer (non-spec api)
+   *
+   * @return  Promise
+   */
+  buffer() {
+    return consumeBody(this);
+  }
+};
+Body.prototype.buffer = (0, import_node_util.deprecate)(Body.prototype.buffer, "Please use 'response.arrayBuffer()' instead of 'response.buffer()'", "node-fetch#buffer");
+Object.defineProperties(Body.prototype, {
+  body: { enumerable: true },
+  bodyUsed: { enumerable: true },
+  arrayBuffer: { enumerable: true },
+  blob: { enumerable: true },
+  json: { enumerable: true },
+  text: { enumerable: true },
+  data: { get: (0, import_node_util.deprecate)(
+    () => {
+    },
+    "data doesn't exist, use json(), text(), arrayBuffer(), or body instead",
+    "https://github.com/node-fetch/node-fetch/issues/1000 (response)"
+  ) }
+});
+async function consumeBody(data) {
+  if (data[INTERNALS].disturbed) {
+    throw new TypeError(`body used already for: ${data.url}`);
+  }
+  data[INTERNALS].disturbed = true;
+  if (data[INTERNALS].error) {
+    throw data[INTERNALS].error;
+  }
+  const { body } = data;
+  if (body === null) {
+    return import_node_buffer.Buffer.alloc(0);
+  }
+  if (!(body instanceof import_node_stream.default)) {
+    return import_node_buffer.Buffer.alloc(0);
+  }
+  const accum = [];
+  let accumBytes = 0;
+  try {
+    for await (const chunk of body) {
+      if (data.size > 0 && accumBytes + chunk.length > data.size) {
+        const error = new FetchError(`content size at ${data.url} over limit: ${data.size}`, "max-size");
+        body.destroy(error);
+        throw error;
+      }
+      accumBytes += chunk.length;
+      accum.push(chunk);
+    }
+  } catch (error) {
+    const error_ = error instanceof FetchBaseError ? error : new FetchError(`Invalid response body while trying to fetch ${data.url}: ${error.message}`, "system", error);
+    throw error_;
+  }
+  if (body.readableEnded === true || body._readableState.ended === true) {
+    try {
+      if (accum.every((c) => typeof c === "string")) {
+        return import_node_buffer.Buffer.from(accum.join(""));
+      }
+      return import_node_buffer.Buffer.concat(accum, accumBytes);
+    } catch (error) {
+      throw new FetchError(`Could not create Buffer from response body for ${data.url}: ${error.message}`, "system", error);
+    }
+  } else {
+    throw new FetchError(`Premature close of server response while trying to fetch ${data.url}`);
+  }
+}
+var clone = (instance, highWaterMark) => {
+  let p1;
+  let p2;
+  let { body } = instance[INTERNALS];
+  if (instance.bodyUsed) {
+    throw new Error("cannot clone body after it is used");
+  }
+  if (body instanceof import_node_stream.default && typeof body.getBoundary !== "function") {
+    p1 = new import_node_stream.PassThrough({ highWaterMark });
+    p2 = new import_node_stream.PassThrough({ highWaterMark });
+    body.pipe(p1);
+    body.pipe(p2);
+    instance[INTERNALS].stream = p1;
+    body = p2;
+  }
+  return body;
+};
+var getNonSpecFormDataBoundary = (0, import_node_util.deprecate)(
+  (body) => body.getBoundary(),
+  "form-data doesn't follow the spec and requires special treatment. Use alternative package",
+  "https://github.com/node-fetch/node-fetch/issues/1167"
+);
+var extractContentType = (body, request) => {
+  if (body === null) {
+    return null;
+  }
+  if (typeof body === "string") {
+    return "text/plain;charset=UTF-8";
+  }
+  if (isURLSearchParameters(body)) {
+    return "application/x-www-form-urlencoded;charset=UTF-8";
+  }
+  if (isBlob(body)) {
+    return body.type || null;
+  }
+  if (import_node_buffer.Buffer.isBuffer(body) || import_node_util.types.isAnyArrayBuffer(body) || ArrayBuffer.isView(body)) {
+    return null;
+  }
+  if (body instanceof FormData) {
+    return `multipart/form-data; boundary=${request[INTERNALS].boundary}`;
+  }
+  if (body && typeof body.getBoundary === "function") {
+    return `multipart/form-data;boundary=${getNonSpecFormDataBoundary(body)}`;
+  }
+  if (body instanceof import_node_stream.default) {
+    return null;
+  }
+  return "text/plain;charset=UTF-8";
+};
+var getTotalBytes = (request) => {
+  const { body } = request[INTERNALS];
+  if (body === null) {
+    return 0;
+  }
+  if (isBlob(body)) {
+    return body.size;
+  }
+  if (import_node_buffer.Buffer.isBuffer(body)) {
+    return body.length;
+  }
+  if (body && typeof body.getLengthSync === "function") {
+    return body.hasKnownLength && body.hasKnownLength() ? body.getLengthSync() : null;
+  }
+  return null;
+};
+var writeToStream = async (dest, { body }) => {
+  if (body === null) {
+    dest.end();
+  } else {
+    await pipeline(body, dest);
+  }
+};
+
+// node_modules/node-fetch/src/headers.js
+var import_node_util2 = require("node:util");
+var import_node_http = __toESM(require("node:http"), 1);
+var validateHeaderName = typeof import_node_http.default.validateHeaderName === "function" ? import_node_http.default.validateHeaderName : (name) => {
+  if (!/^[\^`\-\w!#$%&'*+.|~]+$/.test(name)) {
+    const error = new TypeError(`Header name must be a valid HTTP token [${name}]`);
+    Object.defineProperty(error, "code", { value: "ERR_INVALID_HTTP_TOKEN" });
+    throw error;
+  }
+};
+var validateHeaderValue = typeof import_node_http.default.validateHeaderValue === "function" ? import_node_http.default.validateHeaderValue : (name, value) => {
+  if (/[^\t\u0020-\u007E\u0080-\u00FF]/.test(value)) {
+    const error = new TypeError(`Invalid character in header content ["${name}"]`);
+    Object.defineProperty(error, "code", { value: "ERR_INVALID_CHAR" });
+    throw error;
+  }
+};
+var Headers = class _Headers extends URLSearchParams {
+  /**
+   * Headers class
+   *
+   * @constructor
+   * @param {HeadersInit} [init] - Response headers
+   */
+  constructor(init) {
+    let result = [];
+    if (init instanceof _Headers) {
+      const raw = init.raw();
+      for (const [name, values] of Object.entries(raw)) {
+        result.push(...values.map((value) => [name, value]));
+      }
+    } else if (init == null) {
+    } else if (typeof init === "object" && !import_node_util2.types.isBoxedPrimitive(init)) {
+      const method = init[Symbol.iterator];
+      if (method == null) {
+        result.push(...Object.entries(init));
+      } else {
+        if (typeof method !== "function") {
+          throw new TypeError("Header pairs must be iterable");
+        }
+        result = [...init].map((pair) => {
+          if (typeof pair !== "object" || import_node_util2.types.isBoxedPrimitive(pair)) {
+            throw new TypeError("Each header pair must be an iterable object");
+          }
+          return [...pair];
+        }).map((pair) => {
+          if (pair.length !== 2) {
+            throw new TypeError("Each header pair must be a name/value tuple");
+          }
+          return [...pair];
+        });
+      }
+    } else {
+      throw new TypeError("Failed to construct 'Headers': The provided value is not of type '(sequence<sequence<ByteString>> or record<ByteString, ByteString>)");
+    }
+    result = result.length > 0 ? result.map(([name, value]) => {
+      validateHeaderName(name);
+      validateHeaderValue(name, String(value));
+      return [String(name).toLowerCase(), String(value)];
+    }) : void 0;
+    super(result);
+    return new Proxy(this, {
+      get(target, p, receiver) {
+        switch (p) {
+          case "append":
+          case "set":
+            return (name, value) => {
+              validateHeaderName(name);
+              validateHeaderValue(name, String(value));
+              return URLSearchParams.prototype[p].call(
+                target,
+                String(name).toLowerCase(),
+                String(value)
+              );
+            };
+          case "delete":
+          case "has":
+          case "getAll":
+            return (name) => {
+              validateHeaderName(name);
+              return URLSearchParams.prototype[p].call(
+                target,
+                String(name).toLowerCase()
+              );
+            };
+          case "keys":
+            return () => {
+              target.sort();
+              return new Set(URLSearchParams.prototype.keys.call(target)).keys();
+            };
+          default:
+            return Reflect.get(target, p, receiver);
+        }
+      }
+    });
+  }
+  get [Symbol.toStringTag]() {
+    return this.constructor.name;
+  }
+  toString() {
+    return Object.prototype.toString.call(this);
+  }
+  get(name) {
+    const values = this.getAll(name);
+    if (values.length === 0) {
+      return null;
+    }
+    let value = values.join(", ");
+    if (/^content-encoding$/i.test(name)) {
+      value = value.toLowerCase();
+    }
+    return value;
+  }
+  forEach(callback, thisArg = void 0) {
+    for (const name of this.keys()) {
+      Reflect.apply(callback, thisArg, [this.get(name), name, this]);
+    }
+  }
+  *values() {
+    for (const name of this.keys()) {
+      yield this.get(name);
+    }
+  }
+  /**
+   * @type {() => IterableIterator<[string, string]>}
+   */
+  *entries() {
+    for (const name of this.keys()) {
+      yield [name, this.get(name)];
+    }
+  }
+  [Symbol.iterator]() {
+    return this.entries();
+  }
+  /**
+   * Node-fetch non-spec method
+   * returning all headers and their values as array
+   * @returns {Record<string, string[]>}
+   */
+  raw() {
+    return [...this.keys()].reduce((result, key) => {
+      result[key] = this.getAll(key);
+      return result;
+    }, {});
+  }
+  /**
+   * For better console.log(headers) and also to convert Headers into Node.js Request compatible format
+   */
+  [Symbol.for("nodejs.util.inspect.custom")]() {
+    return [...this.keys()].reduce((result, key) => {
+      const values = this.getAll(key);
+      if (key === "host") {
+        result[key] = values[0];
+      } else {
+        result[key] = values.length > 1 ? values : values[0];
+      }
+      return result;
+    }, {});
+  }
+};
+Object.defineProperties(
+  Headers.prototype,
+  ["get", "entries", "forEach", "values"].reduce((result, property) => {
+    result[property] = { enumerable: true };
+    return result;
+  }, {})
+);
+function fromRawHeaders(headers = []) {
+  return new Headers(
+    headers.reduce((result, value, index, array) => {
+      if (index % 2 === 0) {
+        result.push(array.slice(index, index + 2));
+      }
+      return result;
+    }, []).filter(([name, value]) => {
+      try {
+        validateHeaderName(name);
+        validateHeaderValue(name, String(value));
+        return true;
+      } catch {
+        return false;
+      }
+    })
+  );
+}
+
+// node_modules/node-fetch/src/utils/is-redirect.js
+var redirectStatus = /* @__PURE__ */ new Set([301, 302, 303, 307, 308]);
+var isRedirect = (code) => {
+  return redirectStatus.has(code);
+};
+
+// node_modules/node-fetch/src/response.js
+var INTERNALS2 = Symbol("Response internals");
+var Response = class _Response extends Body {
+  constructor(body = null, options = {}) {
+    super(body, options);
+    const status = options.status != null ? options.status : 200;
+    const headers = new Headers(options.headers);
+    if (body !== null && !headers.has("Content-Type")) {
+      const contentType = extractContentType(body, this);
+      if (contentType) {
+        headers.append("Content-Type", contentType);
+      }
+    }
+    this[INTERNALS2] = {
+      type: "default",
+      url: options.url,
+      status,
+      statusText: options.statusText || "",
+      headers,
+      counter: options.counter,
+      highWaterMark: options.highWaterMark
+    };
+  }
+  get type() {
+    return this[INTERNALS2].type;
+  }
+  get url() {
+    return this[INTERNALS2].url || "";
+  }
+  get status() {
+    return this[INTERNALS2].status;
+  }
+  /**
+   * Convenience property representing if the request ended normally
+   */
+  get ok() {
+    return this[INTERNALS2].status >= 200 && this[INTERNALS2].status < 300;
+  }
+  get redirected() {
+    return this[INTERNALS2].counter > 0;
+  }
+  get statusText() {
+    return this[INTERNALS2].statusText;
+  }
+  get headers() {
+    return this[INTERNALS2].headers;
+  }
+  get highWaterMark() {
+    return this[INTERNALS2].highWaterMark;
+  }
+  /**
+   * Clone this response
+   *
+   * @return  Response
+   */
+  clone() {
+    return new _Response(clone(this, this.highWaterMark), {
+      type: this.type,
+      url: this.url,
+      status: this.status,
+      statusText: this.statusText,
+      headers: this.headers,
+      ok: this.ok,
+      redirected: this.redirected,
+      size: this.size,
+      highWaterMark: this.highWaterMark
+    });
+  }
+  /**
+   * @param {string} url    The URL that the new response is to originate from.
+   * @param {number} status An optional status code for the response (e.g., 302.)
+   * @returns {Response}    A Response object.
+   */
+  static redirect(url, status = 302) {
+    if (!isRedirect(status)) {
+      throw new RangeError('Failed to execute "redirect" on "response": Invalid status code');
+    }
+    return new _Response(null, {
+      headers: {
+        location: new URL(url).toString()
+      },
+      status
+    });
+  }
+  static error() {
+    const response = new _Response(null, { status: 0, statusText: "" });
+    response[INTERNALS2].type = "error";
+    return response;
+  }
+  static json(data = void 0, init = {}) {
+    const body = JSON.stringify(data);
+    if (body === void 0) {
+      throw new TypeError("data is not JSON serializable");
+    }
+    const headers = new Headers(init && init.headers);
+    if (!headers.has("content-type")) {
+      headers.set("content-type", "application/json");
+    }
+    return new _Response(body, {
+      ...init,
+      headers
+    });
+  }
+  get [Symbol.toStringTag]() {
+    return "Response";
+  }
+};
+Object.defineProperties(Response.prototype, {
+  type: { enumerable: true },
+  url: { enumerable: true },
+  status: { enumerable: true },
+  ok: { enumerable: true },
+  redirected: { enumerable: true },
+  statusText: { enumerable: true },
+  headers: { enumerable: true },
+  clone: { enumerable: true }
+});
+
+// node_modules/node-fetch/src/request.js
+var import_node_url = require("node:url");
+var import_node_util3 = require("node:util");
+
+// node_modules/node-fetch/src/utils/get-search.js
+var getSearch = (parsedURL) => {
+  if (parsedURL.search) {
+    return parsedURL.search;
+  }
+  const lastOffset = parsedURL.href.length - 1;
+  const hash = parsedURL.hash || (parsedURL.href[lastOffset] === "#" ? "#" : "");
+  return parsedURL.href[lastOffset - hash.length] === "?" ? "?" : "";
+};
+
+// node_modules/node-fetch/src/utils/referrer.js
+var import_node_net = require("node:net");
+function stripURLForUseAsAReferrer(url, originOnly = false) {
+  if (url == null) {
+    return "no-referrer";
+  }
+  url = new URL(url);
+  if (/^(about|blob|data):$/.test(url.protocol)) {
+    return "no-referrer";
+  }
+  url.username = "";
+  url.password = "";
+  url.hash = "";
+  if (originOnly) {
+    url.pathname = "";
+    url.search = "";
+  }
+  return url;
+}
+var ReferrerPolicy = /* @__PURE__ */ new Set([
+  "",
+  "no-referrer",
+  "no-referrer-when-downgrade",
+  "same-origin",
+  "origin",
+  "strict-origin",
+  "origin-when-cross-origin",
+  "strict-origin-when-cross-origin",
+  "unsafe-url"
+]);
+var DEFAULT_REFERRER_POLICY = "strict-origin-when-cross-origin";
+function validateReferrerPolicy(referrerPolicy) {
+  if (!ReferrerPolicy.has(referrerPolicy)) {
+    throw new TypeError(`Invalid referrerPolicy: ${referrerPolicy}`);
+  }
+  return referrerPolicy;
+}
+function isOriginPotentiallyTrustworthy(url) {
+  if (/^(http|ws)s:$/.test(url.protocol)) {
+    return true;
+  }
+  const hostIp = url.host.replace(/(^\[)|(]$)/g, "");
+  const hostIPVersion = (0, import_node_net.isIP)(hostIp);
+  if (hostIPVersion === 4 && /^127\./.test(hostIp)) {
+    return true;
+  }
+  if (hostIPVersion === 6 && /^(((0+:){7})|(::(0+:){0,6}))0*1$/.test(hostIp)) {
+    return true;
+  }
+  if (url.host === "localhost" || url.host.endsWith(".localhost")) {
+    return false;
+  }
+  if (url.protocol === "file:") {
+    return true;
+  }
+  return false;
+}
+function isUrlPotentiallyTrustworthy(url) {
+  if (/^about:(blank|srcdoc)$/.test(url)) {
+    return true;
+  }
+  if (url.protocol === "data:") {
+    return true;
+  }
+  if (/^(blob|filesystem):$/.test(url.protocol)) {
+    return true;
+  }
+  return isOriginPotentiallyTrustworthy(url);
+}
+function determineRequestsReferrer(request, { referrerURLCallback, referrerOriginCallback } = {}) {
+  if (request.referrer === "no-referrer" || request.referrerPolicy === "") {
+    return null;
+  }
+  const policy = request.referrerPolicy;
+  if (request.referrer === "about:client") {
+    return "no-referrer";
+  }
+  const referrerSource = request.referrer;
+  let referrerURL = stripURLForUseAsAReferrer(referrerSource);
+  let referrerOrigin = stripURLForUseAsAReferrer(referrerSource, true);
+  if (referrerURL.toString().length > 4096) {
+    referrerURL = referrerOrigin;
+  }
+  if (referrerURLCallback) {
+    referrerURL = referrerURLCallback(referrerURL);
+  }
+  if (referrerOriginCallback) {
+    referrerOrigin = referrerOriginCallback(referrerOrigin);
+  }
+  const currentURL = new URL(request.url);
+  switch (policy) {
+    case "no-referrer":
+      return "no-referrer";
+    case "origin":
+      return referrerOrigin;
+    case "unsafe-url":
+      return referrerURL;
+    case "strict-origin":
+      if (isUrlPotentiallyTrustworthy(referrerURL) && !isUrlPotentiallyTrustworthy(currentURL)) {
+        return "no-referrer";
+      }
+      return referrerOrigin.toString();
+    case "strict-origin-when-cross-origin":
+      if (referrerURL.origin === currentURL.origin) {
+        return referrerURL;
+      }
+      if (isUrlPotentiallyTrustworthy(referrerURL) && !isUrlPotentiallyTrustworthy(currentURL)) {
+        return "no-referrer";
+      }
+      return referrerOrigin;
+    case "same-origin":
+      if (referrerURL.origin === currentURL.origin) {
+        return referrerURL;
+      }
+      return "no-referrer";
+    case "origin-when-cross-origin":
+      if (referrerURL.origin === currentURL.origin) {
+        return referrerURL;
+      }
+      return referrerOrigin;
+    case "no-referrer-when-downgrade":
+      if (isUrlPotentiallyTrustworthy(referrerURL) && !isUrlPotentiallyTrustworthy(currentURL)) {
+        return "no-referrer";
+      }
+      return referrerURL;
+    default:
+      throw new TypeError(`Invalid referrerPolicy: ${policy}`);
+  }
+}
+function parseReferrerPolicyFromHeader(headers) {
+  const policyTokens = (headers.get("referrer-policy") || "").split(/[,\s]+/);
+  let policy = "";
+  for (const token of policyTokens) {
+    if (token && ReferrerPolicy.has(token)) {
+      policy = token;
+    }
+  }
+  return policy;
+}
+
+// node_modules/node-fetch/src/request.js
+var INTERNALS3 = Symbol("Request internals");
+var isRequest = (object) => {
+  return typeof object === "object" && typeof object[INTERNALS3] === "object";
+};
+var doBadDataWarn = (0, import_node_util3.deprecate)(
+  () => {
+  },
+  ".data is not a valid RequestInit property, use .body instead",
+  "https://github.com/node-fetch/node-fetch/issues/1000 (request)"
+);
+var Request = class _Request extends Body {
+  constructor(input, init = {}) {
+    let parsedURL;
+    if (isRequest(input)) {
+      parsedURL = new URL(input.url);
+    } else {
+      parsedURL = new URL(input);
+      input = {};
+    }
+    if (parsedURL.username !== "" || parsedURL.password !== "") {
+      throw new TypeError(`${parsedURL} is an url with embedded credentials.`);
+    }
+    let method = init.method || input.method || "GET";
+    if (/^(delete|get|head|options|post|put)$/i.test(method)) {
+      method = method.toUpperCase();
+    }
+    if (!isRequest(init) && "data" in init) {
+      doBadDataWarn();
+    }
+    if ((init.body != null || isRequest(input) && input.body !== null) && (method === "GET" || method === "HEAD")) {
+      throw new TypeError("Request with GET/HEAD method cannot have body");
+    }
+    const inputBody = init.body ? init.body : isRequest(input) && input.body !== null ? clone(input) : null;
+    super(inputBody, {
+      size: init.size || input.size || 0
+    });
+    const headers = new Headers(init.headers || input.headers || {});
+    if (inputBody !== null && !headers.has("Content-Type")) {
+      const contentType = extractContentType(inputBody, this);
+      if (contentType) {
+        headers.set("Content-Type", contentType);
+      }
+    }
+    let signal = isRequest(input) ? input.signal : null;
+    if ("signal" in init) {
+      signal = init.signal;
+    }
+    if (signal != null && !isAbortSignal(signal)) {
+      throw new TypeError("Expected signal to be an instanceof AbortSignal or EventTarget");
+    }
+    let referrer = init.referrer == null ? input.referrer : init.referrer;
+    if (referrer === "") {
+      referrer = "no-referrer";
+    } else if (referrer) {
+      const parsedReferrer = new URL(referrer);
+      referrer = /^about:(\/\/)?client$/.test(parsedReferrer) ? "client" : parsedReferrer;
+    } else {
+      referrer = void 0;
+    }
+    this[INTERNALS3] = {
+      method,
+      redirect: init.redirect || input.redirect || "follow",
+      headers,
+      parsedURL,
+      signal,
+      referrer
+    };
+    this.follow = init.follow === void 0 ? input.follow === void 0 ? 20 : input.follow : init.follow;
+    this.compress = init.compress === void 0 ? input.compress === void 0 ? true : input.compress : init.compress;
+    this.counter = init.counter || input.counter || 0;
+    this.agent = init.agent || input.agent;
+    this.highWaterMark = init.highWaterMark || input.highWaterMark || 16384;
+    this.insecureHTTPParser = init.insecureHTTPParser || input.insecureHTTPParser || false;
+    this.referrerPolicy = init.referrerPolicy || input.referrerPolicy || "";
+  }
+  /** @returns {string} */
+  get method() {
+    return this[INTERNALS3].method;
+  }
+  /** @returns {string} */
+  get url() {
+    return (0, import_node_url.format)(this[INTERNALS3].parsedURL);
+  }
+  /** @returns {Headers} */
+  get headers() {
+    return this[INTERNALS3].headers;
+  }
+  get redirect() {
+    return this[INTERNALS3].redirect;
+  }
+  /** @returns {AbortSignal} */
+  get signal() {
+    return this[INTERNALS3].signal;
+  }
+  // https://fetch.spec.whatwg.org/#dom-request-referrer
+  get referrer() {
+    if (this[INTERNALS3].referrer === "no-referrer") {
+      return "";
+    }
+    if (this[INTERNALS3].referrer === "client") {
+      return "about:client";
+    }
+    if (this[INTERNALS3].referrer) {
+      return this[INTERNALS3].referrer.toString();
+    }
+    return void 0;
+  }
+  get referrerPolicy() {
+    return this[INTERNALS3].referrerPolicy;
+  }
+  set referrerPolicy(referrerPolicy) {
+    this[INTERNALS3].referrerPolicy = validateReferrerPolicy(referrerPolicy);
+  }
+  /**
+   * Clone this request
+   *
+   * @return  Request
+   */
+  clone() {
+    return new _Request(this);
+  }
+  get [Symbol.toStringTag]() {
+    return "Request";
+  }
+};
+Object.defineProperties(Request.prototype, {
+  method: { enumerable: true },
+  url: { enumerable: true },
+  headers: { enumerable: true },
+  redirect: { enumerable: true },
+  clone: { enumerable: true },
+  signal: { enumerable: true },
+  referrer: { enumerable: true },
+  referrerPolicy: { enumerable: true }
+});
+var getNodeRequestOptions = (request) => {
+  const { parsedURL } = request[INTERNALS3];
+  const headers = new Headers(request[INTERNALS3].headers);
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "*/*");
+  }
+  let contentLengthValue = null;
+  if (request.body === null && /^(post|put)$/i.test(request.method)) {
+    contentLengthValue = "0";
+  }
+  if (request.body !== null) {
+    const totalBytes = getTotalBytes(request);
+    if (typeof totalBytes === "number" && !Number.isNaN(totalBytes)) {
+      contentLengthValue = String(totalBytes);
+    }
+  }
+  if (contentLengthValue) {
+    headers.set("Content-Length", contentLengthValue);
+  }
+  if (request.referrerPolicy === "") {
+    request.referrerPolicy = DEFAULT_REFERRER_POLICY;
+  }
+  if (request.referrer && request.referrer !== "no-referrer") {
+    request[INTERNALS3].referrer = determineRequestsReferrer(request);
+  } else {
+    request[INTERNALS3].referrer = "no-referrer";
+  }
+  if (request[INTERNALS3].referrer instanceof URL) {
+    headers.set("Referer", request.referrer);
+  }
+  if (!headers.has("User-Agent")) {
+    headers.set("User-Agent", "node-fetch");
+  }
+  if (request.compress && !headers.has("Accept-Encoding")) {
+    headers.set("Accept-Encoding", "gzip, deflate, br");
+  }
+  let { agent } = request;
+  if (typeof agent === "function") {
+    agent = agent(parsedURL);
+  }
+  const search = getSearch(parsedURL);
+  const options = {
+    // Overwrite search to retain trailing ? (issue #776)
+    path: parsedURL.pathname + search,
+    // The following options are not expressed in the URL
+    method: request.method,
+    headers: headers[Symbol.for("nodejs.util.inspect.custom")](),
+    insecureHTTPParser: request.insecureHTTPParser,
+    agent
+  };
+  return {
+    /** @type {URL} */
+    parsedURL,
+    options
+  };
+};
+
+// node_modules/node-fetch/src/errors/abort-error.js
+var AbortError = class extends FetchBaseError {
+  constructor(message, type = "aborted") {
+    super(message, type);
+  }
+};
+
+// node_modules/node-fetch/src/index.js
+init_esm_min();
+init_from();
+var supportedSchemas = /* @__PURE__ */ new Set(["data:", "http:", "https:"]);
+async function fetch2(url, options_) {
+  return new Promise((resolve, reject) => {
+    const request = new Request(url, options_);
+    const { parsedURL, options } = getNodeRequestOptions(request);
+    if (!supportedSchemas.has(parsedURL.protocol)) {
+      throw new TypeError(`node-fetch cannot load ${url}. URL scheme "${parsedURL.protocol.replace(/:$/, "")}" is not supported.`);
+    }
+    if (parsedURL.protocol === "data:") {
+      const data = dist_default(request.url);
+      const response2 = new Response(data, { headers: { "Content-Type": data.typeFull } });
+      resolve(response2);
+      return;
+    }
+    const send = (parsedURL.protocol === "https:" ? import_node_https.default : import_node_http2.default).request;
+    const { signal } = request;
+    let response = null;
+    const abort = () => {
+      const error = new AbortError("The operation was aborted.");
+      reject(error);
+      if (request.body && request.body instanceof import_node_stream2.default.Readable) {
+        request.body.destroy(error);
+      }
+      if (!response || !response.body) {
+        return;
+      }
+      response.body.emit("error", error);
+    };
+    if (signal && signal.aborted) {
+      abort();
+      return;
+    }
+    const abortAndFinalize = () => {
+      abort();
+      finalize();
+    };
+    const request_ = send(parsedURL.toString(), options);
+    if (signal) {
+      signal.addEventListener("abort", abortAndFinalize);
+    }
+    const finalize = () => {
+      request_.abort();
+      if (signal) {
+        signal.removeEventListener("abort", abortAndFinalize);
+      }
+    };
+    request_.on("error", (error) => {
+      reject(new FetchError(`request to ${request.url} failed, reason: ${error.message}`, "system", error));
+      finalize();
+    });
+    fixResponseChunkedTransferBadEnding(request_, (error) => {
+      if (response && response.body) {
+        response.body.destroy(error);
+      }
+    });
+    if (process.version < "v14") {
+      request_.on("socket", (s2) => {
+        let endedWithEventsCount;
+        s2.prependListener("end", () => {
+          endedWithEventsCount = s2._eventsCount;
+        });
+        s2.prependListener("close", (hadError) => {
+          if (response && endedWithEventsCount < s2._eventsCount && !hadError) {
+            const error = new Error("Premature close");
+            error.code = "ERR_STREAM_PREMATURE_CLOSE";
+            response.body.emit("error", error);
+          }
+        });
+      });
+    }
+    request_.on("response", (response_) => {
+      request_.setTimeout(0);
+      const headers = fromRawHeaders(response_.rawHeaders);
+      if (isRedirect(response_.statusCode)) {
+        const location = headers.get("Location");
+        let locationURL = null;
+        try {
+          locationURL = location === null ? null : new URL(location, request.url);
+        } catch {
+          if (request.redirect !== "manual") {
+            reject(new FetchError(`uri requested responds with an invalid redirect URL: ${location}`, "invalid-redirect"));
+            finalize();
+            return;
+          }
+        }
+        switch (request.redirect) {
+          case "error":
+            reject(new FetchError(`uri requested responds with a redirect, redirect mode is set to error: ${request.url}`, "no-redirect"));
+            finalize();
+            return;
+          case "manual":
+            break;
+          case "follow": {
+            if (locationURL === null) {
+              break;
+            }
+            if (request.counter >= request.follow) {
+              reject(new FetchError(`maximum redirect reached at: ${request.url}`, "max-redirect"));
+              finalize();
+              return;
+            }
+            const requestOptions = {
+              headers: new Headers(request.headers),
+              follow: request.follow,
+              counter: request.counter + 1,
+              agent: request.agent,
+              compress: request.compress,
+              method: request.method,
+              body: clone(request),
+              signal: request.signal,
+              size: request.size,
+              referrer: request.referrer,
+              referrerPolicy: request.referrerPolicy
+            };
+            if (!isDomainOrSubdomain(request.url, locationURL) || !isSameProtocol(request.url, locationURL)) {
+              for (const name of ["authorization", "www-authenticate", "cookie", "cookie2"]) {
+                requestOptions.headers.delete(name);
+              }
+            }
+            if (response_.statusCode !== 303 && request.body && options_.body instanceof import_node_stream2.default.Readable) {
+              reject(new FetchError("Cannot follow redirect with body being a readable stream", "unsupported-redirect"));
+              finalize();
+              return;
+            }
+            if (response_.statusCode === 303 || (response_.statusCode === 301 || response_.statusCode === 302) && request.method === "POST") {
+              requestOptions.method = "GET";
+              requestOptions.body = void 0;
+              requestOptions.headers.delete("content-length");
+            }
+            const responseReferrerPolicy = parseReferrerPolicyFromHeader(headers);
+            if (responseReferrerPolicy) {
+              requestOptions.referrerPolicy = responseReferrerPolicy;
+            }
+            resolve(fetch2(new Request(locationURL, requestOptions)));
+            finalize();
+            return;
+          }
+          default:
+            return reject(new TypeError(`Redirect option '${request.redirect}' is not a valid value of RequestRedirect`));
+        }
+      }
+      if (signal) {
+        response_.once("end", () => {
+          signal.removeEventListener("abort", abortAndFinalize);
+        });
+      }
+      let body = (0, import_node_stream2.pipeline)(response_, new import_node_stream2.PassThrough(), (error) => {
+        if (error) {
+          reject(error);
+        }
+      });
+      if (process.version < "v12.10") {
+        response_.on("aborted", abortAndFinalize);
+      }
+      const responseOptions = {
+        url: request.url,
+        status: response_.statusCode,
+        statusText: response_.statusMessage,
+        headers,
+        size: request.size,
+        counter: request.counter,
+        highWaterMark: request.highWaterMark
+      };
+      const codings = headers.get("Content-Encoding");
+      if (!request.compress || request.method === "HEAD" || codings === null || response_.statusCode === 204 || response_.statusCode === 304) {
+        response = new Response(body, responseOptions);
+        resolve(response);
+        return;
+      }
+      const zlibOptions = {
+        flush: import_node_zlib.default.Z_SYNC_FLUSH,
+        finishFlush: import_node_zlib.default.Z_SYNC_FLUSH
+      };
+      if (codings === "gzip" || codings === "x-gzip") {
+        body = (0, import_node_stream2.pipeline)(body, import_node_zlib.default.createGunzip(zlibOptions), (error) => {
+          if (error) {
+            reject(error);
+          }
+        });
+        response = new Response(body, responseOptions);
+        resolve(response);
+        return;
+      }
+      if (codings === "deflate" || codings === "x-deflate") {
+        const raw = (0, import_node_stream2.pipeline)(response_, new import_node_stream2.PassThrough(), (error) => {
+          if (error) {
+            reject(error);
+          }
+        });
+        raw.once("data", (chunk) => {
+          if ((chunk[0] & 15) === 8) {
+            body = (0, import_node_stream2.pipeline)(body, import_node_zlib.default.createInflate(), (error) => {
+              if (error) {
+                reject(error);
+              }
+            });
+          } else {
+            body = (0, import_node_stream2.pipeline)(body, import_node_zlib.default.createInflateRaw(), (error) => {
+              if (error) {
+                reject(error);
+              }
+            });
+          }
+          response = new Response(body, responseOptions);
+          resolve(response);
+        });
+        raw.once("end", () => {
+          if (!response) {
+            response = new Response(body, responseOptions);
+            resolve(response);
+          }
+        });
+        return;
+      }
+      if (codings === "br") {
+        body = (0, import_node_stream2.pipeline)(body, import_node_zlib.default.createBrotliDecompress(), (error) => {
+          if (error) {
+            reject(error);
+          }
+        });
+        response = new Response(body, responseOptions);
+        resolve(response);
+        return;
+      }
+      response = new Response(body, responseOptions);
+      resolve(response);
+    });
+    writeToStream(request_, request).catch(reject);
+  });
+}
+function fixResponseChunkedTransferBadEnding(request, errorCallback) {
+  const LAST_CHUNK = import_node_buffer2.Buffer.from("0\r\n\r\n");
+  let isChunkedTransfer = false;
+  let properLastChunkReceived = false;
+  let previousChunk;
+  request.on("response", (response) => {
+    const { headers } = response;
+    isChunkedTransfer = headers["transfer-encoding"] === "chunked" && !headers["content-length"];
+  });
+  request.on("socket", (socket) => {
+    const onSocketClose = () => {
+      if (isChunkedTransfer && !properLastChunkReceived) {
+        const error = new Error("Premature close");
+        error.code = "ERR_STREAM_PREMATURE_CLOSE";
+        errorCallback(error);
+      }
+    };
+    const onData = (buf) => {
+      properLastChunkReceived = import_node_buffer2.Buffer.compare(buf.slice(-5), LAST_CHUNK) === 0;
+      if (!properLastChunkReceived && previousChunk) {
+        properLastChunkReceived = import_node_buffer2.Buffer.compare(previousChunk.slice(-3), LAST_CHUNK.slice(0, 3)) === 0 && import_node_buffer2.Buffer.compare(buf.slice(-2), LAST_CHUNK.slice(3)) === 0;
+      }
+      previousChunk = buf;
+    };
+    socket.prependListener("close", onSocketClose);
+    socket.on("data", onData);
+    request.on("close", () => {
+      socket.removeListener("close", onSocketClose);
+      socket.removeListener("data", onData);
+    });
+  });
+}
+
+// src/services/ConfigurationService.ts
+var vscode5 = __toESM(require("vscode"));
+var ConfigurationService = class _ConfigurationService {
+  constructor() {
+  }
+  static getInstance() {
+    if (!_ConfigurationService.instance) {
+      _ConfigurationService.instance = new _ConfigurationService();
+    }
+    return _ConfigurationService.instance;
+  }
+  /**
+   * Obtém a configuração atual da extensão
+   */
+  getConfig() {
+    const config = vscode5.workspace.getConfiguration("xcopilot");
+    return {
+      backendUrl: config.get("backendUrl") || "http://localhost:3000",
+      inlineCompletion: {
+        enabled: config.get("inlineCompletion.enabled") ?? true,
+        throttleMs: config.get("inlineCompletion.throttleMs") || 300,
+        cacheSize: config.get("inlineCompletion.cacheSize") || 100,
+        maxContextLines: config.get("inlineCompletion.maxContextLines") || 15
+      },
+      ghostText: {
+        enabled: config.get("ghostText.enabled") ?? true,
+        throttleMs: config.get("ghostText.throttleMs") || 300
+      }
+    };
+  }
+  /**
+   * Obtém a URL do endpoint OpenAI do backend
+   */
+  getBackendUrl() {
+    const config = this.getConfig();
+    let base = config.backendUrl.trim();
+    if (base.endsWith("/")) {
+      base = base.slice(0, -1);
+    }
+    if (!/\/openai$/.test(base)) {
+      base += "/openai";
+    }
+    Logger.debug(`Backend URL configured: ${base}`);
+    return base;
+  }
+  /**
+   * Monitora mudanças na configuração
+   */
+  onConfigurationChanged(callback) {
+    return vscode5.workspace.onDidChangeConfiguration((e2) => {
+      if (e2.affectsConfiguration("xcopilot.backendUrl") || e2.affectsConfiguration("xcopilot.inlineCompletion") || e2.affectsConfiguration("xcopilot.ghostText")) {
+        Logger.info("Configuration changed");
+        callback();
+      }
+    });
+  }
+};
+
+// src/services/BackendService.ts
+var BackendService = class _BackendService {
+  constructor() {
+    this.configService = ConfigurationService.getInstance();
+  }
+  static getInstance() {
+    if (!_BackendService.instance) {
+      _BackendService.instance = new _BackendService();
+    }
+    return _BackendService.instance;
+  }
+  /**
+   * Envia uma pergunta para o backend e retorna a resposta
+   */
+  async askQuestion(prompt) {
+    const endpoint = this.configService.getBackendUrl();
+    Logger.info(`Sending request to backend: ${endpoint}`);
+    Logger.debug(`Prompt: ${prompt}`);
+    try {
+      const response = await fetch2(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({ prompt })
+      });
+      Logger.debug(`Response status: ${response.status}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        const error = {
+          status: response.status,
+          message: errorText || response.statusText
+        };
+        Logger.error(`Backend error: ${error.status} - ${error.message}`);
+        return `Erro HTTP ${error.status}: ${error.message}`;
+      }
+      const data = await response.json();
+      Logger.debug("Backend response received successfully");
+      return data.resposta || data.response || JSON.stringify(data);
+    } catch (error) {
+      Logger.error("Network error:", error);
+      if (error.code === "ECONNREFUSED") {
+        return `Erro: N\xE3o foi poss\xEDvel conectar ao backend em ${endpoint}. Verifique se o servidor est\xE1 rodando.`;
+      }
+      return `Falha na requisi\xE7\xE3o: ${error.message}`;
+    }
+  }
+  /**
+   * Testa a conexão com o backend
+   */
+  async testConnection() {
+    try {
+      const response = await this.askQuestion("test");
+      return !response.startsWith("Erro");
+    } catch {
+      return false;
+    }
+  }
+  /**
+   * Solicita completion inline otimizada para código
+   */
+  async requestCodeCompletion(options) {
+    const backendUrl = this.configService.getBackendUrl();
+    const completionEndpoint = backendUrl.replace("/openai", "/api/completion");
+    Logger.debug(`Requesting code completion from: ${completionEndpoint}`);
+    try {
+      const response = await fetch2(completionEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify(options)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        Logger.error(`Completion API error: ${response.status} - ${errorText}`);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      const data = await response.json();
+      Logger.debug(`Completion received in ${data.duration}ms`);
+      return {
+        completion: data.completion || "",
+        duration: data.duration || 0,
+        cached: data.cached || false
+      };
+    } catch (error) {
+      Logger.error("Completion request error:", error);
+      throw error;
+    }
+  }
+  /**
+   * Solicita geração de código multi-linha
+   */
+  async requestMultilineGeneration(options) {
+    const backendUrl = this.configService.getBackendUrl();
+    const generationEndpoint = backendUrl.replace("/openai", "/api/generate-function");
+    Logger.debug(`Requesting multiline generation from: ${generationEndpoint}`);
+    try {
+      const response = await fetch2(generationEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify(options)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        Logger.error(`Generation API error: ${response.status} - ${errorText}`);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      const data = await response.json();
+      Logger.debug(`Code generated in ${data.duration}ms`);
+      return {
+        code: data.code || "",
+        duration: data.duration || 0,
+        type: data.type || options.type
+      };
+    } catch (error) {
+      Logger.error("Multiline generation request error:", error);
+      throw error;
+    }
+  }
+};
+
+// src/services/CodeContextService.ts
+var vscode6 = __toESM(require("vscode"));
+var CodeContextService = class _CodeContextService {
+  constructor() {
+  }
+  static getInstance() {
+    if (!_CodeContextService.instance) {
+      _CodeContextService.instance = new _CodeContextService();
+    }
+    return _CodeContextService.instance;
+  }
+  /**
+   * Captura o contexto atual do editor
+   */
+  getCurrentContext(includeFullFile = false) {
+    const editor = vscode6.window.activeTextEditor;
+    if (!editor) {
+      Logger.warn("No active editor found");
+      return null;
+    }
+    const document = editor.document;
+    const selection = editor.selection;
+    const context = {
+      fileName: this.getFileName(document),
+      fileType: this.getFileType(document),
+      cursorPosition: {
+        line: selection.active.line,
+        character: selection.active.character
+      }
+    };
+    if (!selection.isEmpty) {
+      context.selectedText = document.getText(selection);
+      context.lineNumbers = {
+        start: selection.start.line + 1,
+        end: selection.end.line + 1
+      };
+      Logger.debug(`Selected text: ${context.selectedText.length} characters`);
+    }
+    if (includeFullFile) {
+      context.fullFileContent = document.getText();
+      Logger.debug(`Full file content: ${context.fullFileContent.length} characters`);
+    }
+    Logger.info(`Context captured for ${context.fileName} (${context.fileType})`);
+    return context;
+  }
+  /**
+   * Captura contexto com texto selecionado ou contexto ao redor do cursor
+   */
+  getContextWithFallback(lines = 10) {
+    const editor = vscode6.window.activeTextEditor;
+    if (!editor) {
+      return null;
+    }
+    const context = this.getCurrentContext();
+    if (!context) {
+      return null;
+    }
+    const document = editor.document;
+    const selection = editor.selection;
+    if (selection.isEmpty) {
+      const currentLine = selection.active.line;
+      const startLine = Math.max(0, currentLine - Math.floor(lines / 2));
+      const endLine = Math.min(document.lineCount - 1, currentLine + Math.floor(lines / 2));
+      const range = new vscode6.Range(startLine, 0, endLine, document.lineAt(endLine).text.length);
+      context.selectedText = document.getText(range);
+      context.lineNumbers = {
+        start: startLine + 1,
+        end: endLine + 1
+      };
+      Logger.debug(`Fallback context: lines ${startLine + 1}-${endLine + 1}`);
+    }
+    return context;
+  }
+  /**
+   * Obtém o nome do arquivo sem o caminho completo
+   */
+  getFileName(document) {
+    if (document.isUntitled) {
+      return `Untitled-${document.languageId}`;
+    }
+    const path2 = document.fileName;
+    const segments = path2.split(/[\\\/]/);
+    return segments[segments.length - 1];
+  }
+  /**
+   * Obtém o tipo de arquivo baseado na extensão e linguagem
+   */
+  getFileType(document) {
+    return document.languageId;
+  }
+  /**
+   * Formata o contexto para envio ao backend
+   */
+  formatContextForPrompt(context, userPrompt) {
+    let formattedPrompt = userPrompt;
+    if (context.fileName) {
+      formattedPrompt += `
+
+**Arquivo:** ${context.fileName}`;
+    }
+    if (context.fileType) {
+      formattedPrompt += `
+**Tipo:** ${context.fileType}`;
+    }
+    if (context.selectedText) {
+      const lineInfo = context.lineNumbers ? ` (linhas ${context.lineNumbers.start}-${context.lineNumbers.end})` : "";
+      formattedPrompt += `
+
+**C\xF3digo selecionado${lineInfo}:**
+\`\`\`${context.fileType}
+${context.selectedText}
+\`\`\``;
+    }
+    if (context.fullFileContent && !context.selectedText) {
+      formattedPrompt += `
+
+**Conte\xFAdo completo do arquivo:**
+\`\`\`${context.fileType}
+${context.fullFileContent}
+\`\`\``;
+    }
+    return formattedPrompt;
+  }
+  /**
+   * Verifica se há contexto útil disponível
+   */
+  hasUsefulContext() {
+    const editor = vscode6.window.activeTextEditor;
+    return editor !== void 0;
+  }
+  /**
+   * Obtém estatísticas do contexto atual
+   */
+  getContextStats() {
+    const editor = vscode6.window.activeTextEditor;
+    if (!editor) {
+      return null;
+    }
+    return {
+      fileName: this.getFileName(editor.document),
+      fileType: this.getFileType(editor.document),
+      hasSelection: !editor.selection.isEmpty,
+      linesInFile: editor.document.lineCount
+    };
+  }
+};
+
+// src/services/CodeExplanationService.ts
+var vscode7 = __toESM(require("vscode"));
+var CodeExplanationService = class _CodeExplanationService {
+  constructor() {
+    this.backendService = BackendService.getInstance();
+    this.contextService = CodeContextService.getInstance();
+    this.outputChannel = vscode7.window.createOutputChannel("xCopilot - Code Explanation");
+  }
+  static getInstance() {
+    if (!_CodeExplanationService.instance) {
+      _CodeExplanationService.instance = new _CodeExplanationService();
+    }
+    return _CodeExplanationService.instance;
+  }
+  /**
+   * Explica código selecionado
+   */
+  async explainSelectedCode() {
+    const editor = vscode7.window.activeTextEditor;
+    if (!editor) {
+      vscode7.window.showWarningMessage("Nenhum editor ativo encontrado");
+      return;
+    }
+    const selection = editor.selection;
+    const selectedText = editor.document.getText(selection);
+    if (!selectedText.trim()) {
+      vscode7.window.showWarningMessage("Selecione um c\xF3digo para explicar");
+      return;
+    }
+    try {
+      vscode7.window.withProgress({
+        location: vscode7.ProgressLocation.Notification,
+        title: "Analisando c\xF3digo...",
+        cancellable: true
+      }, async (progress, token) => {
+        const explanation = await this.generateDetailedExplanation(
+          editor.document,
+          selectedText,
+          selection
+        );
+        if (token.isCancellationRequested) {
+          return;
+        }
+        this.showExplanation(explanation, selectedText, editor.document.languageId);
+      });
+    } catch (error) {
+      Logger.error("Error explaining code:", error);
+      vscode7.window.showErrorMessage("Erro ao explicar c\xF3digo");
+    }
+  }
+  /**
+   * Explica função/método atual
+   */
+  async explainCurrentFunction() {
+    const editor = vscode7.window.activeTextEditor;
+    if (!editor) {
+      vscode7.window.showWarningMessage("Nenhum editor ativo encontrado");
+      return;
+    }
+    try {
+      const functionCode = await this.getFunctionAtCursor(editor);
+      if (!functionCode) {
+        vscode7.window.showWarningMessage("Nenhuma fun\xE7\xE3o encontrada na posi\xE7\xE3o atual");
+        return;
+      }
+      vscode7.window.withProgress({
+        location: vscode7.ProgressLocation.Notification,
+        title: "Analisando fun\xE7\xE3o...",
+        cancellable: true
+      }, async (progress, token) => {
+        const explanation = await this.generateFunctionExplanation(
+          editor.document,
+          functionCode
+        );
+        if (token.isCancellationRequested) {
+          return;
+        }
+        this.showExplanation(explanation, functionCode, editor.document.languageId);
+      });
+    } catch (error) {
+      Logger.error("Error explaining function:", error);
+      vscode7.window.showErrorMessage("Erro ao explicar fun\xE7\xE3o");
+    }
+  }
+  /**
+   * Explica arquivo completo
+   */
+  async explainEntireFile() {
+    const editor = vscode7.window.activeTextEditor;
+    if (!editor) {
+      vscode7.window.showWarningMessage("Nenhum editor ativo encontrado");
+      return;
+    }
+    const document = editor.document;
+    const fileContent = document.getText();
+    if (fileContent.length > 5e3) {
+      const choice = await vscode7.window.showWarningMessage(
+        "Arquivo muito grande. Isso pode demorar. Continuar?",
+        "Sim",
+        "N\xE3o"
+      );
+      if (choice !== "Sim") {
+        return;
+      }
+    }
+    try {
+      vscode7.window.withProgress({
+        location: vscode7.ProgressLocation.Notification,
+        title: "Analisando arquivo...",
+        cancellable: true
+      }, async (progress, token) => {
+        const explanation = await this.generateFileExplanation(document);
+        if (token.isCancellationRequested) {
+          return;
+        }
+        this.showExplanation(explanation, fileContent, document.languageId);
+      });
+    } catch (error) {
+      Logger.error("Error explaining file:", error);
+      vscode7.window.showErrorMessage("Erro ao explicar arquivo");
+    }
+  }
+  /**
+   * Gera explicação detalhada
+   */
+  async generateDetailedExplanation(document, code, selection) {
+    const context = this.contextService.getCurrentContext();
+    const startLine = Math.max(0, selection.start.line - 5);
+    const endLine = Math.min(document.lineCount - 1, selection.end.line + 5);
+    const surroundingCode = document.getText(
+      new vscode7.Range(startLine, 0, endLine, 0)
+    );
+    const prompt = `
+Forne\xE7a uma explica\xE7\xE3o detalhada e educativa do c\xF3digo selecionado:
+
+Linguagem: ${document.languageId}
+Arquivo: ${context?.fileName || "unknown"}
+
+C\xF3digo selecionado:
+\`\`\`${document.languageId}
+${code}
+\`\`\`
+
+Contexto ao redor:
+\`\`\`${document.languageId}
+${surroundingCode}
+\`\`\`
+
+Por favor, forne\xE7a uma explica\xE7\xE3o que inclua:
+
+1. **Prop\xF3sito**: O que este c\xF3digo faz
+2. **Como funciona**: Explica\xE7\xE3o linha por linha (se necess\xE1rio)
+3. **Conceitos**: Conceitos de programa\xE7\xE3o utilizados
+4. **Padr\xF5es**: Padr\xF5es de design ou boas pr\xE1ticas
+5. **Poss\xEDveis melhorias**: Sugest\xF5es de otimiza\xE7\xE3o
+6. **Complexidade**: An\xE1lise de complexidade (se aplic\xE1vel)
+7. **Depend\xEAncias**: Bibliotecas ou m\xF3dulos utilizados
+
+Use uma linguagem clara e educativa, adequada para desenvolvedores de diferentes n\xEDveis.`;
+    const response = await this.backendService.askQuestion(prompt);
+    return response || "N\xE3o foi poss\xEDvel gerar explica\xE7\xE3o para este c\xF3digo.";
+  }
+  /**
+   * Gera explicação de função
+   */
+  async generateFunctionExplanation(document, functionCode) {
+    const context = this.contextService.getCurrentContext();
+    const prompt = `
+Analise e explique esta fun\xE7\xE3o de forma detalhada:
+
+Linguagem: ${document.languageId}
+Arquivo: ${context?.fileName || "unknown"}
+
+Fun\xE7\xE3o:
+\`\`\`${document.languageId}
+${functionCode}
+\`\`\`
+
+Forne\xE7a uma an\xE1lise completa incluindo:
+
+1. **Assinatura**: Explica\xE7\xE3o dos par\xE2metros e tipo de retorno
+2. **Funcionamento**: Como a fun\xE7\xE3o opera internamente
+3. **Casos de uso**: Quando e como usar esta fun\xE7\xE3o
+4. **Efeitos colaterais**: Modifica\xE7\xF5es de estado ou side effects
+5. **Tratamento de erros**: Como erros s\xE3o tratados
+6. **Performance**: Considera\xE7\xF5es de performance
+7. **Testabilidade**: Como testar esta fun\xE7\xE3o
+8. **Refatora\xE7\xE3o**: Poss\xEDveis melhorias
+
+Use exemplos pr\xE1ticos quando relevante.`;
+    const response = await this.backendService.askQuestion(prompt);
+    return response || "N\xE3o foi poss\xEDvel gerar explica\xE7\xE3o para esta fun\xE7\xE3o.";
+  }
+  /**
+   * Gera explicação de arquivo
+   */
+  async generateFileExplanation(document) {
+    const context = this.contextService.getCurrentContext();
+    const fileContent = document.getText();
+    const prompt = `
+Analise e explique este arquivo de c\xF3digo:
+
+Linguagem: ${document.languageId}
+Arquivo: ${context?.fileName || "unknown"}
+
+C\xF3digo do arquivo:
+\`\`\`${document.languageId}
+${fileContent.substring(0, 3e3)}${fileContent.length > 3e3 ? "..." : ""}
+\`\`\`
+
+Forne\xE7a uma an\xE1lise arquitetural incluindo:
+
+1. **Vis\xE3o geral**: Prop\xF3sito e responsabilidade do arquivo
+2. **Estrutura**: Organiza\xE7\xE3o do c\xF3digo (classes, fun\xE7\xF5es, etc.)
+3. **Depend\xEAncias**: Imports e m\xF3dulos utilizados
+4. **Padr\xF5es**: Padr\xF5es arquiteturais aplicados
+5. **Fluxo de dados**: Como os dados fluem pelo c\xF3digo
+6. **Pontos de entrada**: Principais pontos de acesso
+7. **Configura\xE7\xF5es**: Configura\xE7\xF5es e constantes importantes
+8. **Melhorias**: Sugest\xF5es de estrutura\xE7\xE3o
+
+Foque nos aspectos arquiteturais e de design.`;
+    const response = await this.backendService.askQuestion(prompt);
+    return response || "N\xE3o foi poss\xEDvel gerar explica\xE7\xE3o para este arquivo.";
+  }
+  /**
+   * Obtém código da função na posição do cursor
+   */
+  async getFunctionAtCursor(editor) {
+    try {
+      const position = editor.selection.active;
+      const document = editor.document;
+      const languageId = document.languageId;
+      let functionPattern;
+      switch (languageId) {
+        case "javascript":
+        case "typescript":
+          functionPattern = /(?:function\s+\w+|(?:const|let|var)\s+\w+\s*=\s*(?:\([^)]*\)\s*=>|\bfunction)|\w+\s*\([^)]*\)\s*\{)/;
+          break;
+        case "python":
+          functionPattern = /def\s+\w+\s*\([^)]*\):/;
+          break;
+        case "java":
+        case "csharp":
+          functionPattern = /(?:public|private|protected|static|\w+)\s+\w+\s+\w+\s*\([^)]*\)\s*\{/;
+          break;
+        default:
+          functionPattern = /\w+\s*\([^)]*\)\s*\{/;
+      }
+      let startLine = position.line;
+      let endLine = position.line;
+      for (let i2 = position.line; i2 >= 0; i2--) {
+        const lineText = document.lineAt(i2).text;
+        if (functionPattern.test(lineText)) {
+          startLine = i2;
+          break;
+        }
+        if (i2 < position.line - 20)
+          break;
+      }
+      let braceCount = 0;
+      let foundStart = false;
+      for (let i2 = startLine; i2 < document.lineCount; i2++) {
+        const lineText = document.lineAt(i2).text;
+        for (const char of lineText) {
+          if (char === "{") {
+            braceCount++;
+            foundStart = true;
+          } else if (char === "}") {
+            braceCount--;
+            if (foundStart && braceCount === 0) {
+              endLine = i2;
+              break;
+            }
+          }
+        }
+        if (foundStart && braceCount === 0)
+          break;
+        if (i2 > startLine + 50)
+          break;
+      }
+      if (startLine < endLine) {
+        const range = new vscode7.Range(startLine, 0, endLine + 1, 0);
+        return document.getText(range);
+      }
+      return null;
+    } catch (error) {
+      Logger.error("Error getting function at cursor:", error);
+      return null;
+    }
+  }
+  /**
+   * Mostra explicação em output channel e webview
+   */
+  showExplanation(explanation, code, language) {
+    this.outputChannel.clear();
+    this.outputChannel.appendLine("=".repeat(80));
+    this.outputChannel.appendLine("EXPLICA\xC7\xC3O DE C\xD3DIGO - xCopilot");
+    this.outputChannel.appendLine("=".repeat(80));
+    this.outputChannel.appendLine("");
+    this.outputChannel.appendLine("C\xD3DIGO ANALISADO:");
+    this.outputChannel.appendLine("-".repeat(40));
+    this.outputChannel.appendLine(code.substring(0, 500) + (code.length > 500 ? "..." : ""));
+    this.outputChannel.appendLine("");
+    this.outputChannel.appendLine("EXPLICA\xC7\xC3O:");
+    this.outputChannel.appendLine("-".repeat(40));
+    this.outputChannel.appendLine(explanation);
+    this.outputChannel.appendLine("");
+    this.outputChannel.appendLine("=".repeat(80));
+    this.outputChannel.show();
+    vscode7.window.showInformationMessage(
+      'Explica\xE7\xE3o gerada! Veja no painel "xCopilot - Code Explanation"',
+      "Ver Explica\xE7\xE3o"
+    ).then((choice) => {
+      if (choice === "Ver Explica\xE7\xE3o") {
+        this.outputChannel.show();
+      }
+    });
+  }
+  /**
+   * Obtém output channel
+   */
+  getOutputChannel() {
+    return this.outputChannel;
+  }
+  /**
+   * Limpa recursos
+   */
+  dispose() {
+    this.outputChannel.dispose();
+    Logger.info("Code explanation service disposed");
+  }
+};
+
+// src/services/CodeSuggestionsService.ts
+var vscode8 = __toESM(require("vscode"));
+var CodeSuggestionsService = class _CodeSuggestionsService {
+  constructor() {
+    this.isEnabled = true;
+    this.backendService = BackendService.getInstance();
+    this.contextService = CodeContextService.getInstance();
+    this.diagnosticCollection = vscode8.languages.createDiagnosticCollection("xcopilot-suggestions");
+    this.initializeProviders();
+  }
+  static getInstance() {
+    if (!_CodeSuggestionsService.instance) {
+      _CodeSuggestionsService.instance = new _CodeSuggestionsService();
+    }
+    return _CodeSuggestionsService.instance;
+  }
+  /**
+   * Inicializa os providers de sugestões
+   */
+  initializeProviders() {
+    this.suggestionProvider = vscode8.languages.registerCompletionItemProvider(
+      ["typescript", "javascript", "python", "java", "csharp"],
+      {
+        provideCompletionItems: async (document, position, token, context) => {
+          return this.provideCodeCompletions(document, position, context);
+        }
+      },
+      ".",
+      " ",
+      "(",
+      "{"
+    );
+    vscode8.workspace.onDidChangeTextDocument(async (event) => {
+      if (this.isEnabled) {
+        await this.analyzeCodeChanges(event);
+      }
+    });
+    Logger.info("Code suggestions service initialized");
+  }
+  /**
+   * Fornece sugestões de código
+   */
+  async provideCodeCompletions(document, position, context) {
+    try {
+      if (!this.isEnabled) {
+        return [];
+      }
+      const lineText = document.lineAt(position).text;
+      const beforeCursor = lineText.substring(0, position.character);
+      if (beforeCursor.trim().length < 3) {
+        return [];
+      }
+      const context_info = this.contextService.getCurrentContext();
+      const suggestions = await this.generateCodeSuggestions(beforeCursor, context_info);
+      return suggestions.map((suggestion, index) => {
+        const item = new vscode8.CompletionItem(
+          suggestion.text,
+          vscode8.CompletionItemKind.Snippet
+        );
+        item.detail = suggestion.description;
+        item.documentation = new vscode8.MarkdownString(suggestion.explanation);
+        item.insertText = new vscode8.SnippetString(suggestion.text);
+        item.sortText = `00${index}`;
+        return item;
+      });
+    } catch (error) {
+      Logger.error("Error providing code completions:", error);
+      return [];
+    }
+  }
+  /**
+   * Gera sugestões de código usando IA
+   */
+  async generateCodeSuggestions(codePrefix, context) {
+    try {
+      const prompt = `
+Como um assistente de c\xF3digo especializado, analise o contexto e forne\xE7a 3 sugest\xF5es de c\xF3digo relevantes:
+
+C\xF3digo atual: ${codePrefix}
+Arquivo: ${context.fileName || "unknown"}
+Linguagem: ${context.fileType || "unknown"}
+
+Contexto do arquivo:
+${context.surroundingLines || ""}
+
+Forne\xE7a sugest\xF5es no formato JSON:
+[
+  {
+    "text": "c\xF3digo sugerido",
+    "description": "breve descri\xE7\xE3o",
+    "explanation": "explica\xE7\xE3o detalhada"
+  }
+]
+
+Foque em:
+- Completar a linha atual logicamente
+- Sugerir padr\xF5es comuns da linguagem
+- Considerar o contexto do arquivo
+- Usar boas pr\xE1ticas de programa\xE7\xE3o
+`;
+      const response = await this.backendService.askQuestion(prompt);
+      const jsonMatch = response.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+      return [];
+    } catch (error) {
+      Logger.error("Error generating code suggestions:", error);
+      return [];
+    }
+  }
+  /**
+   * Analisa mudanças no código para fornecer sugestões proativas
+   */
+  async analyzeCodeChanges(event) {
+    try {
+      const document = event.document;
+      if (!this.isSupportedLanguage(document.languageId)) {
+        return;
+      }
+      setTimeout(async () => {
+        await this.performCodeAnalysis(document);
+      }, 2e3);
+    } catch (error) {
+      Logger.error("Error analyzing code changes:", error);
+    }
+  }
+  /**
+   * Realiza análise completa do código
+   */
+  async performCodeAnalysis(document) {
+    try {
+      const text = document.getText();
+      const diagnostics = [];
+      const patterns = await this.detectCodePatterns(text, document.languageId);
+      for (const pattern of patterns) {
+        if (pattern.severity === "warning" || pattern.severity === "info") {
+          const diagnostic = new vscode8.Diagnostic(
+            pattern.range,
+            pattern.message,
+            pattern.severity === "warning" ? vscode8.DiagnosticSeverity.Warning : vscode8.DiagnosticSeverity.Information
+          );
+          diagnostic.source = "xCopilot AI";
+          diagnostic.code = pattern.code;
+          diagnostics.push(diagnostic);
+        }
+      }
+      this.diagnosticCollection.set(document.uri, diagnostics);
+    } catch (error) {
+      Logger.error("Error performing code analysis:", error);
+    }
+  }
+  /**
+   * Detecta padrões no código
+   */
+  async detectCodePatterns(code, language) {
+    try {
+      const prompt = `
+Analise o c\xF3digo ${language} abaixo e detecte padr\xF5es, problemas potenciais e oportunidades de melhoria:
+
+\`\`\`${language}
+${code}
+\`\`\`
+
+IMPORTANTE: Retorne APENAS um array JSON v\xE1lido, sem texto adicional ou coment\xE1rios. Exemplo:
+[
+  {
+    "line": 1,
+    "message": "Vari\xE1vel pode ter nome mais descritivo",
+    "severity": "info",
+    "code": "naming",
+    "suggestion": "Use um nome mais espec\xEDfico para a vari\xE1vel"
+  }
+]
+
+Use apenas estes valores para severity: "warning", "info"
+Mantenha message e suggestion como strings simples sem caracteres especiais.
+`;
+      const response = await this.backendService.askQuestion(prompt);
+      const jsonMatch = response.match(/\[[\s\S]*?\]/);
+      if (jsonMatch) {
+        try {
+          const patterns = JSON.parse(jsonMatch[0]);
+          return this.mapPatterns(patterns);
+        } catch (parseError) {
+          Logger.debug("Direct parsing failed, attempting JSON cleanup");
+          let jsonString = jsonMatch[0];
+          jsonString = jsonString.replace(/(\w+):/g, '"$1":');
+          jsonString = jsonString.replace(/'/g, '"');
+          jsonString = jsonString.replace(/\/\/.*$/gm, "");
+          jsonString = jsonString.replace(/\/\*[\s\S]*?\*\//g, "");
+          jsonString = jsonString.replace(/,(\s*])/g, "$1");
+          jsonString = jsonString.replace(/,(\s*})/g, "$1");
+          try {
+            const patterns = JSON.parse(jsonString);
+            return this.mapPatterns(patterns);
+          } catch (secondError) {
+            Logger.error("Failed to parse corrected JSON:", secondError);
+            return [];
+          }
+        }
+      }
+      return [];
+    } catch (error) {
+      Logger.error("Error detecting code patterns:", error);
+      return [];
+    }
+  }
+  /**
+   * Mapeia os padrões para o formato esperado
+   */
+  mapPatterns(patterns) {
+    return patterns.map((pattern) => ({
+      range: new vscode8.Range(
+        Math.max(0, (pattern.line || 1) - 1),
+        0,
+        Math.max(0, (pattern.line || 1) - 1),
+        100
+      ),
+      message: pattern.message || "Pattern detected",
+      severity: pattern.severity || "info",
+      code: pattern.code || "general",
+      suggestion: pattern.suggestion
+    }));
+  }
+  /**
+  * Verifica se a linguagem é suportada
+  */
+  isSupportedLanguage(languageId) {
+    const supportedLanguages = [
+      "typescript",
+      "javascript",
+      "python",
+      "java",
+      "csharp",
+      "cpp",
+      "c",
+      "go",
+      "rust",
+      "php",
+      "ruby",
+      "swift",
+      "kotlin"
+    ];
+    return supportedLanguages.includes(languageId);
+  }
+  /**
+   * Habilita/desabilita sugestões
+   */
+  toggle(enabled) {
+    this.isEnabled = enabled;
+    if (!enabled) {
+      this.diagnosticCollection.clear();
+    }
+    Logger.info(`Code suggestions ${enabled ? "enabled" : "disabled"}`);
+  }
+  /**
+   * Obtém sugestões para uma seleção específica
+   */
+  async getSuggestionsForSelection(document, selection) {
+    try {
+      const selectedText = document.getText(selection);
+      const context = this.contextService.getCurrentContext();
+      const prompt = `
+Analise o c\xF3digo selecionado e forne\xE7a 3-5 sugest\xF5es de melhoria:
+
+C\xF3digo selecionado:
+\`\`\`${document.languageId}
+${selectedText}
+\`\`\`
+
+Contexto do arquivo:
+- Arquivo: ${context?.fileName || "desconhecido"}
+- Tipo: ${context?.fileType || "desconhecido"}
+- Posi\xE7\xE3o: linha ${context?.lineNumbers?.start || 0}-${context?.lineNumbers?.end || 0}
+
+Forne\xE7a sugest\xF5es espec\xEDficas de:
+1. Otimiza\xE7\xE3o de performance
+2. Melhoria de legibilidade
+3. Aplica\xE7\xE3o de boas pr\xE1ticas
+4. Refatora\xE7\xE3o de c\xF3digo
+5. Corre\xE7\xE3o de poss\xEDveis bugs
+
+Retorne apenas uma lista de sugest\xF5es claras e objetivas.
+`;
+      const response = await this.backendService.askQuestion(prompt);
+      return response.split("\n").filter((line) => line.trim().length > 0).map((line) => line.replace(/^\d+\.?\s*/, "").trim()).filter((suggestion) => suggestion.length > 10);
+    } catch (error) {
+      Logger.error("Error getting suggestions for selection:", error);
+      return [];
+    }
+  }
+  /**
+   * Obtém os disposables para limpeza
+   */
+  getDisposables() {
+    const disposables = [];
+    if (this.suggestionProvider) {
+      disposables.push(this.suggestionProvider);
+    }
+    disposables.push(this.diagnosticCollection);
+    return disposables;
+  }
+  /**
+   * Limpa recursos
+   */
+  dispose() {
+    this.suggestionProvider?.dispose();
+    this.diagnosticCollection.dispose();
+  }
+};
+
+// src/services/ContextAwareService.ts
+var vscode11 = __toESM(require("vscode"));
+
+// src/services/ConversationHistoryService.ts
+var ConversationHistoryService = class _ConversationHistoryService {
+  constructor(context) {
+    this.storageKey = "xcopilot.conversationHistory";
+    this.maxEntries = 100;
+    this.context = context;
+    this.history = this.loadHistory();
+  }
+  static getInstance(context) {
+    if (!_ConversationHistoryService.instance && context) {
+      _ConversationHistoryService.instance = new _ConversationHistoryService(context);
+    }
+    if (!_ConversationHistoryService.instance) {
+      throw new Error("ConversationHistoryService must be initialized with context first");
+    }
+    return _ConversationHistoryService.instance;
+  }
+  /**
+   * Adiciona nova entrada ao histórico
+   */
+  addEntry(userMessage, aiResponse, context) {
+    const entry = {
+      id: this.generateId(),
+      timestamp: /* @__PURE__ */ new Date(),
+      userMessage,
+      aiResponse,
+      context,
+      fileName: context?.fileName,
+      fileType: context?.fileType
+    };
+    this.history.entries.unshift(entry);
+    if (this.history.entries.length > this.maxEntries) {
+      this.history.entries = this.history.entries.slice(0, this.maxEntries);
+    }
+    this.history.lastUpdated = /* @__PURE__ */ new Date();
+    this.saveHistory();
+    Logger.info(`Added conversation entry: ${entry.id}`);
+  }
+  /**
+   * Busca no histórico por texto
+   */
+  search(query, limit = 20) {
+    const lowerQuery = query.toLowerCase();
+    return this.history.entries.filter(
+      (entry) => entry.userMessage.toLowerCase().includes(lowerQuery) || entry.aiResponse.toLowerCase().includes(lowerQuery) || entry.fileName?.toLowerCase().includes(lowerQuery)
+    ).slice(0, limit);
+  }
+  /**
+   * Busca por tipo de arquivo
+   */
+  searchByFileType(fileType, limit = 20) {
+    return this.history.entries.filter((entry) => entry.fileType === fileType).slice(0, limit);
+  }
+  /**
+   * Busca por arquivo específico
+   */
+  searchByFileName(fileName, limit = 20) {
+    return this.history.entries.filter((entry) => entry.fileName === fileName).slice(0, limit);
+  }
+  /**
+   * Obtém entradas recentes
+   */
+  getRecent(limit = 10) {
+    return this.history.entries.slice(0, limit);
+  }
+  /**
+   * Obtém entradas recentes (alias for getRecent)
+   */
+  getRecentEntries(limit = 10) {
+    return this.getRecent(limit);
+  }
+  /**
+   * Obtém entrada por ID
+   */
+  getById(id) {
+    return this.history.entries.find((entry) => entry.id === id);
+  }
+  /**
+   * Remove entrada do histórico
+   */
+  removeEntry(id) {
+    const index = this.history.entries.findIndex((entry) => entry.id === id);
+    if (index > -1) {
+      this.history.entries.splice(index, 1);
+      this.saveHistory();
+      Logger.info(`Removed conversation entry: ${id}`);
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Limpa todo o histórico
+   */
+  clearHistory() {
+    this.history = {
+      entries: [],
+      totalEntries: 0,
+      lastUpdated: /* @__PURE__ */ new Date()
+    };
+    this.saveHistory();
+    Logger.info("Conversation history cleared");
+  }
+  /**
+   * Exporta histórico para JSON
+   */
+  exportToJson() {
+    return JSON.stringify(this.history, null, 2);
+  }
+  /**
+   * Exporta histórico formatado em Markdown
+   */
+  exportToMarkdown() {
+    let markdown = "# Hist\xF3rico de Conversas xCopilot\n\n";
+    markdown += `*Exportado em: ${(/* @__PURE__ */ new Date()).toLocaleString()}*
+
+`;
+    this.history.entries.forEach((entry, index) => {
+      markdown += `## Conversa ${index + 1}
+
+`;
+      markdown += `**Data:** ${entry.timestamp.toLocaleString()}
+
+`;
+      if (entry.fileName) {
+        markdown += `**Arquivo:** ${entry.fileName}
+
+`;
+      }
+      markdown += `**Pergunta:**
+${entry.userMessage}
+
+`;
+      markdown += `**Resposta:**
+${entry.aiResponse}
+
+`;
+      if (entry.context?.selectedText) {
+        markdown += `**C\xF3digo analisado:**
+\`\`\`${entry.fileType || ""}
+${entry.context.selectedText}
+\`\`\`
+
+`;
+      }
+      markdown += "---\n\n";
+    });
+    return markdown;
+  }
+  /**
+   * Obtém estatísticas do histórico
+   */
+  getStats() {
+    const byFileType = {};
+    const byFileName = {};
+    this.history.entries.forEach((entry) => {
+      if (entry.fileType) {
+        byFileType[entry.fileType] = (byFileType[entry.fileType] || 0) + 1;
+      }
+      if (entry.fileName) {
+        byFileName[entry.fileName] = (byFileName[entry.fileName] || 0) + 1;
+      }
+    });
+    const timestamps = this.history.entries.map((e2) => e2.timestamp);
+    return {
+      totalEntries: this.history.entries.length,
+      byFileType,
+      byFileName,
+      oldestEntry: timestamps.length > 0 ? new Date(Math.min(...timestamps.map((t2) => t2.getTime()))) : void 0,
+      newestEntry: timestamps.length > 0 ? new Date(Math.max(...timestamps.map((t2) => t2.getTime()))) : void 0
+    };
+  }
+  /**
+   * Carrega histórico do storage
+   */
+  loadHistory() {
+    try {
+      const stored = this.context.globalState.get(this.storageKey);
+      if (stored) {
+        stored.entries = stored.entries.map((entry) => ({
+          ...entry,
+          timestamp: new Date(entry.timestamp)
+        }));
+        stored.lastUpdated = new Date(stored.lastUpdated);
+        Logger.info(`Loaded ${stored.entries.length} conversation entries`);
+        return stored;
+      }
+    } catch (error) {
+      Logger.error("Error loading conversation history:", error);
+    }
+    return {
+      entries: [],
+      totalEntries: 0,
+      lastUpdated: /* @__PURE__ */ new Date()
+    };
+  }
+  /**
+   * Salva histórico no storage
+   */
+  saveHistory() {
+    try {
+      this.context.globalState.update(this.storageKey, this.history);
+    } catch (error) {
+      Logger.error("Error saving conversation history:", error);
+    }
+  }
+  /**
+   * Gera ID único para entrada
+   */
+  generateId() {
+    return `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+};
+
+// src/services/GitIntegrationService.ts
+var vscode9 = __toESM(require("vscode"));
+var GitIntegrationService = class _GitIntegrationService {
+  constructor() {
+    this.isInitialized = false;
+    this.initializeGitExtension();
+  }
+  static getInstance() {
+    if (!_GitIntegrationService.instance) {
+      _GitIntegrationService.instance = new _GitIntegrationService();
+    }
+    return _GitIntegrationService.instance;
+  }
+  /**
+   * Inicializa a extensão do Git (sem throw de erro)
+   */
+  async initializeGitExtension() {
+    try {
+      const gitExtension = vscode9.extensions.getExtension("vscode.git");
+      if (gitExtension) {
+        if (!gitExtension.isActive) {
+          await gitExtension.activate();
+        }
+        this.gitExtension = gitExtension.exports?.getAPI?.(1);
+        if (this.gitExtension) {
+          this.isInitialized = true;
+          Logger.info("Git extension initialized successfully");
+        } else {
+          Logger.warn("Git API not available - Git features will be disabled");
+        }
+      } else {
+        Logger.warn("Git extension not found - Git features will be disabled");
+      }
+    } catch (error) {
+      Logger.warn("Git extension not available - Git features will be disabled");
+      this.gitExtension = void 0;
+    }
+  }
+  /**
+   * Verifica se o Git está disponível
+   */
+  isGitAvailable() {
+    try {
+      return this.isInitialized && !!this.gitExtension;
+    } catch (error) {
+      return false;
+    }
+  }
+  /**
+   * Obtém informações do Git para o workspace atual
+   */
+  async getGitInfo() {
+    if (!this.isGitAvailable()) {
+      return null;
+    }
+    try {
+      const workspaceFolders = vscode9.workspace.workspaceFolders;
+      if (!workspaceFolders?.length) {
+        return null;
+      }
+      const repository = this.gitExtension.getRepository(workspaceFolders[0].uri);
+      if (!repository) {
+        return null;
+      }
+      const gitInfo = {
+        currentBranch: repository.state.HEAD?.name || "unknown",
+        hasUncommittedChanges: (repository.state.workingTreeChanges?.length || 0) > 0 || (repository.state.indexChanges?.length || 0) > 0,
+        lastCommitMessage: repository.state.HEAD?.commit?.message || "",
+        changedFiles: [
+          ...repository.state.workingTreeChanges?.map((c) => c.uri.fsPath) || [],
+          ...repository.state.indexChanges?.map((c) => c.uri.fsPath) || []
+        ],
+        diff: void 0
+        // Simplificado por enquanto
+      };
+      return gitInfo;
+    } catch (error) {
+      Logger.error("Error getting Git info:", error);
+      return null;
+    }
+  }
+  /**
+   * Obtém diff do arquivo atual (versão simplificada)
+   */
+  async getCurrentFileDiff() {
+    if (!this.isGitAvailable()) {
+      return null;
+    }
+    try {
+      const editor = vscode9.window.activeTextEditor;
+      if (!editor) {
+        return null;
+      }
+      const fileName = editor.document.fileName;
+      const isModified = editor.document.isDirty;
+      return isModified ? `File modified: ${fileName}` : null;
+    } catch (error) {
+      Logger.error("Error getting file diff:", error);
+      return null;
+    }
+  }
+  /**
+   * Gera sugestão de mensagem de commit baseada nas mudanças
+   */
+  async generateCommitMessage(changedFiles, diff) {
+    try {
+      const fileTypes = this.analyzeFileTypes(changedFiles);
+      const changeScope = this.analyzeChangeScope(changedFiles);
+      let type = "feat";
+      if (changedFiles.some((f3) => f3.includes("test") || f3.includes("spec"))) {
+        type = "test";
+      } else if (changedFiles.some((f3) => f3.includes("doc") || f3.includes("README"))) {
+        type = "docs";
+      } else if (changedFiles.some((f3) => f3.includes("fix") || f3.includes("bug"))) {
+        type = "fix";
+      } else if (changedFiles.some((f3) => f3.includes("style") || f3.includes("css"))) {
+        type = "style";
+      }
+      const scope = changeScope.length > 0 ? `(${changeScope.join(", ")})` : "";
+      const fileTypesList = fileTypes.length > 0 ? ` - ${fileTypes.join(", ")}` : "";
+      return `${type}${scope}: update ${changedFiles.length} file(s)${fileTypesList}`;
+    } catch (error) {
+      Logger.error("Error generating commit message:", error);
+      return "feat: update files";
+    }
+  }
+  /**
+   * Analisa tipos de arquivos modificados
+   */
+  analyzeFileTypes(files) {
+    try {
+      const types3 = /* @__PURE__ */ new Set();
+      files.forEach((file) => {
+        const ext = file.split(".").pop()?.toLowerCase();
+        if (ext) {
+          types3.add(ext);
+        }
+      });
+      return Array.from(types3).slice(0, 3);
+    } catch (error) {
+      return [];
+    }
+  }
+  /**
+   * Analisa escopo das mudanças
+   */
+  analyzeChangeScope(files) {
+    try {
+      const scopes = /* @__PURE__ */ new Set();
+      files.forEach((file) => {
+        const parts = file.split("/");
+        if (parts.length > 1) {
+          scopes.add(parts[parts.length - 2]);
+        }
+      });
+      return Array.from(scopes).slice(0, 2);
+    } catch (error) {
+      return [];
+    }
+  }
+};
+
+// src/services/WorkspaceAnalysisService.ts
+var path = __toESM(require("path"));
+var vscode10 = __toESM(require("vscode"));
+var WorkspaceAnalysisService = class _WorkspaceAnalysisService {
+  // 30 minutes
+  constructor() {
+    this.workspaceState = null;
+    this.analysisInProgress = false;
+    this.lastAnalysisTime = 0;
+    this.ANALYSIS_CACHE_TTL = 30 * 60 * 1e3;
+    this.contextService = CodeContextService.getInstance();
+    this.setupWorkspaceListeners();
+  }
+  static getInstance(_context) {
+    if (!_WorkspaceAnalysisService.instance) {
+      _WorkspaceAnalysisService.instance = new _WorkspaceAnalysisService();
+    }
+    return _WorkspaceAnalysisService.instance;
+  }
+  /**
+   * Backward-compatible method used by other services
+   */
+  async analyzeWorkspace(force = false) {
+    if (!force && this.workspaceState && !this.isAnalysisStale()) {
+      return;
+    }
+    this.analysisInProgress = true;
+    try {
+      const analysis = await this.performFullAnalysis();
+      this.workspaceState = analysis;
+      this.lastAnalysisTime = Date.now();
+    } catch (error) {
+      Logger.error("Error analyzing workspace:", error);
+    } finally {
+      this.analysisInProgress = false;
+    }
+  }
+  getCurrentAnalysis() {
+    return this.workspaceState;
+  }
+  /**
+   * Configura listeners para mudanças no workspace
+   */
+  setupWorkspaceListeners() {
+    vscode10.workspace.onDidCreateFiles(() => {
+      this.scheduleIncrementalAnalysis();
+    });
+    vscode10.workspace.onDidDeleteFiles(() => {
+      this.scheduleIncrementalAnalysis();
+    });
+    vscode10.workspace.onDidChangeWorkspaceFolders(() => {
+      this.invalidateWorkspaceState();
+      this.scheduleFullAnalysis();
+    });
+  }
+  /**
+   * Análise completa do workspace no startup
+   */
+  async analyzeWorkspaceOnStartup() {
+    if (this.analysisInProgress) {
+      return;
+    }
+    Logger.info("\u{1F50D} Starting complete workspace analysis...");
+    this.analysisInProgress = true;
+    try {
+      const workspaceState = await this.performFullAnalysis();
+      this.workspaceState = workspaceState;
+      this.lastAnalysisTime = Date.now();
+      Logger.info(`\u2705 Workspace analysis completed: ${workspaceState.totalFiles} files, ${workspaceState.languages.length} languages`);
+      vscode10.window.showInformationMessage(
+        `xCopilot: Workspace analyzed (${workspaceState.totalFiles} files, ${workspaceState.languages.join(", ")})`
+      );
+    } catch (error) {
+      Logger.error("Error during workspace analysis:", error);
+    } finally {
+      this.analysisInProgress = false;
+    }
+  }
+  /**
+   * Obtém contexto rico do workspace para chat
+   */
+  getWorkspaceContext() {
+    if (!this.workspaceState || this.isAnalysisStale()) {
+      return this.getBasicWorkspaceContext();
+    }
+    return {
+      projectType: this.workspaceState.projectType,
+      mainLanguages: this.workspaceState.languages.slice(0, 3),
+      structure: this.workspaceState.structure,
+      keyFiles: this.workspaceState.keyFiles,
+      technologies: this.workspaceState.technologies,
+      patterns: this.workspaceState.patterns,
+      currentFile: this.getCurrentFileInfo(),
+      recentFiles: this.getRecentFiles(),
+      summary: this.generateWorkspaceSummary()
+    };
+  }
+  /**
+   * Formata contexto do workspace para prompt
+   */
+  formatContextForPrompt(userPrompt) {
+    const context = this.getWorkspaceContext();
+    let contextPrompt = `[WORKSPACE CONTEXT]
+`;
+    if (context.projectType) {
+      contextPrompt += `Project Type: ${context.projectType}
+`;
+    }
+    contextPrompt += `Languages: ${context.mainLanguages.join(", ")}
+`;
+    if (context.technologies.length > 0) {
+      contextPrompt += `Technologies: ${context.technologies.join(", ")}
+`;
+    }
+    if (context.currentFile) {
+      contextPrompt += `Current File: ${context.currentFile.name} (${context.currentFile.language})
+`;
+    }
+    if (context.keyFiles.length > 0) {
+      contextPrompt += `Key Files: ${context.keyFiles.slice(0, 5).join(", ")}
+`;
+    }
+    contextPrompt += `
+[USER QUESTION]
+${userPrompt}
+
+`;
+    contextPrompt += `[INSTRUCTIONS]
+Answer considering the workspace context above. Be specific to the project's technologies and structure.`;
+    return contextPrompt;
+  }
+  /**
+   * Análise completa do workspace
+   */
+  async performFullAnalysis() {
+    const workspaceFolders = vscode10.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      throw new Error("No workspace folder found");
+    }
+    const rootFolder = workspaceFolders[0];
+    const files = await this.getAllFiles(rootFolder.uri);
+    const analysis = {
+      totalFiles: files.length,
+      languages: this.extractLanguages(files),
+      structure: await this.analyzeStructure(rootFolder.uri, files),
+      keyFiles: this.identifyKeyFiles(files),
+      technologies: await this.detectTechnologies(files),
+      patterns: await this.detectPatterns(files),
+      projectType: this.detectProjectType(files),
+      lastUpdated: Date.now()
+    };
+    return analysis;
+  }
+  /**
+   * Obtém todos os arquivos do workspace
+   */
+  async getAllFiles(rootUri) {
+    const pattern = "**/*.{js,ts,tsx,jsx,py,java,cpp,c,cs,php,go,rs,rb,swift,kt,scala,dart,vue,svelte,html,css,scss,sass,less,json,yaml,yml,md,txt}";
+    const excludePattern = "**/node_modules/**";
+    const files = await vscode10.workspace.findFiles(pattern, excludePattern, 1e3);
+    const fileInfos = [];
+    for (const file of files) {
+      try {
+        const stat2 = await vscode10.workspace.fs.stat(file);
+        const relativePath = vscode10.workspace.asRelativePath(file);
+        const extension = path.extname(file.fsPath);
+        fileInfos.push({
+          uri: file,
+          relativePath,
+          name: path.basename(file.fsPath),
+          extension,
+          language: this.getLanguageFromExtension(extension),
+          size: stat2.size,
+          lastModified: stat2.mtime
+        });
+      } catch (error) {
+        Logger.debug(`Could not stat file ${file.fsPath}:`, error);
+      }
+    }
+    return fileInfos;
+  }
+  /**
+   * Extrai linguagens dos arquivos
+   */
+  extractLanguages(files) {
+    const languageCount = /* @__PURE__ */ new Map();
+    files.forEach((file) => {
+      if (file.language) {
+        languageCount.set(file.language, (languageCount.get(file.language) || 0) + 1);
+      }
+    });
+    return Array.from(languageCount.entries()).sort((a, b) => b[1] - a[1]).map((entry) => entry[0]);
+  }
+  /**
+   * Analisa estrutura do projeto
+   */
+  async analyzeStructure(rootUri, files) {
+    const folders = /* @__PURE__ */ new Set();
+    const structure = {
+      hasSourceFolder: false,
+      hasTestFolder: false,
+      mainFolders: [],
+      depth: 0
+    };
+    files.forEach((file) => {
+      const parts = file.relativePath.split("/");
+      if (parts.length > 1) {
+        const folder = parts[0];
+        folders.add(folder);
+        structure.depth = Math.max(structure.depth, parts.length);
+      }
+    });
+    structure.mainFolders = Array.from(folders).slice(0, 10);
+    structure.hasSourceFolder = structure.mainFolders.some(
+      (f3) => ["src", "source", "lib", "app"].includes(f3.toLowerCase())
+    );
+    structure.hasTestFolder = structure.mainFolders.some(
+      (f3) => ["test", "tests", "__tests__", "spec", "specs"].includes(f3.toLowerCase())
+    );
+    return structure;
+  }
+  /**
+   * Identifica arquivos-chave do projeto
+   */
+  identifyKeyFiles(files) {
+    const keyFilePatterns = [
+      "package.json",
+      "requirements.txt",
+      "pom.xml",
+      "build.gradle",
+      "Cargo.toml",
+      "go.mod",
+      "composer.json",
+      "Gemfile",
+      "index.js",
+      "index.ts",
+      "main.py",
+      "app.py",
+      "Main.java",
+      "README.md",
+      "CHANGELOG.md",
+      "LICENSE",
+      ".gitignore",
+      "tsconfig.json",
+      "webpack.config.js",
+      "vite.config.js"
+    ];
+    return files.filter((file) => keyFilePatterns.some(
+      (pattern) => file.name.toLowerCase().includes(pattern.toLowerCase())
+    )).map((file) => file.relativePath).slice(0, 10);
+  }
+  /**
+   * Detecta tecnologias usando arquivos de configuração
+   */
+  async detectTechnologies(files) {
+    const technologies = /* @__PURE__ */ new Set();
+    for (const file of files) {
+      if (file.name === "package.json") {
+        try {
+          const content = await vscode10.workspace.fs.readFile(file.uri);
+          const packageJson = JSON.parse(content.toString());
+          const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+          Object.keys(deps).forEach((dep) => {
+            if (dep.includes("react"))
+              technologies.add("React");
+            if (dep.includes("vue"))
+              technologies.add("Vue.js");
+            if (dep.includes("angular"))
+              technologies.add("Angular");
+            if (dep.includes("express"))
+              technologies.add("Express.js");
+            if (dep.includes("next"))
+              technologies.add("Next.js");
+            if (dep.includes("nuxt"))
+              technologies.add("Nuxt.js");
+            if (dep.includes("typescript"))
+              technologies.add("TypeScript");
+            if (dep.includes("webpack"))
+              technologies.add("Webpack");
+            if (dep.includes("vite"))
+              technologies.add("Vite");
+          });
+        } catch (error) {
+          Logger.debug("Error reading package.json:", error);
+        }
+      }
+      if (file.extension === ".tsx" || file.extension === ".jsx") {
+        technologies.add("React");
+      }
+      if (file.extension === ".vue") {
+        technologies.add("Vue.js");
+      }
+      if (file.extension === ".ts") {
+        technologies.add("TypeScript");
+      }
+      if (file.name === "requirements.txt") {
+        technologies.add("Python");
+      }
+      if (file.name === "pom.xml") {
+        technologies.add("Maven");
+      }
+      if (file.name === "build.gradle") {
+        technologies.add("Gradle");
+      }
+    }
+    return Array.from(technologies);
+  }
+  /**
+   * Detecta padrões de código
+   */
+  async detectPatterns(files) {
+    const patterns = [];
+    if (files.some((f3) => f3.relativePath.includes("components/"))) {
+      patterns.push("Component-based architecture");
+    }
+    if (files.some((f3) => f3.relativePath.includes("services/"))) {
+      patterns.push("Service layer pattern");
+    }
+    if (files.some((f3) => f3.relativePath.includes("models/"))) {
+      patterns.push("Model layer pattern");
+    }
+    if (files.some((f3) => f3.relativePath.includes("controllers/"))) {
+      patterns.push("MVC pattern");
+    }
+    return patterns;
+  }
+  /**
+   * Detecta tipo de projeto
+   */
+  detectProjectType(files) {
+    if (files.some((f3) => f3.name === "package.json")) {
+      return "Node.js/JavaScript";
+    }
+    if (files.some((f3) => f3.name === "requirements.txt" || f3.name === "setup.py")) {
+      return "Python";
+    }
+    if (files.some((f3) => f3.name === "pom.xml")) {
+      return "Java/Maven";
+    }
+    if (files.some((f3) => f3.name === "build.gradle")) {
+      return "Java/Gradle";
+    }
+    if (files.some((f3) => f3.name === "Cargo.toml")) {
+      return "Rust";
+    }
+    if (files.some((f3) => f3.name === "go.mod")) {
+      return "Go";
+    }
+    if (files.some((f3) => f3.extension === ".csproj")) {
+      return "C#/.NET";
+    }
+    return "Mixed/Other";
+  }
+  /**
+   * Obtém linguagem pela extensão
+   */
+  getLanguageFromExtension(extension) {
+    const extensionMap = {
+      ".js": "JavaScript",
+      ".ts": "TypeScript",
+      ".tsx": "TypeScript",
+      ".jsx": "JavaScript",
+      ".py": "Python",
+      ".java": "Java",
+      ".cpp": "C++",
+      ".c": "C",
+      ".cs": "C#",
+      ".php": "PHP",
+      ".go": "Go",
+      ".rs": "Rust",
+      ".rb": "Ruby",
+      ".swift": "Swift",
+      ".kt": "Kotlin",
+      ".scala": "Scala",
+      ".dart": "Dart",
+      ".vue": "Vue",
+      ".svelte": "Svelte"
+    };
+    return extensionMap[extension] || null;
+  }
+  /**
+   * Obtém informações do arquivo atual
+   */
+  getCurrentFileInfo() {
+    const editor = vscode10.window.activeTextEditor;
+    if (!editor) {
+      return null;
+    }
+    const document = editor.document;
+    return {
+      name: path.basename(document.fileName),
+      relativePath: vscode10.workspace.asRelativePath(document.fileName),
+      language: document.languageId,
+      lineCount: document.lineCount
+    };
+  }
+  /**
+   * Obtém arquivos recentes
+   */
+  getRecentFiles() {
+    const tabs = vscode10.window.tabGroups.all.flatMap((group) => group.tabs);
+    return tabs.filter((tab) => tab.input instanceof vscode10.TabInputText).map((tab) => vscode10.workspace.asRelativePath(tab.input.uri)).slice(0, 5);
+  }
+  /**
+   * Gera resumo do workspace
+   */
+  generateWorkspaceSummary() {
+    if (!this.workspaceState) {
+      return "No workspace analysis available";
+    }
+    const { totalFiles, languages: languages6, projectType, technologies } = this.workspaceState;
+    let summary = `${projectType} project with ${totalFiles} files`;
+    if (languages6.length > 0) {
+      summary += `, primarily ${languages6[0]}`;
+    }
+    if (technologies.length > 0) {
+      summary += `, using ${technologies.slice(0, 3).join(", ")}`;
+    }
+    return summary;
+  }
+  /**
+   * Obtém contexto básico quando análise completa não está disponível
+   */
+  getBasicWorkspaceContext() {
+    const currentFile = this.getCurrentFileInfo();
+    const recentFiles = this.getRecentFiles();
+    return {
+      projectType: "Unknown",
+      mainLanguages: currentFile ? [currentFile.language] : [],
+      structure: { hasSourceFolder: false, hasTestFolder: false, mainFolders: [], depth: 0 },
+      keyFiles: [],
+      technologies: [],
+      patterns: [],
+      currentFile,
+      recentFiles,
+      summary: "Basic workspace context (analysis pending)"
+    };
+  }
+  /**
+   * Agenda análise incremental
+   */
+  scheduleIncrementalAnalysis() {
+    setTimeout(() => {
+      if (!this.analysisInProgress) {
+        this.performIncrementalAnalysis();
+      }
+    }, 5e3);
+  }
+  /**
+   * Agenda análise completa
+   */
+  scheduleFullAnalysis() {
+    setTimeout(() => {
+      this.analyzeWorkspaceOnStartup();
+    }, 2e3);
+  }
+  /**
+   * Análise incremental (mais leve)
+   */
+  async performIncrementalAnalysis() {
+    if (!this.workspaceState) {
+      return;
+    }
+    this.workspaceState.lastUpdated = Date.now();
+    Logger.debug("Incremental workspace analysis completed");
+  }
+  /**
+   * Invalida estado do workspace
+   */
+  invalidateWorkspaceState() {
+    this.workspaceState = null;
+    this.lastAnalysisTime = 0;
+  }
+  /**
+   * Verifica se análise está desatualizada
+   */
+  isAnalysisStale() {
+    return Date.now() - this.lastAnalysisTime > this.ANALYSIS_CACHE_TTL;
+  }
+};
+
+// src/services/ContextAwareService.ts
+var ContextAwareService = class _ContextAwareService {
+  constructor(context) {
+    this.isInitialized = false;
+    this.context = context;
+    this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance(context);
+    this.conversationHistoryService = ConversationHistoryService.getInstance(context);
+    this.codeContextService = CodeContextService.getInstance();
+    this.gitIntegrationService = GitIntegrationService.getInstance();
+  }
+  static getInstance(context) {
+    if (!_ContextAwareService.instance && context) {
+      _ContextAwareService.instance = new _ContextAwareService(context);
+    }
+    return _ContextAwareService.instance;
+  }
+  /**
+  
+       * Inicializa o serviço com análise inicial do workspace
+       */
+  async initialize() {
+    if (this.isInitialized) {
+      return;
+    }
+    Logger.info("Initializing Context-Aware Service...");
+    try {
+      await vscode11.window.withProgress({
+        location: vscode11.ProgressLocation.Notification,
+        title: "xCopilot: Analisando workspace...",
+        cancellable: false
+      }, async (progress) => {
+        progress.report({ increment: 20, message: "Carregando configura\xE7\xF5es..." });
+        progress.report({ increment: 40, message: "Analisando estrutura do projeto..." });
+        await this.workspaceAnalysisService.analyzeWorkspace();
+        progress.report({ increment: 80, message: "Configurando contexto..." });
+        await this.setupContextWatchers();
+        progress.report({ increment: 100, message: "Pronto!" });
+      });
+      this.isInitialized = true;
+      vscode11.commands.executeCommand("setContext", "xcopilot.contextAware", true);
+      Logger.info("Context-Aware Service initialized successfully");
+    } catch (error) {
+      Logger.error("Error initializing Context-Aware Service:", error);
+      vscode11.window.showErrorMessage("Erro ao inicializar an\xE1lise de contexto do xCopilot");
+    }
+  }
+  /**
+   * Obtém contexto completo para uma conversa
+   */
+  async getConversationContext(userMessage) {
+    const context = {
+      recentConversations: [],
+      relevantCode: [],
+      suggestions: []
+    };
+    try {
+      const workspaceAnalysis = this.workspaceAnalysisService.getCurrentAnalysis();
+      if (workspaceAnalysis) {
+        context.workspaceAnalysis = workspaceAnalysis;
+      }
+      const currentFile = this.codeContextService.getCurrentContext(true) || void 0;
+      if (currentFile) {
+        context.currentFile = currentFile;
+      }
+      const gitInfo = await this.gitIntegrationService.getGitInfo();
+      if (gitInfo) {
+        context.gitInfo = gitInfo;
+      }
+      context.recentConversations = this.getRelevantConversations(userMessage, currentFile);
+      context.relevantCode = await this.getRelevantCode(userMessage, currentFile);
+      context.suggestions = await this.generateSuggestions(context);
+      context.memoryContext = this.getMemoryContext(userMessage, context);
+      Logger.debug("Generated conversation context", {
+        hasWorkspace: !!context.workspaceAnalysis,
+        hasCurrentFile: !!context.currentFile,
+        hasGit: !!context.gitInfo,
+        conversationCount: context.recentConversations.length,
+        suggestionCount: context.suggestions.length
+      });
+      return context;
+    } catch (error) {
+      Logger.error("Error getting conversation context:", error);
+      return context;
+    }
+  }
+  /**
+   * Obtém conversas relevantes baseadas no contexto atual
+   */
+  getRelevantConversations(userMessage, currentFile) {
+    const allEntries = this.conversationHistoryService.getRecentEntries(20);
+    const relevant = [];
+    if (currentFile?.fileName) {
+      const sameFileConversations = allEntries.filter(
+        (entry) => entry.fileName === currentFile.fileName
+      ).slice(0, 3);
+      relevant.push(...sameFileConversations);
+    }
+    const keywords = this.extractKeywords(userMessage);
+    const topicRelevant = allEntries.filter((entry) => {
+      const entryKeywords = this.extractKeywords(entry.userMessage + " " + entry.aiResponse);
+      return keywords.some((keyword) => entryKeywords.includes(keyword));
+    }).slice(0, 3);
+    for (const entry of topicRelevant) {
+      if (!relevant.some((r2) => r2.id === entry.id)) {
+        relevant.push(entry);
+      }
+    }
+    return relevant.slice(0, 5);
+  }
+  /**
+   * Extrai palavras-chave simples de um texto
+   */
+  extractKeywords(text) {
+    const stopWords = /* @__PURE__ */ new Set(["the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by"]);
+    return text.toLowerCase().split(/\W+/).filter((word) => word.length > 2 && !stopWords.has(word)).slice(0, 10);
+  }
+  /**
+   * Obtém código relevante para o contexto
+   */
+  async getRelevantCode(userMessage, currentFile) {
+    const relevantCode = [];
+    try {
+      if (currentFile?.selectedText) {
+        relevantCode.push(`Current selection in ${currentFile.fileName}:
+${currentFile.selectedText}`);
+      } else if (currentFile?.fullFileContent && currentFile.fullFileContent.length < 2e3) {
+        relevantCode.push(`Current file ${currentFile.fileName}:
+${currentFile.fullFileContent}`);
+      }
+      if (currentFile?.fileName) {
+        const relatedFiles = await this.findRelatedFiles(currentFile.fileName);
+        for (const file of relatedFiles.slice(0, 2)) {
+          try {
+            const uri = vscode11.Uri.file(file);
+            const document = await vscode11.workspace.openTextDocument(uri);
+            if (document.getText().length < 1e3) {
+              relevantCode.push(`Related file ${file}:
+${document.getText()}`);
+            }
+          } catch (error) {
+          }
+        }
+      }
+    } catch (error) {
+      Logger.warn("Error getting relevant code:", error);
+    }
+    return relevantCode;
+  }
+  /**
+   * Encontra arquivos relacionados (simplificado)
+   */
+  async findRelatedFiles(fileName) {
+    const workspaceFolders = vscode11.workspace.workspaceFolders;
+    if (!workspaceFolders)
+      return [];
+    const related = [];
+    const baseName = fileName.replace(/\.[^/.]+$/, "");
+    const baseNameWithoutPath = baseName.split("/").pop() || "";
+    try {
+      const pattern = `**/${baseNameWithoutPath}.*`;
+      const files = await vscode11.workspace.findFiles(pattern, "**/node_modules/**", 10);
+      for (const file of files) {
+        const filePath = file.fsPath;
+        if (filePath !== fileName) {
+          related.push(filePath);
+        }
+      }
+    } catch (error) {
+      Logger.warn("Error finding related files:", error);
+    }
+    return related;
+  }
+  /**
+   * Gera sugestões contextuais
+   */
+  async generateSuggestions(context) {
+    const suggestions = [];
+    try {
+      if (context.currentFile) {
+        suggestions.push(...this.generateFileBasedSuggestions(context.currentFile));
+      }
+      if (context.workspaceAnalysis) {
+        suggestions.push(...this.generateWorkspaceBasedSuggestions(context.workspaceAnalysis));
+      }
+      if (context.gitInfo) {
+        suggestions.push(...this.generateGitBasedSuggestions(context.gitInfo));
+      }
+      suggestions.sort((a, b) => b.relevance - a.relevance);
+    } catch (error) {
+      Logger.warn("Error generating suggestions:", error);
+    }
+    return suggestions.slice(0, 5);
+  }
+  /**
+   * Gera sugestões baseadas no arquivo atual
+   */
+  generateFileBasedSuggestions(fileContext) {
+    const suggestions = [];
+    if (fileContext.selectedText) {
+      suggestions.push({
+        id: "explain-selection",
+        type: "documentation",
+        title: "Explicar c\xF3digo selecionado",
+        description: "Obter explica\xE7\xE3o detalhada do c\xF3digo selecionado",
+        relevance: 0.9,
+        context: "C\xF3digo selecionado dispon\xEDvel",
+        action: "xcopilot.explainSelected"
+      });
+      suggestions.push({
+        id: "refactor-selection",
+        type: "refactor",
+        title: "Refatorar c\xF3digo selecionado",
+        description: "Sugerir melhorias para o c\xF3digo selecionado",
+        relevance: 0.8,
+        context: "C\xF3digo selecionado dispon\xEDvel",
+        action: "xcopilot.refactorCode"
+      });
+    }
+    if (fileContext.fileType === "typescript" || fileContext.fileType === "javascript") {
+      suggestions.push({
+        id: "generate-tests",
+        type: "test",
+        title: "Gerar testes unit\xE1rios",
+        description: "Criar testes para este arquivo",
+        relevance: 0.7,
+        context: "Arquivo JS/TS detectado",
+        action: "xcopilot.generateTests"
+      });
+    }
+    return suggestions;
+  }
+  /**
+   * Gera sugestões baseadas na análise do workspace
+   */
+  generateWorkspaceBasedSuggestions(analysis) {
+    const suggestions = [];
+    if (analysis.projectStructure.totalFiles > 50) {
+      suggestions.push({
+        id: "document-architecture",
+        type: "documentation",
+        title: "Documentar arquitetura",
+        description: "Gerar documenta\xE7\xE3o da arquitetura do projeto",
+        relevance: 0.6,
+        context: `Projeto com ${analysis.projectStructure.totalFiles} arquivos`,
+        action: "xcopilot.generateArchitectureDoc"
+      });
+    }
+    if (analysis.dependencies.dependencies.length > 20) {
+      suggestions.push({
+        id: "optimize-deps",
+        type: "optimize",
+        title: "Otimizar depend\xEAncias",
+        description: "Analisar e otimizar depend\xEAncias do projeto",
+        relevance: 0.5,
+        context: `${analysis.dependencies.dependencies.length} depend\xEAncias encontradas`
+      });
+    }
+    return suggestions;
+  }
+  /**
+   * Gera sugestões baseadas no status do Git
+   */
+  generateGitBasedSuggestions(gitInfo) {
+    const suggestions = [];
+    if (gitInfo.hasUncommittedChanges) {
+      suggestions.push({
+        id: "generate-commit",
+        type: "documentation",
+        title: "Gerar mensagem de commit",
+        description: "Criar mensagem de commit baseada nas mudan\xE7as",
+        relevance: 0.8,
+        context: "Mudan\xE7as n\xE3o commitadas detectadas",
+        action: "xcopilot.generateCommit"
+      });
+      suggestions.push({
+        id: "review-changes",
+        type: "documentation",
+        title: "Revisar mudan\xE7as",
+        description: "Analisar mudan\xE7as antes do commit",
+        relevance: 0.7,
+        context: "Mudan\xE7as n\xE3o commitadas detectadas",
+        action: "xcopilot.analyzeDiff"
+      });
+    }
+    return suggestions;
+  }
+  /**
+   * Obtém contexto de memória (RAG simplificado)
+   */
+  getMemoryContext(userMessage, context) {
+    const memoryParts = [];
+    if (context.recentConversations.length > 0) {
+      memoryParts.push("Conversas recentes relevantes:");
+      for (const conv of context.recentConversations.slice(0, 2)) {
+        memoryParts.push(`- ${conv.userMessage} -> ${conv.aiResponse.substring(0, 100)}...`);
+      }
+    }
+    if (context.workspaceAnalysis) {
+      const analysis = context.workspaceAnalysis;
+      memoryParts.push(`
+Contexto do projeto:`);
+      memoryParts.push(`- Linguagem: ${analysis.architecture.language}`);
+      memoryParts.push(`- Frameworks: ${analysis.architecture.frameworks.join(", ")}`);
+      memoryParts.push(`- ${analysis.projectStructure.totalFiles} arquivos, ${analysis.projectStructure.totalLines} linhas`);
+    }
+    if (context.currentFile) {
+      memoryParts.push(`
+Arquivo atual: ${context.currentFile.fileName} (${context.currentFile.fileType})`);
+    }
+    return memoryParts.join("\n");
+  }
+  /**
+   * Formata contexto para envio ao backend
+   */
+  formatContextForPrompt(userMessage, context) {
+    let formattedPrompt = userMessage;
+    if (context.memoryContext) {
+      formattedPrompt += `
+
+**Contexto do projeto:**
+${context.memoryContext}`;
+    }
+    if (context.currentFile?.selectedText) {
+      formattedPrompt += `
+
+**C\xF3digo selecionado:**
+\`\`\`${context.currentFile.fileType}
+${context.currentFile.selectedText}
+\`\`\``;
+    }
+    if (context.relevantCode.length > 0) {
+      formattedPrompt += `
+
+**C\xF3digo relacionado:**
+${context.relevantCode.join("\n\n")}`;
+    }
+    return formattedPrompt;
+  }
+  /**
+   * Configura watchers para mudanças de contexto
+   */
+  async setupContextWatchers() {
+    vscode11.workspace.onDidChangeTextDocument((event) => {
+    });
+    vscode11.workspace.onDidCreateFiles((event) => {
+    });
+    vscode11.workspace.onDidDeleteFiles((event) => {
+    });
+    vscode11.window.onDidChangeActiveTextEditor((editor) => {
+    });
+  }
+  /**
+   * Obtém configuração do context-aware
+   */
+  getConfig() {
+    const config = vscode11.workspace.getConfiguration("xcopilot.contextAware");
+    return {
+      enableWorkspaceAnalysis: config.get("enableWorkspaceAnalysis", true),
+      enableSemanticSearch: config.get("enableSemanticSearch", true),
+      maxContextSize: config.get("maxContextSize", 4e3),
+      analysisDepth: config.get("analysisDepth", "medium"),
+      memorySessions: config.get("memorySessions", 5),
+      autoSuggestions: config.get("autoSuggestions", true)
+    };
+  }
+  /**
+   * Força re-análise do workspace
+   */
+  async refreshWorkspaceAnalysis() {
+    Logger.info("Refreshing workspace analysis...");
+    await this.workspaceAnalysisService.analyzeWorkspace(true);
+    vscode11.window.showInformationMessage("An\xE1lise do workspace atualizada!");
+  }
+  /**
+   * Obtém estatísticas do contexto
+   */
+  getContextStats() {
+    const analysis = this.workspaceAnalysisService.getCurrentAnalysis();
+    const conversationCount = this.conversationHistoryService.getRecentEntries(100).length;
+    return {
+      isInitialized: this.isInitialized,
+      hasWorkspaceAnalysis: !!analysis,
+      conversationCount,
+      lastAnalysis: analysis?.lastUpdated ? new Date(analysis.lastUpdated) : void 0
+    };
+  }
+};
+
+// src/services/GhostTextService.ts
+var vscode12 = __toESM(require("vscode"));
+var GhostTextService = class _GhostTextService {
+  constructor() {
+    this.isEnabled = true;
+    this.disposables = [];
+    this.lastRequestTime = 0;
+    this.throttleMs = 300;
+    this.currentSuggestion = null;
+    this.backendService = BackendService.getInstance();
+    this.contextService = CodeContextService.getInstance();
+    this.configService = ConfigurationService.getInstance();
+    this.setupEventListeners();
+    this.registerProvider();
+    this.updateFromConfig();
+  }
+  static getInstance() {
+    if (!_GhostTextService.instance) {
+      _GhostTextService.instance = new _GhostTextService();
+    }
+    return _GhostTextService.instance;
+  }
+  /**
+   * Registra o provider de inline completion para ghost text
+   */
+  registerProvider() {
+    const selector = [
+      "typescript",
+      "javascript",
+      "python",
+      "java",
+      "csharp",
+      "cpp",
+      "c",
+      "go",
+      "rust",
+      "php",
+      "ruby",
+      "swift",
+      "kotlin"
+    ];
+    const provider = vscode12.languages.registerInlineCompletionItemProvider(
+      selector,
+      this
+    );
+    this.disposables.push(provider);
+    Logger.info("Ghost text inline completion provider registered");
+  }
+  /**
+   * Atualiza configurações do serviço
+   */
+  updateFromConfig() {
+    const config = this.configService.getConfig();
+    this.isEnabled = config.ghostText.enabled;
+    this.throttleMs = config.ghostText.throttleMs;
+    Logger.info(`Ghost text config updated: enabled=${this.isEnabled}, throttle=${this.throttleMs}ms`);
+  }
+  /**
+   * Implementação do VS Code InlineCompletionItemProvider para Ghost Text
+   */
+  async provideInlineCompletionItems(document, position, context, token) {
+    try {
+      if (!this.isEnabled || token.isCancellationRequested) {
+        this.setGhostTextContext(false);
+        return null;
+      }
+      const now = Date.now();
+      if (now - this.lastRequestTime < this.throttleMs) {
+        return null;
+      }
+      this.lastRequestTime = now;
+      const line = document.lineAt(position);
+      const textBeforeCursor = line.text.substring(0, position.character);
+      const textAfterCursor = line.text.substring(position.character);
+      if (textBeforeCursor.trim().length < 3 || position.character < line.text.length) {
+        this.setGhostTextContext(false);
+        return null;
+      }
+      if (this.isCommentOrString(textBeforeCursor)) {
+        this.setGhostTextContext(false);
+        return null;
+      }
+      const suggestion = await this.generateCodeSuggestion(document, position);
+      if (!suggestion || suggestion.trim().length === 0 || token.isCancellationRequested) {
+        this.setGhostTextContext(false);
+        return null;
+      }
+      this.currentSuggestion = suggestion;
+      this.setGhostTextContext(true);
+      return [
+        new vscode12.InlineCompletionItem(
+          suggestion,
+          new vscode12.Range(position, position)
+        )
+      ];
+    } catch (error) {
+      Logger.error("Error in ghost text provideInlineCompletionItems:", error);
+      this.setGhostTextContext(false);
+      return null;
+    }
+  }
+  /**
+   * Define o contexto para habilitar/desabilitar keybindings
+   */
+  setGhostTextContext(visible) {
+    vscode12.commands.executeCommand("setContext", "xcopilot.ghostTextVisible", visible);
+  }
+  /**
+   * Configura os event listeners
+   */
+  setupEventListeners() {
+    this.disposables.push(
+      vscode12.window.onDidChangeActiveTextEditor((editor) => {
+        this.activeEditor = editor;
+        this.setGhostTextContext(false);
+      })
+    );
+    this.disposables.push(
+      vscode12.workspace.onDidChangeTextDocument((event) => {
+        if (this.activeEditor && event.document === this.activeEditor.document) {
+          this.setGhostTextContext(false);
+        }
+      })
+    );
+    this.disposables.push(
+      this.configService.onConfigurationChanged(() => {
+        this.updateFromConfig();
+      })
+    );
+    Logger.info("Ghost text event listeners setup completed");
+  }
+  /**
+   * Gera sugestão de código inteligente usando IA
+   */
+  async generateCodeSuggestion(document, position) {
+    const line = document.lineAt(position);
+    const textBeforeCursor = line.text.substring(0, position.character);
+    try {
+      const context = this.contextService.getCurrentContext();
+      const startLine = Math.max(0, position.line - 5);
+      const endLine = Math.min(document.lineCount - 1, position.line + 2);
+      const contextCode = document.getText(
+        new vscode12.Range(startLine, 0, endLine, 0)
+      );
+      const textAfterCursor = line.text.substring(position.character);
+      const result = await this.backendService.requestCodeCompletion({
+        prompt: `
+Complete o c\xF3digo seguinte de forma inteligente (Ghost Text):
+
+Linguagem: ${document.languageId}
+Arquivo: ${context?.fileName || "unknown"}
+
+C\xF3digo ao redor:
+\`\`\`${document.languageId}
+${contextCode}
+\`\`\`
+
+REGRAS PARA GHOST TEXT:
+1. Complete apenas 1-2 linhas de c\xF3digo
+2. Mantenha o estilo do c\xF3digo existente 
+3. Seja preciso e \xFAtil
+4. Para fun\xE7\xF5es vazias, sugira implementa\xE7\xE3o b\xE1sica
+5. Para condicionais, sugira o bloco l\xF3gico
+6. Use indenta\xE7\xE3o correta
+7. Retorne APENAS o c\xF3digo a ser inserido
+
+Complete:`,
+        context: contextCode,
+        language: document.languageId,
+        textBefore: textBeforeCursor,
+        textAfter: textAfterCursor
+      });
+      if (!result.completion) {
+        return null;
+      }
+      let suggestion = result.completion.trim();
+      if (suggestion.length < 2 || suggestion === textBeforeCursor.trim()) {
+        return null;
+      }
+      suggestion = suggestion.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
+      const lines = suggestion.split("\n").slice(0, 2);
+      suggestion = lines.join("\n");
+      Logger.debug(`Ghost text suggestion generated: "${suggestion.substring(0, 50)}..."`);
+      return suggestion;
+    } catch (error) {
+      Logger.error("Error generating ghost text suggestion:", error);
+      Logger.info(`Fallback suggestion activated for language "${document.languageId}" with input: "${textBeforeCursor.trim().substring(0, 50)}..."`);
+      return this.generateFallbackSuggestion(textBeforeCursor, document.languageId);
+    }
+  }
+  /**
+   * Gera sugestões de fallback baseadas em padrões comuns
+   */
+  generateFallbackSuggestion(textBefore, languageId) {
+    const trimmed = textBefore.trim();
+    if (languageId === "javascript" || languageId === "typescript") {
+      if (trimmed.includes("function") && trimmed.includes("(") && trimmed.includes(")") && trimmed.endsWith("{")) {
+        return "\n    return;\n}";
+      }
+      if (trimmed.startsWith("if (") && trimmed.endsWith("{")) {
+        return '\n    console.log("condition met");\n}';
+      }
+      if (trimmed.startsWith("for (") && trimmed.endsWith("{")) {
+        return "\n    console.log(i);\n}";
+      }
+      if (trimmed.includes("class") && trimmed.endsWith("{")) {
+        return "\n    constructor() {\n        \n    }\n}";
+      }
+      if (trimmed.includes("console.")) {
+        return 'log("debug");';
+      }
+    }
+    if (languageId === "python") {
+      if (trimmed.startsWith("def ") && trimmed.endsWith(":")) {
+        return "\n    pass";
+      }
+      if (trimmed.startsWith("if ") && trimmed.endsWith(":")) {
+        return '\n    print("condition met")';
+      }
+      if (trimmed.startsWith("for ") && trimmed.endsWith(":")) {
+        return "\n    print(item)";
+      }
+      if (trimmed.startsWith("class ") && trimmed.endsWith(":")) {
+        return "\n    def __init__(self):\n        pass";
+      }
+    }
+    if (trimmed.endsWith("=")) {
+      return " null;";
+    }
+    return null;
+  }
+  /**
+   * Verifica se é comentário ou string
+   */
+  isCommentOrString(text) {
+    const trimmed = text.trim();
+    return trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("#") || trimmed.startsWith('"') || trimmed.startsWith("'") || trimmed.startsWith("`");
+  }
+  /**
+   * Aceita a sugestão de ghost text atual (comando Tab)
+   */
+  async acceptGhostText() {
+    if (!this.activeEditor || !this.currentSuggestion) {
+      Logger.debug("No active editor or suggestion to accept");
+      return;
+    }
+    try {
+      const editor = this.activeEditor;
+      const position = editor.selection.active;
+      await editor.edit((editBuilder) => {
+        editBuilder.insert(position, this.currentSuggestion);
+      });
+      this.currentSuggestion = null;
+      this.setGhostTextContext(false);
+      Logger.info("Ghost text suggestion accepted");
+    } catch (error) {
+      Logger.error("Error accepting ghost text:", error);
+    }
+  }
+  /**
+   * Rejeita a sugestão de ghost text atual (comando Esc)
+   */
+  dismissGhostText() {
+    this.currentSuggestion = null;
+    this.setGhostTextContext(false);
+    Logger.debug("Ghost text suggestion dismissed");
+  }
+  /**
+   * Habilita/desabilita o serviço
+   */
+  setEnabled(enabled) {
+    this.isEnabled = enabled;
+    if (!enabled) {
+      this.setGhostTextContext(false);
+      this.currentSuggestion = null;
+    }
+    Logger.info(`Ghost text ${enabled ? "enabled" : "disabled"}`);
+  }
+  /**
+   * Verifica se está habilitado
+   */
+  isServiceEnabled() {
+    return this.isEnabled;
+  }
+  /**
+   * Obtém disposables para cleanup
+   */
+  getDisposables() {
+    return this.disposables;
+  }
+  /**
+   * Limpa recursos
+   */
+  dispose() {
+    this.setGhostTextContext(false);
+    this.currentSuggestion = null;
+    if (this.ghostTextTimeout) {
+      clearTimeout(this.ghostTextTimeout);
+    }
+    this.disposables.forEach((d) => d.dispose());
+    this.disposables = [];
+    Logger.info("Ghost text service disposed");
+  }
+};
+
+// src/services/InlineCompletionService.ts
+var crypto = __toESM(require("crypto"));
+var vscode13 = __toESM(require("vscode"));
+
+// src/utils/LRUCache.ts
+var LRUCache = class {
+  constructor(capacity = 100) {
+    this.capacity = capacity;
+    this.cache = /* @__PURE__ */ new Map();
+  }
+  /**
+   * Get value from cache
+   */
+  get(key) {
+    if (this.cache.has(key)) {
+      const value = this.cache.get(key);
+      this.cache.delete(key);
+      this.cache.set(key, value);
+      return value;
+    }
+    return void 0;
+  }
+  /**
+   * Set value in cache
+   */
+  set(key, value) {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.capacity) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey !== void 0) {
+        this.cache.delete(firstKey);
+      }
+    }
+    this.cache.set(key, value);
+  }
+  /**
+   * Check if key exists in cache
+   */
+  has(key) {
+    return this.cache.has(key);
+  }
+  /**
+   * Clear all cache entries
+   */
+  clear() {
+    this.cache.clear();
+  }
+  /**
+   * Delete a specific key from cache
+   */
+  delete(key) {
+    return this.cache.delete(key);
+  }
+  /**
+   * Get current cache size
+   */
+  size() {
+    return this.cache.size;
+  }
+  /**
+   * Get cache statistics
+   */
+  stats() {
+    return {
+      size: this.cache.size,
+      capacity: this.capacity,
+      utilization: this.cache.size / this.capacity * 100
+    };
+  }
+};
+
+// src/services/InlineCompletionService.ts
+var InlineCompletionService = class _InlineCompletionService {
+  constructor() {
+    this.isEnabled = true;
+    this.disposables = [];
+    this.lastRequestTime = 0;
+    this.throttleMs = 300;
+    // Will be updated from config
+    this.cache = new LRUCache(100);
+    this.cacheExpiryMs = 5 * 60 * 1e3;
+    // 5 minutes
+    this.requestCount = 0;
+    this.cacheHits = 0;
+    this.backendService = BackendService.getInstance();
+    this.contextService = CodeContextService.getInstance();
+    this.configService = ConfigurationService.getInstance();
+    this.updateFromConfig();
+    this.registerProviders();
+    this.setupConfigurationWatcher();
+  }
+  static getInstance() {
+    if (!_InlineCompletionService.instance) {
+      _InlineCompletionService.instance = new _InlineCompletionService();
+    }
+    return _InlineCompletionService.instance;
+  }
+  /**
+   * Registra os providers de completion inline
+   */
+  registerProviders() {
+    const selector = [
+      "typescript",
+      "javascript",
+      "python",
+      "java",
+      "csharp",
+      "cpp",
+      "c",
+      "go",
+      "rust",
+      "php",
+      "ruby",
+      "swift",
+      "kotlin"
+    ];
+    const provider = vscode13.languages.registerInlineCompletionItemProvider(
+      selector,
+      this
+    );
+    this.disposables.push(provider);
+    Logger.info("Inline completion provider registered");
+  }
+  /**
+   * Update settings from configuration
+   */
+  updateFromConfig() {
+    const config = this.configService.getConfig();
+    this.isEnabled = config.inlineCompletion.enabled;
+    this.throttleMs = config.inlineCompletion.throttleMs;
+    const newCacheSize = config.inlineCompletion.cacheSize;
+    if (!this.cache || this.cache.stats().capacity !== newCacheSize) {
+      this.cache = new LRUCache(newCacheSize);
+    }
+    Logger.info(`Inline completion config updated: enabled=${this.isEnabled}, throttle=${this.throttleMs}ms, cache=${newCacheSize}`);
+  }
+  /**
+   * Setup configuration change watcher
+   */
+  setupConfigurationWatcher() {
+    const configDisposable = this.configService.onConfigurationChanged(() => {
+      this.updateFromConfig();
+    });
+    this.disposables.push(configDisposable);
+  }
+  /**
+   * Implementação do VS Code InlineCompletionItemProvider
+   */
+  async provideInlineCompletionItems(document, position, context, token) {
+    try {
+      if (!this.isEnabled || token.isCancellationRequested) {
+        return null;
+      }
+      const now = Date.now();
+      if (now - this.lastRequestTime < this.throttleMs) {
+        return null;
+      }
+      this.lastRequestTime = now;
+      const line = document.lineAt(position);
+      const textBeforeCursor = line.text.substring(0, position.character);
+      const textAfterCursor = line.text.substring(position.character);
+      if (textBeforeCursor.trim().length < 2) {
+        return null;
+      }
+      if (this.isInStringOrComment(textBeforeCursor)) {
+        return null;
+      }
+      const cacheKey = this.generateCacheKey(textBeforeCursor, textAfterCursor, document.languageId);
+      const cachedCompletion = this.getCachedCompletion(cacheKey);
+      if (cachedCompletion) {
+        this.cacheHits++;
+        Logger.debug(`Cache hit! (${this.cacheHits}/${this.requestCount})`);
+        return [
+          new vscode13.InlineCompletionItem(
+            cachedCompletion,
+            new vscode13.Range(position, position)
+          )
+        ];
+      }
+      this.requestCount++;
+      const completion = await this.generateInlineCompletion(
+        document,
+        position,
+        textBeforeCursor,
+        textAfterCursor
+      );
+      if (!completion || token.isCancellationRequested) {
+        return null;
+      }
+      this.setCachedCompletion(cacheKey, completion);
+      return [
+        new vscode13.InlineCompletionItem(
+          completion,
+          new vscode13.Range(position, position)
+        )
+      ];
+    } catch (error) {
+      Logger.error("Error in provideInlineCompletionItems:", error);
+      return null;
+    }
+  }
+  /**
+   * Gera completion inline usando IA otimizada
+   */
+  async generateInlineCompletion(document, position, textBefore, textAfter) {
+    try {
+      const context = this.contextService.getCurrentContext();
+      const config = this.configService.getConfig();
+      const contextLines = Math.floor(config.inlineCompletion.maxContextLines / 2);
+      const startLine = Math.max(0, position.line - contextLines);
+      const endLine = Math.min(document.lineCount - 1, position.line + contextLines);
+      const surroundingCode = document.getText(
+        new vscode13.Range(startLine, 0, endLine, 0)
+      );
+      const prompt = `
+Complete o c\xF3digo seguinte de forma inteligente e contextual:
+
+Linguagem: ${document.languageId}
+Arquivo: ${context?.fileName || "unknown"}
+
+C\xF3digo ao redor:
+\`\`\`${document.languageId}
+${surroundingCode}
+\`\`\`
+
+Complete a linha atual:`;
+      const result = await this.backendService.requestCodeCompletion({
+        prompt,
+        context: surroundingCode,
+        language: document.languageId,
+        textBefore,
+        textAfter
+      });
+      Logger.debug(`Completion generated in ${result.duration}ms (cached: ${result.cached})`);
+      if (!result.completion) {
+        return null;
+      }
+      if (result.completion === textBefore || result.completion.length < 2) {
+        return null;
+      }
+      return result.completion;
+    } catch (error) {
+      Logger.error("Error generating inline completion:", error);
+      return this.generateFallbackCompletion(textBefore, document.languageId);
+    }
+  }
+  /**
+   * Verifica se está dentro de string ou comentário
+   */
+  isInStringOrComment(text) {
+    const inString = (text.match(/"/g) || []).length % 2 === 1 || (text.match(/'/g) || []).length % 2 === 1 || (text.match(/`/g) || []).length % 2 === 1;
+    const inComment = text.includes("//") || text.includes("/*") || text.includes("#");
+    return inString || inComment;
+  }
+  /**
+   * Generates cache key for completion request
+   */
+  generateCacheKey(textBefore, textAfter, language) {
+    const key = `${language}:${textBefore.trim()}:${textAfter.trim()}`;
+    return crypto.createHash("sha256").update(key).digest("hex").substring(0, 50);
+  }
+  /**
+   * Get cached completion if available and not expired
+   */
+  getCachedCompletion(key) {
+    const cached = this.cache.get(key);
+    if (!cached) {
+      return null;
+    }
+    if (Date.now() - cached.timestamp > this.cacheExpiryMs) {
+      this.cache.delete(key);
+      return null;
+    }
+    return cached.completion;
+  }
+  /**
+   * Cache completion result
+   */
+  setCachedCompletion(key, completion) {
+    this.cache.set(key, {
+      completion,
+      timestamp: Date.now()
+    });
+  }
+  /**
+   * Generate simple fallback completion when API fails
+   */
+  generateFallbackCompletion(textBefore, language) {
+    const text = textBefore;
+    if (language === "javascript" || language === "typescript") {
+      if (text.endsWith("console.")) {
+        return "log()";
+      }
+      if (text.endsWith("function ")) {
+        return "name() {\n    \n}";
+      }
+      if (text.endsWith("const ")) {
+        return "variable = ";
+      }
+      if (text.endsWith("if (")) {
+        return "condition) {\n    \n}";
+      }
+    }
+    if (language === "python") {
+      if (text.endsWith("def ")) {
+        return "function_name():";
+      }
+      if (text.endsWith("if ")) {
+        return "condition:";
+      }
+      if (text.endsWith("print(")) {
+        return '"")';
+      }
+    }
+    return null;
+  }
+  /**
+   * Habilita/desabilita o serviço
+   */
+  setEnabled(enabled) {
+    this.isEnabled = enabled;
+    Logger.info(`Inline completion ${enabled ? "enabled" : "disabled"}`);
+  }
+  /**
+   * Verifica se está habilitado
+   */
+  isServiceEnabled() {
+    return this.isEnabled;
+  }
+  /**
+   * Get performance statistics
+   */
+  getStats() {
+    return {
+      requestCount: this.requestCount,
+      cacheHits: this.cacheHits,
+      cacheHitRate: this.requestCount > 0 ? this.cacheHits / this.requestCount * 100 : 0,
+      cacheStats: this.cache.stats()
+    };
+  }
+  /**
+   * Clear completion cache
+   */
+  clearCache() {
+    this.cache.clear();
+    this.cacheHits = 0;
+    this.requestCount = 0;
+    Logger.info("Inline completion cache cleared");
+  }
+  /**
+   * Obtém disposables para cleanup
+   */
+  getDisposables() {
+    return this.disposables;
+  }
+  /**
+   * Limpa recursos
+   */
+  dispose() {
+    this.disposables.forEach((d) => d.dispose());
+    this.disposables = [];
+    this.cache.clear();
+    Logger.info("Inline completion service disposed");
+  }
+};
+
+// src/services/MultilineGenerationService.ts
+var vscode14 = __toESM(require("vscode"));
+var MultilineGenerationService = class _MultilineGenerationService {
+  constructor() {
+    this.disposables = [];
+    this.isEnabled = true;
+    this.backendService = BackendService.getInstance();
+    this.contextService = CodeContextService.getInstance();
+    this.configService = ConfigurationService.getInstance();
+    this.setupEventListeners();
+  }
+  static getInstance() {
+    if (!_MultilineGenerationService.instance) {
+      _MultilineGenerationService.instance = new _MultilineGenerationService();
+    }
+    return _MultilineGenerationService.instance;
+  }
+  /**
+   * Configura os event listeners para detectar oportunidades de geração
+   */
+  setupEventListeners() {
+    this.disposables.push(
+      vscode14.workspace.onDidChangeTextDocument((event) => {
+        this.onDocumentChange(event);
+      })
+    );
+    this.disposables.push(
+      vscode14.workspace.onDidSaveTextDocument((document) => {
+        this.analyzeDocumentForGeneration(document);
+      })
+    );
+  }
+  /**
+   * Analisa mudanças no documento para detectar comentários
+   */
+  async onDocumentChange(event) {
+    if (!this.isEnabled || !this.isSupportedLanguage(event.document.languageId)) {
+      return;
+    }
+    for (const change of event.contentChanges) {
+      if (this.isGenerationTrigger(change.text)) {
+        await this.handleGenerationTrigger(event.document, change);
+      }
+    }
+  }
+  /**
+   * Verifica se o texto inserido é um trigger para geração
+   */
+  isGenerationTrigger(text) {
+    const triggers = [
+      "TODO:",
+      "FIXME:",
+      "HACK:",
+      "NOTE:",
+      "// TODO",
+      "// FIXME",
+      "/* TODO",
+      "/* FIXME",
+      "# TODO",
+      "# FIXME",
+      '"""',
+      "'''",
+      // Python docstrings
+      "/**"
+      // JSDoc
+    ];
+    return triggers.some(
+      (trigger) => text.toLowerCase().includes(trigger.toLowerCase())
+    );
+  }
+  /**
+   * Trata trigger de geração detectado
+   */
+  async handleGenerationTrigger(document, change) {
+    try {
+      const position = change.range.start;
+      const line = document.lineAt(position.line);
+      setTimeout(async () => {
+        await this.offerCodeGeneration(document, position, line.text);
+      }, 2e3);
+    } catch (error) {
+      Logger.error("Error handling generation trigger:", error);
+    }
+  }
+  /**
+   * Oferece geração de código baseada no comentário
+   */
+  async offerCodeGeneration(document, position, lineText) {
+    const generationType = this.detectGenerationType(lineText, document, position);
+    if (!generationType) {
+      return;
+    }
+    const suggestion = await vscode14.window.showInformationMessage(
+      `xCopilot detectou: ${generationType.description}. Gerar implementa\xE7\xE3o?`,
+      "Gerar",
+      "Ignorar"
+    );
+    if (suggestion === "Gerar") {
+      await this.generateImplementation(document, position, generationType);
+    }
+  }
+  /**
+   * Detecta o tipo de geração necessária
+   */
+  detectGenerationType(lineText, document, position) {
+    const line = lineText.trim().toLowerCase();
+    if (line.includes("/**") || this.isJSDocComment(document, position)) {
+      return {
+        type: "function",
+        description: "Fun\xE7\xE3o a partir de JSDoc",
+        prompt: this.buildFunctionPrompt(document, position)
+      };
+    }
+    if (line.includes("todo:") || line.includes("fixme:")) {
+      return {
+        type: "implementation",
+        description: "Implementa\xE7\xE3o de TODO/FIXME",
+        prompt: this.buildTodoPrompt(document, position, lineText)
+      };
+    }
+    if (this.isInterfaceImplementation(document, position)) {
+      return {
+        type: "interface",
+        description: "Implementa\xE7\xE3o de interface",
+        prompt: this.buildInterfacePrompt(document, position)
+      };
+    }
+    if (this.isClassDeclaration(document, position)) {
+      return {
+        type: "class",
+        description: "Esqueleto de classe",
+        prompt: this.buildClassPrompt(document, position)
+      };
+    }
+    return null;
+  }
+  /**
+   * Gera implementação baseada no tipo detectado
+   */
+  async generateImplementation(document, position, generationType) {
+    try {
+      vscode14.window.showInformationMessage("Gerando c\xF3digo...");
+      const response = await this.backendService.requestMultilineGeneration({
+        prompt: generationType.prompt,
+        type: generationType.type,
+        language: document.languageId,
+        context: this.contextService.getContextWithFallback(20)?.fullFileContent || ""
+      });
+      if (response.code) {
+        await this.insertGeneratedCode(document, position, response.code, generationType.type);
+        vscode14.window.showInformationMessage("C\xF3digo gerado com sucesso!");
+      }
+    } catch (error) {
+      Logger.error("Error generating implementation:", error);
+      vscode14.window.showErrorMessage("Erro ao gerar c\xF3digo: " + error);
+    }
+  }
+  /**
+   * Insere o código gerado no documento
+   */
+  async insertGeneratedCode(document, position, generatedCode, type) {
+    const editor = vscode14.window.activeTextEditor;
+    if (!editor || editor.document !== document) {
+      return;
+    }
+    let insertPosition = position;
+    if (type === "function" || type === "class") {
+      insertPosition = new vscode14.Position(position.line + 1, 0);
+    }
+    await editor.edit((editBuilder) => {
+      editBuilder.insert(insertPosition, `
+${generatedCode}
+`);
+    });
+    await vscode14.commands.executeCommand("editor.action.formatDocument");
+  }
+  /**
+   * Constrói prompt para geração de função
+   */
+  buildFunctionPrompt(document, position) {
+    const context = this.getContextAroundPosition(document, position, 10);
+    return `Generate a function implementation based on the JSDoc comment:
+
+${context}`;
+  }
+  /**
+   * Constrói prompt para TODO/FIXME
+   */
+  buildTodoPrompt(document, position, comment) {
+    const context = this.getContextAroundPosition(document, position, 5);
+    return `Implement the following TODO/FIXME comment:
+${comment}
+
+Context:
+${context}`;
+  }
+  /**
+   * Constrói prompt para implementação de interface
+   */
+  buildInterfacePrompt(document, position) {
+    const context = this.getContextAroundPosition(document, position, 15);
+    return `Implement the interface methods:
+
+${context}`;
+  }
+  /**
+   * Constrói prompt para classe
+   */
+  buildClassPrompt(document, position) {
+    const context = this.getContextAroundPosition(document, position, 8);
+    return `Generate class implementation skeleton:
+
+${context}`;
+  }
+  /**
+   * Obtém contexto ao redor de uma posição
+   */
+  getContextAroundPosition(document, position, lines) {
+    const startLine = Math.max(0, position.line - lines);
+    const endLine = Math.min(document.lineCount - 1, position.line + lines);
+    let context = "";
+    for (let i2 = startLine; i2 <= endLine; i2++) {
+      context += document.lineAt(i2).text + "\n";
+    }
+    return context;
+  }
+  /**
+   * Verifica se é comentário JSDoc
+   */
+  isJSDocComment(document, position) {
+    for (let i2 = position.line; i2 >= Math.max(0, position.line - 5); i2--) {
+      const line = document.lineAt(i2).text.trim();
+      if (line.includes("/**")) {
+        return true;
+      }
+    }
+    return false;
+  }
+  /**
+   * Verifica se é implementação de interface
+   */
+  isInterfaceImplementation(document, position) {
+    const text = this.getContextAroundPosition(document, position, 10);
+    return text.includes("implements ") || text.includes("extends ") || text.includes("interface ") || text.includes("class ");
+  }
+  /**
+   * Verifica se é declaração de classe
+   */
+  isClassDeclaration(document, position) {
+    const line = document.lineAt(position.line).text.trim();
+    return line.includes("class ") && line.includes("{");
+  }
+  /**
+   * Analisa documento completo para oportunidades de geração
+   */
+  async analyzeDocumentForGeneration(document) {
+    if (!this.isSupportedLanguage(document.languageId)) {
+      return;
+    }
+    const todos = this.findUnimplementedTodos(document);
+    if (todos.length > 0) {
+      const message = `xCopilot encontrou ${todos.length} TODO(s) n\xE3o implementado(s). Gerar implementa\xE7\xF5es?`;
+      const choice = await vscode14.window.showInformationMessage(message, "Gerar Todos", "Ignorar");
+      if (choice === "Gerar Todos") {
+        await this.generateAllTodos(document, todos);
+      }
+    }
+  }
+  /**
+   * Encontra TODOs não implementados
+   */
+  findUnimplementedTodos(document) {
+    const todos = [];
+    for (let i2 = 0; i2 < document.lineCount; i2++) {
+      const line = document.lineAt(i2);
+      const text = line.text.toLowerCase();
+      if ((text.includes("todo:") || text.includes("fixme:")) && !this.hasImplementationBelow(document, i2)) {
+        todos.push({
+          line: i2,
+          text: line.text.trim(),
+          position: new vscode14.Position(i2, 0)
+        });
+      }
+    }
+    return todos;
+  }
+  /**
+   * Verifica se há implementação abaixo do TODO
+   */
+  hasImplementationBelow(document, lineNumber) {
+    for (let i2 = lineNumber + 1; i2 < Math.min(document.lineCount, lineNumber + 4); i2++) {
+      const line = document.lineAt(i2).text.trim();
+      if (line.length > 0 && !line.startsWith("//") && !line.startsWith("/*") && !line.startsWith("#")) {
+        return true;
+      }
+    }
+    return false;
+  }
+  /**
+   * Gera implementação para todos os TODOs
+   */
+  async generateAllTodos(document, todos) {
+    for (const todo of todos) {
+      try {
+        const generationType = {
+          type: "implementation",
+          description: "TODO implementation",
+          prompt: this.buildTodoPrompt(document, todo.position, todo.text)
+        };
+        await this.generateImplementation(document, todo.position, generationType);
+        await new Promise((resolve) => setTimeout(resolve, 1e3));
+      } catch (error) {
+        Logger.error(`Error generating TODO at line ${todo.line}:`, error);
+      }
+    }
+  }
+  /**
+   * Verifica se a linguagem é suportada
+   */
+  isSupportedLanguage(languageId) {
+    const supportedLanguages = [
+      "javascript",
+      "typescript",
+      "python",
+      "java",
+      "csharp",
+      "cpp",
+      "c",
+      "go",
+      "rust",
+      "php",
+      "ruby",
+      "swift",
+      "kotlin",
+      "scala",
+      "dart"
+    ];
+    return supportedLanguages.includes(languageId);
+  }
+  /**
+   * Habilita/desabilita o serviço
+   */
+  setEnabled(enabled) {
+    this.isEnabled = enabled;
+    Logger.info(`Multiline generation service ${enabled ? "enabled" : "disabled"}`);
+  }
+  /**
+   * Dispõe recursos
+   */
+  dispose() {
+    this.disposables.forEach((d) => d.dispose());
+    this.disposables = [];
+    Logger.info("Multiline generation service disposed");
+  }
+};
+
+// src/services/PatternDetectionService.ts
+var vscode15 = __toESM(require("vscode"));
+var PatternDetectionService = class _PatternDetectionService {
+  constructor() {
+    this.isEnabled = true;
+    this.backendService = BackendService.getInstance();
+    this.contextService = CodeContextService.getInstance();
+    this.diagnosticCollection = vscode15.languages.createDiagnosticCollection("xcopilot-patterns");
+    this.setupDocumentWatcher();
+  }
+  static getInstance() {
+    if (!_PatternDetectionService.instance) {
+      _PatternDetectionService.instance = new _PatternDetectionService();
+    }
+    return _PatternDetectionService.instance;
+  }
+  /**
+   * Configura o monitoramento de documentos
+   */
+  setupDocumentWatcher() {
+    vscode15.workspace.onDidSaveTextDocument((document) => {
+      if (this.isEnabled && this.shouldAnalyzeFile(document)) {
+        this.analyzeDocument(document);
+      }
+    });
+    vscode15.workspace.onDidChangeTextDocument((event) => {
+      if (this.isEnabled && this.shouldAnalyzeFile(event.document)) {
+        this.scheduleAnalysis(event.document);
+      }
+    });
+    vscode15.workspace.onDidOpenTextDocument((document) => {
+      if (this.isEnabled && this.shouldAnalyzeFile(document)) {
+        this.analyzeDocument(document);
+      }
+    });
+  }
+  /**
+   * Agenda análise com debounce
+   */
+  scheduleAnalysis(document) {
+    if (this.analysisDebounceTimer) {
+      clearTimeout(this.analysisDebounceTimer);
+    }
+    this.analysisDebounceTimer = setTimeout(() => {
+      this.analyzeDocument(document);
+    }, 2e3);
+  }
+  /**
+   * Verifica se deve analisar o arquivo
+   */
+  shouldAnalyzeFile(document) {
+    const supportedLanguages = [
+      "typescript",
+      "javascript",
+      "python",
+      "java",
+      "csharp",
+      "cpp",
+      "c",
+      "php",
+      "ruby",
+      "go",
+      "rust"
+    ];
+    return supportedLanguages.includes(document.languageId) && !document.isUntitled && document.uri.scheme === "file";
+  }
+  /**
+   * Analisa documento e detecta padrões
+   */
+  async analyzeDocument(document) {
+    try {
+      Logger.info(`Analyzing patterns in ${document.fileName}`);
+      const patterns = await this.detectPatterns(document);
+      this.updateDiagnostics(document, patterns);
+      const criticalPatterns = patterns.filter((p) => p.severity === "error");
+      if (criticalPatterns.length > 0) {
+        const choice = await vscode15.window.showWarningMessage(
+          `${criticalPatterns.length} padr\xE3o(\xF5es) cr\xEDtico(s) detectado(s) em ${document.fileName}`,
+          "Ver Problemas",
+          "Ignorar"
+        );
+        if (choice === "Ver Problemas") {
+          vscode15.commands.executeCommand("workbench.panel.markers.view.focus");
+        }
+      }
+    } catch (error) {
+      Logger.error("Error analyzing document patterns:", error);
+    }
+  }
+  /**
+   * Detecta padrões no documento
+   */
+  async detectPatterns(document) {
+    const content = document.getText();
+    const patterns = [];
+    patterns.push(...await this.detectLocalPatterns(document, content));
+    patterns.push(...await this.detectAIPatterns(document, content));
+    return patterns;
+  }
+  /**
+   * Detecta padrões locais (sem IA)
+   */
+  async detectLocalPatterns(document, content) {
+    const patterns = [];
+    const lines = content.split("\n");
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2];
+      const lineNumber = i2;
+      if (this.isCodeDuplication(lines, i2)) {
+        patterns.push({
+          type: "code-duplication",
+          description: "Poss\xEDvel c\xF3digo duplicado detectado",
+          location: new vscode15.Range(lineNumber, 0, lineNumber, line.length),
+          severity: "warning",
+          suggestion: "Considere extrair em uma fun\xE7\xE3o reutiliz\xE1vel",
+          autoFixAvailable: false
+        });
+      }
+      if (this.isLongFunction(lines, i2)) {
+        patterns.push({
+          type: "long-function",
+          description: "Fun\xE7\xE3o muito longa detectada",
+          location: new vscode15.Range(lineNumber, 0, lineNumber, line.length),
+          severity: "info",
+          suggestion: "Considere dividir em fun\xE7\xF5es menores",
+          autoFixAvailable: true
+        });
+      }
+      if (this.hasTooManyParameters(line)) {
+        patterns.push({
+          type: "excessive-parameters",
+          description: "Function with too many parameters detected",
+          location: new vscode15.Range(lineNumber, 0, lineNumber, line.length),
+          severity: "warning",
+          suggestion: "Consider using an object or extracting to a class",
+          autoFixAvailable: true
+        });
+      }
+      if (this.isHighComplexity(line)) {
+        patterns.push({
+          type: "high-complexity",
+          description: "Alta complexidade ciclom\xE1tica",
+          location: new vscode15.Range(lineNumber, 0, lineNumber, line.length),
+          severity: "warning",
+          suggestion: "Simplifique a l\xF3gica condicional",
+          autoFixAvailable: false
+        });
+      }
+      const magicNumbers = this.findMagicNumbers(line);
+      for (const magicNumber of magicNumbers) {
+        patterns.push({
+          type: "magic-number",
+          description: `N\xFAmero m\xE1gico detectado: ${magicNumber.value}`,
+          location: new vscode15.Range(lineNumber, magicNumber.start, lineNumber, magicNumber.end),
+          severity: "info",
+          suggestion: "Considere usar uma constante nomeada",
+          autoFixAvailable: true
+        });
+      }
+      const todoMatch = line.match(/(TODO|FIXME|HACK):\s*(.+)/i);
+      if (todoMatch) {
+        patterns.push({
+          type: "todo",
+          description: `${todoMatch[1]}: ${todoMatch[2]}`,
+          location: new vscode15.Range(lineNumber, 0, lineNumber, line.length),
+          severity: "info",
+          suggestion: "Item pendente identificado",
+          autoFixAvailable: false
+        });
+      }
+    }
+    return patterns;
+  }
+  /**
+   * Detecta padrões usando IA
+   */
+  async detectAIPatterns(document, content) {
+    try {
+      const sample = content.length > 2e3 ? content.substring(0, 2e3) + "..." : content;
+      const prompt = `
+Analise o seguinte c\xF3digo ${document.languageId} e detecte padr\xF5es problem\xE1ticos:
+
+\`\`\`${document.languageId}
+${sample}
+\`\`\`
+
+IMPORTANTE: Retorne APENAS um objeto JSON v\xE1lido, sem texto adicional. Exemplo:
+{
+  "patterns": [
+    {
+      "type": "performance",
+      "description": "Loop pode ser otimizado",
+      "line": 15,
+      "severity": "info",
+      "suggestion": "Use map() em vez de forEach() com push()"
+    }
+  ]
+}
+
+Use apenas estes valores para severity: "info", "warning", "error"
+Mantenha description e suggestion como strings simples.
+`;
+      const response = await this.backendService.askQuestion(prompt);
+      const analysisResult = this.parseAIResponse(response, document);
+      return analysisResult;
+    } catch (error) {
+      Logger.error("Error in AI pattern detection:", error);
+      return [];
+    }
+  }
+  /**
+   * Parse da resposta da IA
+   */
+  parseAIResponse(response, document) {
+    try {
+      let jsonString = this.extractJsonFromResponse(response);
+      if (!jsonString) {
+        Logger.warn("No JSON found in AI response");
+        return [];
+      }
+      const strategies = [
+        () => JSON.parse(jsonString),
+        // Parsing direto
+        () => this.tryFixAndParse(jsonString),
+        // Correção automática
+        () => this.tryFallbackParsing(jsonString)
+        // Parsing manual básico
+      ];
+      for (const strategy of strategies) {
+        try {
+          const parsed = strategy();
+          if (parsed) {
+            return this.extractPatternsFromParsed(parsed, document);
+          }
+        } catch (strategyError) {
+          const errorMessage = strategyError instanceof Error ? strategyError.message : "Unknown error";
+          Logger.debug(`Parsing strategy failed: ${errorMessage}`);
+          continue;
+        }
+      }
+      Logger.warn("All JSON parsing strategies failed");
+      return [];
+    } catch (error) {
+      Logger.error("Error parsing AI response:", error);
+      return [];
+    }
+  }
+  /**
+   * Extrai JSON da resposta usando múltiplos padrões
+   */
+  extractJsonFromResponse(response) {
+    const patterns = [
+      /\{[\s\S]*?"patterns"[\s\S]*?\}/,
+      // Objeto com patterns
+      /\{[\s\S]*?\}/,
+      // Qualquer objeto
+      /\[[\s\S]*?\]/
+      // Qualquer array
+    ];
+    for (const pattern of patterns) {
+      const match = response.match(pattern);
+      if (match) {
+        return match[0];
+      }
+    }
+    return null;
+  }
+  /**
+   * Tenta corrigir JSON malformado
+   */
+  tryFixAndParse(jsonString) {
+    let fixed = jsonString;
+    fixed = fixed.replace(/(\w+):/g, '"$1":');
+    fixed = fixed.replace(/'/g, '"');
+    fixed = fixed.replace(/\/\/.*$/gm, "");
+    fixed = fixed.replace(/\/\*[\s\S]*?\*\//g, "");
+    fixed = fixed.replace(/:\s*0+(\d+)/g, ": $1");
+    fixed = fixed.replace(/,(\s*[}\]])/g, "$1");
+    fixed = fixed.replace(/([}\]])(\s*)([^,\s}\]])/g, "$1,$2$3");
+    fixed = fixed.replace(/([^,\s{[])\s*([{\[])/g, "$1,$2");
+    fixed = fixed.replace(/"([^"]*?)$/gm, '"$1"');
+    return JSON.parse(fixed);
+  }
+  /**
+   * Parsing manual básico como fallback
+   */
+  tryFallbackParsing(jsonString) {
+    const patterns = [];
+    const typeMatches = jsonString.match(/"type":\s*"([^"]+)"/g) || [];
+    const descMatches = jsonString.match(/"description":\s*"([^"]+)"/g) || [];
+    const lineMatches = jsonString.match(/"line":\s*(\d+)/g) || [];
+    const maxLength = Math.max(typeMatches.length, descMatches.length, lineMatches.length);
+    for (let i2 = 0; i2 < maxLength; i2++) {
+      patterns.push({
+        type: typeMatches[i2]?.match(/"([^"]+)"/)?.[1] || "unknown",
+        description: descMatches[i2]?.match(/"([^"]+)"/)?.[1] || "Pattern detected",
+        line: parseInt(lineMatches[i2]?.match(/(\d+)/)?.[1] || "1"),
+        severity: "info",
+        suggestion: "Review code"
+      });
+    }
+    return { patterns };
+  }
+  /**
+   * Extrai padrões do objeto parsed
+   */
+  extractPatternsFromParsed(parsed, document) {
+    const patterns = [];
+    const patternsArray = parsed.patterns || parsed || [];
+    if (Array.isArray(patternsArray)) {
+      for (const pattern of patternsArray) {
+        const lineNumber = Math.max(0, Math.min((pattern.line || 1) - 1, document.lineCount - 1));
+        const line = document.lineAt(lineNumber);
+        patterns.push({
+          type: pattern.type || "ai-detected",
+          description: pattern.description || pattern.message || "Padr\xE3o detectado pela IA",
+          location: new vscode15.Range(lineNumber, 0, lineNumber, line.text.length),
+          severity: pattern.severity || "info",
+          suggestion: pattern.suggestion || "Revisar c\xF3digo",
+          autoFixAvailable: false
+        });
+      }
+    }
+    return patterns;
+  }
+  /**
+   * Atualiza diagnósticos no VS Code
+   */
+  updateDiagnostics(document, patterns) {
+    const diagnostics = patterns.map((pattern) => {
+      const diagnostic = new vscode15.Diagnostic(
+        pattern.location,
+        `[${pattern.type}] ${pattern.description}`,
+        this.severityToVSCode(pattern.severity)
+      );
+      diagnostic.source = "xCopilot Pattern Detection";
+      return diagnostic;
+    });
+    this.diagnosticCollection.set(document.uri, diagnostics);
+  }
+  /**
+   * Converte severidade para VS Code
+   */
+  severityToVSCode(severity) {
+    switch (severity) {
+      case "error":
+        return vscode15.DiagnosticSeverity.Error;
+      case "warning":
+        return vscode15.DiagnosticSeverity.Warning;
+      case "info":
+      default:
+        return vscode15.DiagnosticSeverity.Information;
+    }
+  }
+  /**
+   * Detecta duplicação de código simples
+   */
+  isCodeDuplication(lines, currentIndex) {
+    const currentLine = lines[currentIndex].trim();
+    if (currentLine.length < 20)
+      return false;
+    let duplicateCount = 0;
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      if (i2 !== currentIndex && lines[i2].trim() === currentLine) {
+        duplicateCount++;
+      }
+    }
+    return duplicateCount >= 2;
+  }
+  /**
+   * Detecta funções muito longas
+   */
+  isLongFunction(lines, currentIndex) {
+    const line = lines[currentIndex];
+    const functionRegex = /(function|def|void|int|string|bool|var|let|const)\s+\w+\s*\(/;
+    if (!functionRegex.test(line))
+      return false;
+    let braceCount = 0;
+    let lineCount = 0;
+    let started = false;
+    for (let i2 = currentIndex; i2 < lines.length; i2++) {
+      const currentLine = lines[i2];
+      if (currentLine.includes("{")) {
+        braceCount += (currentLine.match(/\{/g) || []).length;
+        started = true;
+      }
+      if (currentLine.includes("}")) {
+        braceCount -= (currentLine.match(/\}/g) || []).length;
+      }
+      if (started) {
+        lineCount++;
+        if (braceCount === 0)
+          break;
+      }
+    }
+    return lineCount > 20;
+  }
+  /**
+   * Detecta alta complexidade ciclomática
+   */
+  isHighComplexity(line) {
+    const complexityKeywords = ["if", "else", "switch", "case", "for", "while", "catch", "&&", "||"];
+    let complexityScore = 0;
+    for (const keyword of complexityKeywords) {
+      const regex = new RegExp(`\\b${keyword}\\b`, "g");
+      const matches = line.match(regex);
+      if (matches) {
+        complexityScore += matches.length;
+      }
+    }
+    return complexityScore >= 4;
+  }
+  /**
+   * Detecta funções com muitos parâmetros
+   */
+  hasTooManyParameters(line) {
+    const functionRegex = /(function\s+\w+\s*\(([^)]*)\)|(\w+)\s*\(([^)]*)\)\s*\{|(\w+)\s*:\s*\(([^)]*)\)\s*=>|(\w+)\s*=\s*\(([^)]*)\)\s*=>)/;
+    const match = line.match(functionRegex);
+    if (!match)
+      return false;
+    const params = match[2] || match[4] || match[6] || match[8] || "";
+    if (!params.trim())
+      return false;
+    const parameterCount = params.split(",").filter((p) => p.trim().length > 0).length;
+    return parameterCount > 5;
+  }
+  /**
+   * Encontra magic numbers
+   */
+  findMagicNumbers(line) {
+    const magicNumbers = [];
+    const numberRegex = /\b(\d+\.?\d*)\b/g;
+    let match;
+    while ((match = numberRegex.exec(line)) !== null) {
+      const value = match[1];
+      if (!["0", "1", "2", "10", "100", "1000"].includes(value)) {
+        magicNumbers.push({
+          value,
+          start: match.index,
+          end: match.index + value.length
+        });
+      }
+    }
+    return magicNumbers;
+  }
+  /**
+   * Registra comandos relacionados à detecção de padrões
+   */
+  registerCommands(context) {
+    const analyzeCommand = vscode15.commands.registerCommand(
+      "xcopilot.analyzePatterns",
+      () => this.analyzeCurrentFile()
+    );
+    const analyzeWorkspaceCommand = vscode15.commands.registerCommand(
+      "xcopilot.analyzeWorkspacePatterns",
+      () => this.analyzeWorkspace()
+    );
+    const toggleCommand = vscode15.commands.registerCommand(
+      "xcopilot.togglePatternDetection",
+      () => this.togglePatternDetection()
+    );
+    context.subscriptions.push(analyzeCommand, analyzeWorkspaceCommand, toggleCommand);
+  }
+  /**
+   * Analisa arquivo atual
+   */
+  async analyzeCurrentFile() {
+    const editor = vscode15.window.activeTextEditor;
+    if (!editor) {
+      vscode15.window.showWarningMessage("Nenhum arquivo ativo para analisar");
+      return;
+    }
+    vscode15.window.showInformationMessage("\u{1F50D} Analisando padr\xF5es de c\xF3digo...");
+    await this.analyzeDocument(editor.document);
+    vscode15.window.showInformationMessage("\u2705 An\xE1lise de padr\xF5es conclu\xEDda!");
+  }
+  /**
+   * Analisa workspace inteiro
+   */
+  async analyzeWorkspace() {
+    const files = await vscode15.workspace.findFiles("**/*.{ts,js,py,java,cs,cpp,c,php,rb,go,rs}");
+    if (files.length === 0) {
+      vscode15.window.showInformationMessage("Nenhum arquivo de c\xF3digo encontrado no workspace");
+      return;
+    }
+    vscode15.window.showInformationMessage(`\u{1F50D} Analisando ${files.length} arquivo(s)...`);
+    for (const fileUri of files) {
+      try {
+        const document = await vscode15.workspace.openTextDocument(fileUri);
+        await this.analyzeDocument(document);
+      } catch (error) {
+        Logger.error(`Error analyzing file ${fileUri.fsPath}:`, error);
+      }
+    }
+    vscode15.window.showInformationMessage("\u2705 An\xE1lise do workspace conclu\xEDda!");
+  }
+  /**
+   * Toggle da detecção automática
+   */
+  togglePatternDetection() {
+    this.isEnabled = !this.isEnabled;
+    if (!this.isEnabled) {
+      this.diagnosticCollection.clear();
+    }
+    vscode15.window.showInformationMessage(
+      `Detec\xE7\xE3o de padr\xF5es ${this.isEnabled ? "ativada" : "desativada"}`
+    );
+  }
+  /**
+   * Obtém disposables para limpeza
+   */
+  getDisposables() {
+    return [this.diagnosticCollection];
+  }
+  /**
+   * Limpa recursos
+   */
+  dispose() {
+    if (this.analysisDebounceTimer) {
+      clearTimeout(this.analysisDebounceTimer);
+    }
+    this.diagnosticCollection.dispose();
+  }
+};
+
+// src/services/RefactoringService.ts
+var vscode16 = __toESM(require("vscode"));
+var RefactoringService = class _RefactoringService {
+  constructor() {
+    this.backendService = BackendService.getInstance();
+    this.contextService = CodeContextService.getInstance();
+  }
+  static getInstance() {
+    if (!_RefactoringService.instance) {
+      _RefactoringService.instance = new _RefactoringService();
+    }
+    return _RefactoringService.instance;
+  }
+  /**
+   * Registra os command handlers para refatoração
+   */
+  registerCommands(context) {
+    const refactorCommand = vscode16.commands.registerCommand(
+      "xcopilot.refactorCode",
+      () => this.refactorSelectedCode()
+    );
+    const extractFunctionCommand = vscode16.commands.registerCommand(
+      "xcopilot.extractFunction",
+      () => this.extractFunction()
+    );
+    const extractVariableCommand = vscode16.commands.registerCommand(
+      "xcopilot.extractVariable",
+      () => this.extractVariable()
+    );
+    const optimizeImportsCommand = vscode16.commands.registerCommand(
+      "xcopilot.optimizeImports",
+      () => this.optimizeImports()
+    );
+    const applyPatternCommand = vscode16.commands.registerCommand(
+      "xcopilot.applyDesignPattern",
+      () => this.applyDesignPattern()
+    );
+    const extractMethodCommand = vscode16.commands.registerCommand(
+      "xcopilot.extractMethod",
+      (uri, range) => this.extractMethod(uri, range)
+    );
+    const extractClassCommand = vscode16.commands.registerCommand(
+      "xcopilot.extractClass",
+      (uri, range) => this.extractClass(uri, range)
+    );
+    const extractDuplicatedCodeCommand = vscode16.commands.registerCommand(
+      "xcopilot.extractDuplicatedCode",
+      (uri, range) => this.extractDuplicatedCode(uri, range)
+    );
+    const convertToAsyncAwaitCommand = vscode16.commands.registerCommand(
+      "xcopilot.convertToAsyncAwait",
+      (lineNumber) => this.convertToAsyncAwait(lineNumber)
+    );
+    const convertToArrowFunctionCommand = vscode16.commands.registerCommand(
+      "xcopilot.convertToArrowFunction",
+      (lineNumber) => this.convertToArrowFunction(lineNumber)
+    );
+    const applyDestructuringCommand = vscode16.commands.registerCommand(
+      "xcopilot.applyDestructuring",
+      (lineNumber) => this.applyDestructuring(lineNumber)
+    );
+    const moveMethodCommand = vscode16.commands.registerCommand(
+      "xcopilot.moveMethod",
+      () => this.moveMethod()
+    );
+    const refactorWorkspaceCommand = vscode16.commands.registerCommand(
+      "xcopilot.refactorWorkspace",
+      () => this.refactorWorkspace()
+    );
+    context.subscriptions.push(
+      refactorCommand,
+      extractFunctionCommand,
+      extractVariableCommand,
+      optimizeImportsCommand,
+      applyPatternCommand,
+      extractMethodCommand,
+      extractClassCommand,
+      extractDuplicatedCodeCommand,
+      convertToAsyncAwaitCommand,
+      convertToArrowFunctionCommand,
+      applyDestructuringCommand,
+      moveMethodCommand,
+      refactorWorkspaceCommand
+    );
+  }
+  /**
+   * Refatora código selecionado
+   */
+  async refactorSelectedCode() {
+    const editor = vscode16.window.activeTextEditor;
+    if (!editor) {
+      vscode16.window.showWarningMessage("No active editor found");
+      return;
+    }
+    const selection = editor.selection;
+    if (selection.isEmpty) {
+      vscode16.window.showWarningMessage("Select code to refactor");
+      return;
+    }
+    try {
+      const selectedText = editor.document.getText(selection);
+      const context = this.contextService.getCurrentContext();
+      vscode16.window.showInformationMessage("\u{1F527} Analyzing code for refactoring...");
+      const refactoredCode = await this.generateRefactoredCode(selectedText, context, editor.document.languageId);
+      if (refactoredCode && refactoredCode !== selectedText) {
+        const choice = await vscode16.window.showInformationMessage(
+          "Refactored code generated! Do you want to apply the changes?",
+          "Apply",
+          "Preview",
+          "Cancel"
+        );
+        if (choice === "Apply") {
+          await editor.edit((editBuilder) => {
+            editBuilder.replace(selection, refactoredCode);
+          });
+          vscode16.window.showInformationMessage("\u2705 Refactoring applied successfully!");
+        } else if (choice === "Preview") {
+          await this.showRefactoringPreview(selectedText, refactoredCode);
+        }
+      } else {
+        vscode16.window.showInformationMessage("No refactoring improvements identified");
+      }
+    } catch (error) {
+      Logger.error("Error refactoring code:", error);
+      vscode16.window.showErrorMessage("Error refactoring code");
+    }
+  }
+  /**
+   * Extrai função do código selecionado
+   */
+  async extractFunction() {
+    const editor = vscode16.window.activeTextEditor;
+    if (!editor)
+      return;
+    const selection = editor.selection;
+    if (selection.isEmpty) {
+      vscode16.window.showWarningMessage("Select code to extract into function");
+      return;
+    }
+    try {
+      const selectedText = editor.document.getText(selection);
+      const functionName = await vscode16.window.showInputBox({
+        prompt: "New function name:",
+        value: "extractedFunction"
+      });
+      if (!functionName)
+        return;
+      const context = this.contextService.getCurrentContext();
+      const extraction = await this.generateFunctionExtraction(
+        selectedText,
+        functionName,
+        context,
+        editor.document.languageId
+      );
+      if (extraction) {
+        await editor.edit((editBuilder) => {
+          editBuilder.replace(selection, extraction.functionCall);
+          const insertPosition = this.findBestInsertionPoint(editor.document);
+          editBuilder.insert(insertPosition, `
+${extraction.functionDefinition}
+`);
+        });
+        vscode16.window.showInformationMessage(`\u2705 Function "${functionName}" extracted successfully!`);
+      }
+    } catch (error) {
+      Logger.error("Error extracting function:", error);
+      vscode16.window.showErrorMessage("Error extracting function");
+    }
+  }
+  /**
+   * Extrai variável do código selecionado
+   */
+  async extractVariable() {
+    const editor = vscode16.window.activeTextEditor;
+    if (!editor)
+      return;
+    const selection = editor.selection;
+    if (selection.isEmpty) {
+      vscode16.window.showWarningMessage("Select the expression to extract into variable");
+      return;
+    }
+    try {
+      const selectedText = editor.document.getText(selection);
+      const variableName = await vscode16.window.showInputBox({
+        prompt: "New variable name:",
+        value: "extractedVariable"
+      });
+      if (!variableName)
+        return;
+      const context = this.contextService.getCurrentContext();
+      const extraction = await this.generateVariableExtraction(
+        selectedText,
+        variableName,
+        context,
+        editor.document.languageId
+      );
+      if (extraction) {
+        await editor.edit((editBuilder) => {
+          const lineStart = editor.document.lineAt(selection.start.line).range.start;
+          editBuilder.insert(lineStart, `${extraction.variableDeclaration}
+`);
+          editBuilder.replace(selection, variableName);
+        });
+        vscode16.window.showInformationMessage(`\u2705 Vari\xE1vel "${variableName}" extra\xEDda com sucesso!`);
+      }
+    } catch (error) {
+      Logger.error("Error extracting variable:", error);
+      vscode16.window.showErrorMessage("Error extracting variable");
+    }
+  }
+  /**
+   * Otimiza imports do arquivo atual
+   */
+  async optimizeImports() {
+    const editor = vscode16.window.activeTextEditor;
+    if (!editor)
+      return;
+    try {
+      vscode16.window.showInformationMessage("\u{1F527} Optimizing imports...");
+      const fileContent = editor.document.getText();
+      const context = this.contextService.getCurrentContext();
+      const optimizedImports = await this.generateOptimizedImports(
+        fileContent,
+        context,
+        editor.document.languageId
+      );
+      if (optimizedImports && optimizedImports !== fileContent) {
+        const choice = await vscode16.window.showInformationMessage(
+          "Imports optimized! Apply changes?",
+          "Aplicar",
+          "Cancelar"
+        );
+        if (choice === "Aplicar") {
+          const fullRange = new vscode16.Range(
+            editor.document.positionAt(0),
+            editor.document.positionAt(fileContent.length)
+          );
+          await editor.edit((editBuilder) => {
+            editBuilder.replace(fullRange, optimizedImports);
+          });
+          vscode16.window.showInformationMessage("\u2705 Imports optimized successfully!");
+        }
+      } else {
+        vscode16.window.showInformationMessage("Imports are already optimized");
+      }
+    } catch (error) {
+      Logger.error("Error optimizing imports:", error);
+      vscode16.window.showErrorMessage("Error optimizing imports");
+    }
+  }
+  /**
+   * Aplica padrão de design ao código
+   */
+  async applyDesignPattern() {
+    const patterns = [
+      "Singleton",
+      "Factory",
+      "Observer",
+      "Strategy",
+      "Command",
+      "Adapter",
+      "Decorator"
+    ];
+    const pattern = await vscode16.window.showQuickPick(patterns, {
+      placeHolder: "Select the design pattern to apply"
+    });
+    if (!pattern)
+      return;
+    const editor = vscode16.window.activeTextEditor;
+    if (!editor)
+      return;
+    try {
+      const selection = editor.selection;
+      const selectedText = selection.isEmpty ? editor.document.getText() : editor.document.getText(selection);
+      const context = this.contextService.getCurrentContext();
+      vscode16.window.showInformationMessage(`\u{1F527} Aplicando padr\xE3o ${pattern}...`);
+      const patternCode = await this.generateDesignPattern(
+        selectedText,
+        pattern,
+        context,
+        editor.document.languageId
+      );
+      if (patternCode) {
+        await this.showPatternPreview(selectedText, patternCode, pattern);
+      }
+    } catch (error) {
+      Logger.error("Error applying design pattern:", error);
+      vscode16.window.showErrorMessage("Error applying design pattern");
+    }
+  }
+  /**
+   * Extrai método com suporte a CodeLens
+   */
+  async extractMethod(uri, range) {
+    let editor = vscode16.window.activeTextEditor;
+    let selection = range;
+    if (uri) {
+      const document = await vscode16.workspace.openTextDocument(uri);
+      editor = await vscode16.window.showTextDocument(document);
+    }
+    if (!editor)
+      return;
+    if (range) {
+      editor.selection = new vscode16.Selection(range.start, range.end);
+      selection = range;
+    } else {
+      selection = editor.selection;
+    }
+    if (!selection || selection.isEmpty) {
+      vscode16.window.showWarningMessage("Select code to extract into method");
+      return;
+    }
+    await this.extractFunction();
+  }
+  /**
+   * Extrai classe de função com muitos parâmetros
+   */
+  async extractClass(uri, range) {
+    let editor = vscode16.window.activeTextEditor;
+    if (uri) {
+      const document = await vscode16.workspace.openTextDocument(uri);
+      editor = await vscode16.window.showTextDocument(document);
+    }
+    if (!editor)
+      return;
+    try {
+      const selectedText = range ? editor.document.getText(range) : editor.document.getText(editor.selection);
+      const className = await vscode16.window.showInputBox({
+        prompt: "New class name:",
+        value: "ExtractedClass"
+      });
+      if (!className)
+        return;
+      const context = this.contextService.getCurrentContext();
+      const classCode = await this.generateExtractedClass(
+        selectedText,
+        className,
+        context,
+        editor.document.languageId
+      );
+      if (classCode) {
+        await this.showExtractClassPreview(selectedText, classCode, className);
+      }
+    } catch (error) {
+      Logger.error("Error extracting class:", error);
+      vscode16.window.showErrorMessage("Error extracting class");
+    }
+  }
+  /**
+   * Extrai código duplicado
+   */
+  async extractDuplicatedCode(uri, range) {
+    let editor = vscode16.window.activeTextEditor;
+    if (uri) {
+      const document = await vscode16.workspace.openTextDocument(uri);
+      editor = await vscode16.window.showTextDocument(document);
+    }
+    if (!editor)
+      return;
+    try {
+      const targetLine = range ? range.start.line : editor.selection.start.line;
+      const duplicates = await this.findDuplicatedCode(editor.document, targetLine);
+      if (duplicates.length < 2) {
+        vscode16.window.showInformationMessage("Insufficient duplicate code found");
+        return;
+      }
+      const functionName = await vscode16.window.showInputBox({
+        prompt: "Function name for extracted code:",
+        value: "extractedFunction"
+      });
+      if (!functionName)
+        return;
+      await this.extractDuplicatesIntoFunction(editor, duplicates, functionName);
+    } catch (error) {
+      Logger.error("Error extracting duplicated code:", error);
+      vscode16.window.showErrorMessage("Error extracting duplicated code");
+    }
+  }
+  /**
+   * Converte callback para async/await
+   */
+  async convertToAsyncAwait(lineNumber) {
+    const editor = vscode16.window.activeTextEditor;
+    if (!editor)
+      return;
+    try {
+      const line = lineNumber !== void 0 ? editor.document.lineAt(lineNumber) : editor.document.lineAt(editor.selection.start.line);
+      const convertedCode = await this.generateAsyncAwaitCode(
+        line.text,
+        this.contextService.getCurrentContext(),
+        editor.document.languageId
+      );
+      if (convertedCode && convertedCode !== line.text) {
+        await editor.edit((editBuilder) => {
+          editBuilder.replace(line.range, convertedCode);
+        });
+        vscode16.window.showInformationMessage("\u2705 Converted to async/await!");
+      }
+    } catch (error) {
+      Logger.error("Error converting to async/await:", error);
+      vscode16.window.showErrorMessage("Error converting to async/await");
+    }
+  }
+  /**
+   * Converte para arrow function
+   */
+  async convertToArrowFunction(lineNumber) {
+    const editor = vscode16.window.activeTextEditor;
+    if (!editor)
+      return;
+    try {
+      const line = lineNumber !== void 0 ? editor.document.lineAt(lineNumber) : editor.document.lineAt(editor.selection.start.line);
+      const convertedCode = await this.generateArrowFunction(
+        line.text,
+        this.contextService.getCurrentContext(),
+        editor.document.languageId
+      );
+      if (convertedCode && convertedCode !== line.text) {
+        await editor.edit((editBuilder) => {
+          editBuilder.replace(line.range, convertedCode);
+        });
+        vscode16.window.showInformationMessage("\u2705 Converted to arrow function!");
+      }
+    } catch (error) {
+      Logger.error("Error converting to arrow function:", error);
+      vscode16.window.showErrorMessage("Error converting to arrow function");
+    }
+  }
+  /**
+   * Aplica destructuring
+   */
+  async applyDestructuring(lineNumber) {
+    const editor = vscode16.window.activeTextEditor;
+    if (!editor)
+      return;
+    try {
+      const line = lineNumber !== void 0 ? editor.document.lineAt(lineNumber) : editor.document.lineAt(editor.selection.start.line);
+      const destructuredCode = await this.generateDestructuredCode(
+        line.text,
+        this.contextService.getCurrentContext(),
+        editor.document.languageId
+      );
+      if (destructuredCode && destructuredCode !== line.text) {
+        await editor.edit((editBuilder) => {
+          editBuilder.replace(line.range, destructuredCode);
+        });
+        vscode16.window.showInformationMessage("\u2705 Destructuring applied!");
+      }
+    } catch (error) {
+      Logger.error("Error applying destructuring:", error);
+      vscode16.window.showErrorMessage("Error applying destructuring");
+    }
+  }
+  /**
+   * Move método entre classes
+   */
+  async moveMethod() {
+    const editor = vscode16.window.activeTextEditor;
+    if (!editor)
+      return;
+    try {
+      const selection = editor.selection;
+      if (selection.isEmpty) {
+        vscode16.window.showWarningMessage("Select the method to move");
+        return;
+      }
+      const availableFiles = await this.findAvailableFiles();
+      const availableClasses = await this.findAvailableClasses(editor.document);
+      if (availableClasses.length === 0 && availableFiles.length === 0) {
+        vscode16.window.showWarningMessage("No target classes found");
+        return;
+      }
+      const moveOptions = ["Class in same file", "Different file"];
+      const moveType = await vscode16.window.showQuickPick(moveOptions, {
+        placeHolder: "Where do you want to move the method?"
+      });
+      if (!moveType)
+        return;
+      if (moveType === "Class in same file") {
+        await this.moveMethodToSameFile(editor, selection, availableClasses);
+      } else {
+        await this.moveMethodToOtherFile(editor, selection, availableFiles);
+      }
+    } catch (error) {
+      Logger.error("Error moving method:", error);
+      vscode16.window.showErrorMessage("Error moving method");
+    }
+  }
+  /**
+   * Move método para classe no mesmo arquivo
+   */
+  async moveMethodToSameFile(editor, selection, availableClasses) {
+    const targetClass = await vscode16.window.showQuickPick(availableClasses, {
+      placeHolder: "Select the target class"
+    });
+    if (!targetClass)
+      return;
+    const selectedMethod = editor.document.getText(selection);
+    await this.performMethodMove(editor, selection, selectedMethod, targetClass);
+  }
+  /**
+   * Move método para arquivo diferente
+   */
+  async moveMethodToOtherFile(editor, selection, availableFiles) {
+    const fileQuickPicks = availableFiles.map((uri) => ({
+      label: vscode16.workspace.asRelativePath(uri),
+      uri
+    }));
+    const selectedFile = await vscode16.window.showQuickPick(fileQuickPicks, {
+      placeHolder: "Select the target file"
+    });
+    if (!selectedFile)
+      return;
+    const targetDocument = await vscode16.workspace.openTextDocument(selectedFile.uri);
+    const targetClasses = await this.findAvailableClasses(targetDocument);
+    if (targetClasses.length === 0) {
+      vscode16.window.showWarningMessage("No classes found in target file");
+      return;
+    }
+    const targetClass = await vscode16.window.showQuickPick(targetClasses, {
+      placeHolder: "Select the target class"
+    });
+    if (!targetClass)
+      return;
+    await this.performMultiFileMethodMove(editor, selection, targetDocument, targetClass);
+  }
+  /**
+   * Executa movimentação de método entre arquivos
+   */
+  async performMultiFileMethodMove(sourceEditor, methodRange, targetDocument, targetClass) {
+    const methodCode = sourceEditor.document.getText(methodRange);
+    const choice = await vscode16.window.showInformationMessage(
+      `Move method to class "${targetClass}" in file "${vscode16.workspace.asRelativePath(targetDocument.uri)}"?`,
+      "Move",
+      "Cancel"
+    );
+    if (choice !== "Move")
+      return;
+    const targetEditor = await vscode16.window.showTextDocument(targetDocument);
+    const classPosition = this.findClassPosition(targetDocument, targetClass);
+    if (classPosition) {
+      await targetEditor.edit((editBuilder) => {
+        editBuilder.insert(classPosition, `
+    ${methodCode}
+`);
+      });
+    }
+    await sourceEditor.edit((editBuilder) => {
+      editBuilder.delete(methodRange);
+    });
+    vscode16.window.showInformationMessage(`\u2705 Method moved to "${targetClass}" in ${vscode16.workspace.asRelativePath(targetDocument.uri)}!`);
+  }
+  /**
+   * Refatora workspace inteiro
+   */
+  async refactorWorkspace() {
+    try {
+      const files = await vscode16.workspace.findFiles(
+        "**/*.{ts,js,py,java,cs,cpp,c,php,rb,go,rs}",
+        "**/node_modules/**"
+      );
+      if (files.length === 0) {
+        vscode16.window.showInformationMessage("No code files found in workspace");
+        return;
+      }
+      const choice = await vscode16.window.showInformationMessage(
+        `Found ${files.length} code file(s). Do you want to proceed with workspace refactoring?`,
+        "Proceed",
+        "Cancel"
+      );
+      if (choice !== "Proceed")
+        return;
+      const refactoringTypes = [
+        "Optimize Imports",
+        "Convert to ES6+",
+        "Apply Design Patterns",
+        "Extract Duplicate Code",
+        "All Options"
+      ];
+      const selectedTypes = await vscode16.window.showQuickPick(refactoringTypes, {
+        placeHolder: "Select refactoring types",
+        canPickMany: true
+      });
+      if (!selectedTypes || selectedTypes.length === 0)
+        return;
+      vscode16.window.showInformationMessage("\u{1F527} Starting workspace refactoring...");
+      const results = await this.processWorkspaceFiles(files, selectedTypes);
+      await this.showWorkspaceRefactoringReport(results);
+    } catch (error) {
+      Logger.error("Error refactoring workspace:", error);
+      vscode16.window.showErrorMessage("Error refactoring workspace");
+    }
+  }
+  /**
+   * Processa arquivos do workspace para refatoração
+   */
+  async processWorkspaceFiles(files, refactoringTypes) {
+    const results = [];
+    for (const fileUri of files) {
+      try {
+        const document = await vscode16.workspace.openTextDocument(fileUri);
+        const fileResults = await this.processFileForRefactoring(document, refactoringTypes);
+        results.push({
+          file: vscode16.workspace.asRelativePath(fileUri),
+          changes: fileResults.changes,
+          errors: fileResults.errors
+        });
+        vscode16.window.showInformationMessage(
+          `Processing: ${vscode16.workspace.asRelativePath(fileUri)}`
+        );
+      } catch (error) {
+        results.push({
+          file: vscode16.workspace.asRelativePath(fileUri),
+          changes: [],
+          errors: [`Erro ao processar arquivo: ${error}`]
+        });
+      }
+    }
+    return results;
+  }
+  /**
+   * Processa arquivo individual para refatoração
+   */
+  async processFileForRefactoring(document, refactoringTypes) {
+    const changes = [];
+    const errors = [];
+    try {
+      const content = document.getText();
+      let modifiedContent = content;
+      for (const refactoringType of refactoringTypes) {
+        try {
+          switch (refactoringType) {
+            case "Optimize Imports":
+            case "All Options":
+              const optimizedImports = await this.generateOptimizedImports(
+                modifiedContent,
+                {},
+                document.languageId
+              );
+              if (optimizedImports !== modifiedContent) {
+                modifiedContent = optimizedImports;
+                changes.push("Imports optimized");
+              }
+              break;
+            case "Convert to ES6+":
+              const modernizedCode = await this.modernizeCodeForFile(
+                modifiedContent,
+                document.languageId
+              );
+              if (modernizedCode !== modifiedContent) {
+                modifiedContent = modernizedCode;
+                changes.push("Code modernized to ES6+");
+              }
+              break;
+            case "Extract Duplicate Code":
+              const deduplicatedCode = await this.extractDuplicatesInFile(
+                modifiedContent,
+                document
+              );
+              if (deduplicatedCode !== modifiedContent) {
+                modifiedContent = deduplicatedCode;
+                changes.push("Duplicate code extracted");
+              }
+              break;
+          }
+        } catch (error) {
+          errors.push(`Erro em ${refactoringType}: ${error}`);
+        }
+      }
+      if (modifiedContent !== content && changes.length > 0) {
+        const editor = await vscode16.window.showTextDocument(document);
+        const fullRange = new vscode16.Range(
+          document.positionAt(0),
+          document.positionAt(content.length)
+        );
+        await editor.edit((editBuilder) => {
+          editBuilder.replace(fullRange, modifiedContent);
+        });
+      }
+    } catch (error) {
+      errors.push(`Erro geral: ${error}`);
+    }
+    return { changes, errors };
+  }
+  /**
+   * Moderniza código para ES6+
+   */
+  async modernizeCodeForFile(content, language) {
+    if (language !== "javascript" && language !== "typescript") {
+      return content;
+    }
+    const prompt = `
+Modernize o seguinte c\xF3digo ${language} para ES6+:
+
+\`\`\`${language}
+${content}
+\`\`\`
+
+Aplique:
+- Arrow functions onde apropriado
+- const/let ao inv\xE9s de var
+- Template literals
+- Destructuring
+- Async/await ao inv\xE9s de callbacks
+- Spread operator
+- Classes ao inv\xE9s de function constructors
+
+Retorne APENAS o c\xF3digo modernizado:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Extrai duplicatas em arquivo
+   */
+  async extractDuplicatesInFile(content, document) {
+    return content;
+  }
+  /**
+   * Mostra relatório de refatoração do workspace
+   */
+  async showWorkspaceRefactoringReport(results) {
+    const totalFiles = results.length;
+    const filesWithChanges = results.filter((r2) => r2.changes.length > 0).length;
+    const filesWithErrors = results.filter((r2) => r2.errors.length > 0).length;
+    let report = `# Workspace Refactoring Report
+
+`;
+    report += `**Files processed**: ${totalFiles}
+`;
+    report += `**Files modified**: ${filesWithChanges}
+`;
+    report += `**Files with errors**: ${filesWithErrors}
+
+`;
+    report += `## Details by File
+
+`;
+    for (const result of results) {
+      report += `### ${result.file}
+`;
+      if (result.changes.length > 0) {
+        report += `**Changes applied**:
+`;
+        for (const change of result.changes) {
+          report += `- \u2705 ${change}
+`;
+        }
+      }
+      if (result.errors.length > 0) {
+        report += `**Errors found**:
+`;
+        for (const error of result.errors) {
+          report += `- \u274C ${error}
+`;
+        }
+      }
+      if (result.changes.length === 0 && result.errors.length === 0) {
+        report += `- \u2139\uFE0F No changes needed
+`;
+      }
+      report += `
+`;
+    }
+    const doc = await vscode16.workspace.openTextDocument({
+      content: report,
+      language: "markdown"
+    });
+    await vscode16.window.showTextDocument(doc);
+    vscode16.window.showInformationMessage(
+      `\u2705 Workspace refactoring completed! ${filesWithChanges}/${totalFiles} files modified.`
+    );
+  }
+  async findAvailableFiles() {
+    const files = await vscode16.workspace.findFiles(
+      "**/*.{ts,js,py,java,cs,cpp,c,php,rb,go,rs}",
+      "**/node_modules/**"
+    );
+    const currentFile = vscode16.window.activeTextEditor?.document.uri;
+    return files.filter((file) => !currentFile || file.fsPath !== currentFile.fsPath);
+  }
+  async generateRefactoredCode(code, context, language) {
+    const prompt = `
+Refatore o seguinte c\xF3digo ${language} para melhorar:
+- Legibilidade
+- Performance
+- Manutenibilidade
+- Aplica\xE7\xE3o de boas pr\xE1ticas
+
+C\xF3digo original:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Contexto do arquivo:
+- Arquivo: ${context?.fileName || "desconhecido"}
+- Tipo: ${context?.fileType || "desconhecido"}
+
+Retorne APENAS o c\xF3digo refatorado, sem explica\xE7\xF5es:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Gera extração de função
+   */
+  async generateFunctionExtraction(code, functionName, context, language) {
+    const prompt = `
+Extraia o c\xF3digo a seguir em uma fun\xE7\xE3o chamada "${functionName}" em ${language}:
+
+C\xF3digo a extrair:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Retorne em formato JSON:
+{
+  "functionDefinition": "defini\xE7\xE3o completa da fun\xE7\xE3o",
+  "functionCall": "chamada da fun\xE7\xE3o para substituir o c\xF3digo original"
+}
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    try {
+      return JSON.parse(response);
+    } catch {
+      return null;
+    }
+  }
+  /**
+   * Gera extração de variável
+   */
+  async generateVariableExtraction(expression, variableName, context, language) {
+    const prompt = `
+Extraia a express\xE3o a seguir em uma vari\xE1vel chamada "${variableName}" em ${language}:
+
+Express\xE3o:
+${expression}
+
+Retorne em formato JSON:
+{
+  "variableDeclaration": "declara\xE7\xE3o da vari\xE1vel com tipo apropriado"
+}
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    try {
+      return JSON.parse(response);
+    } catch {
+      return null;
+    }
+  }
+  /**
+   * Gera imports otimizados
+   */
+  async generateOptimizedImports(fileContent, context, language) {
+    const prompt = `
+Otimize os imports do seguinte arquivo ${language}:
+- Remova imports n\xE3o utilizados
+- Organize imports em ordem alfab\xE9tica
+- Agrupe imports por tipo (biblioteca, relativos, etc.)
+- Aplique conven\xE7\xF5es da linguagem
+
+C\xF3digo completo:
+\`\`\`${language}
+${fileContent}
+\`\`\`
+
+Retorne APENAS o c\xF3digo com imports otimizados:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Gera código com padrão de design aplicado
+   */
+  async generateDesignPattern(code, pattern, context, language) {
+    const prompt = `
+Aplique o padr\xE3o de design "${pattern}" ao seguinte c\xF3digo ${language}:
+
+C\xF3digo original:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Implemente o padr\xE3o ${pattern} seguindo as melhores pr\xE1ticas.
+Retorne APENAS o c\xF3digo refatorado com o padr\xE3o aplicado:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Mostra preview da refatoração
+   */
+  async showRefactoringPreview(original, refactored) {
+    await this.showEnhancedDiffPreview(original, refactored, "Refatora\xE7\xE3o");
+  }
+  /**
+   * Mostra preview aprimorado com diff view
+   */
+  async showEnhancedDiffPreview(original, modified, title) {
+    const originalDoc = await vscode16.workspace.openTextDocument({
+      content: original,
+      language: "typescript"
+    });
+    const modifiedDoc = await vscode16.workspace.openTextDocument({
+      content: modified,
+      language: "typescript"
+    });
+    await vscode16.commands.executeCommand(
+      "vscode.diff",
+      originalDoc.uri,
+      modifiedDoc.uri,
+      `${title}: Original \u2194 Modificado`,
+      { preserveFocus: true }
+    );
+    const choice = await vscode16.window.showInformationMessage(
+      `${title} gerada! O que deseja fazer?`,
+      "Aplicar",
+      "Salvar como Arquivo",
+      "Fechar"
+    );
+    if (choice === "Aplicar") {
+      await this.applyRefactoringChanges(original, modified);
+    } else if (choice === "Salvar como Arquivo") {
+      await this.saveRefactoringAsFile(modified, title);
+    }
+  }
+  /**
+   * Aplica mudanças de refatoração
+   */
+  async applyRefactoringChanges(original, modified) {
+    const editor = vscode16.window.activeTextEditor;
+    if (!editor)
+      return;
+    const document = editor.document;
+    const content = document.getText();
+    const originalIndex = content.indexOf(original);
+    if (originalIndex !== -1) {
+      const startPos = document.positionAt(originalIndex);
+      const endPos = document.positionAt(originalIndex + original.length);
+      const range = new vscode16.Range(startPos, endPos);
+      await editor.edit((editBuilder) => {
+        editBuilder.replace(range, modified);
+      });
+      vscode16.window.showInformationMessage("\u2705 Refatora\xE7\xE3o aplicada com sucesso!");
+    } else {
+      vscode16.window.showWarningMessage("Unable to apply refactoring automatically");
+    }
+  }
+  /**
+   * Salva refatoração como arquivo
+   */
+  async saveRefactoringAsFile(content, title) {
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+    const filename = `${title}-${timestamp}.txt`;
+    const uri = await vscode16.window.showSaveDialog({
+      defaultUri: vscode16.Uri.file(filename),
+      filters: {
+        "Text Files": ["txt"],
+        "All Files": ["*"]
+      }
+    });
+    if (uri) {
+      await vscode16.workspace.fs.writeFile(uri, Buffer.from(content, "utf8"));
+      vscode16.window.showInformationMessage(`\u{1F4C1} Refatora\xE7\xE3o salva em ${uri.fsPath}`);
+    }
+  }
+  /**
+   * Mostra preview do padrão aplicado
+   */
+  async showPatternPreview(original, pattern, patternName) {
+    const choice = await vscode16.window.showInformationMessage(
+      `Pattern ${patternName} generated! Do you want to view it?`,
+      "View",
+      "Cancel"
+    );
+    if (choice === "View") {
+      const doc = await vscode16.workspace.openTextDocument({
+        content: `// PADR\xC3O ${patternName.toUpperCase()} APLICADO:
+
+${pattern}`,
+        language: "typescript"
+      });
+      await vscode16.window.showTextDocument(doc);
+    }
+  }
+  /**
+   * Encontra o melhor ponto para inserção de funções
+   */
+  findBestInsertionPoint(document) {
+    return document.positionAt(document.getText().length);
+  }
+  /**
+   * Extrai código limpo da resposta da IA
+   */
+  extractCodeFromResponse(response) {
+    const codeBlockRegex = /```(?:\w+)?\n?([\s\S]*?)\n?```/;
+    const match = response.match(codeBlockRegex);
+    if (match) {
+      return match[1].trim();
+    }
+    return response.trim();
+  }
+  /**
+   * Gera classe extraída
+   */
+  async generateExtractedClass(code, className, context, language) {
+    const prompt = `
+Extraia o seguinte c\xF3digo ${language} em uma classe chamada "${className}":
+
+C\xF3digo a extrair:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Crie uma classe bem estruturada com:
+- Propriedades privadas apropriadas
+- Construtor com par\xE2metros necess\xE1rios
+- M\xE9todos p\xFAblicos bem organizados
+- Aplica\xE7\xE3o de princ\xEDpios SOLID
+
+Retorne APENAS o c\xF3digo da classe:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Encontra código duplicado
+   */
+  async findDuplicatedCode(document, targetLine) {
+    const lines = document.getText().split("\n");
+    const targetCode = lines[targetLine].trim();
+    const duplicates = [];
+    if (targetCode.length < 20)
+      return duplicates;
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      if (i2 !== targetLine && lines[i2].trim() === targetCode) {
+        duplicates.push(new vscode16.Range(i2, 0, i2, lines[i2].length));
+      }
+    }
+    return duplicates;
+  }
+  /**
+   * Extrai duplicatas em função
+   */
+  async extractDuplicatesIntoFunction(editor, duplicates, functionName) {
+    const firstLine = editor.document.getText(duplicates[0]);
+    const context = this.contextService.getCurrentContext();
+    const extraction = await this.generateFunctionExtraction(
+      firstLine,
+      functionName,
+      context,
+      editor.document.languageId
+    );
+    if (!extraction)
+      return;
+    await editor.edit((editBuilder) => {
+      for (const duplicate of duplicates) {
+        editBuilder.replace(duplicate, extraction.functionCall);
+      }
+      const insertPosition = this.findBestInsertionPoint(editor.document);
+      editBuilder.insert(insertPosition, `
+${extraction.functionDefinition}
+`);
+    });
+    vscode16.window.showInformationMessage(`\u2705 ${duplicates.length} duplicates extracted to "${functionName}"!`);
+  }
+  /**
+   * Gera código async/await
+   */
+  async generateAsyncAwaitCode(code, context, language) {
+    const prompt = `
+Converta o seguinte c\xF3digo ${language} de callbacks/promises para async/await:
+
+C\xF3digo original:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Aplique as melhores pr\xE1ticas:
+- Use async/await ao inv\xE9s de .then()/.catch()
+- Adicione try/catch para tratamento de erros
+- Mantenha a funcionalidade original
+
+Retorne APENAS o c\xF3digo convertido:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Gera arrow function
+   */
+  async generateArrowFunction(code, context, language) {
+    const prompt = `
+Converta a seguinte fun\xE7\xE3o ${language} para arrow function:
+
+C\xF3digo original:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Mantenha:
+- Funcionalidade original
+- Par\xE2metros e tipos
+- Escopo correto
+
+Retorne APENAS o c\xF3digo convertido:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Gera código com destructuring
+   */
+  async generateDestructuredCode(code, context, language) {
+    const prompt = `
+Aplique destructuring ao seguinte c\xF3digo ${language}:
+
+C\xF3digo original:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Substitua acessos repetidos a propriedades por destructuring:
+- Object destructuring para propriedades
+- Array destructuring quando apropriado
+- Mantenha funcionalidade original
+
+Retorne APENAS o c\xF3digo com destructuring aplicado:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Encontra classes disponíveis no documento
+   */
+  async findAvailableClasses(document) {
+    const content = document.getText();
+    const classRegex = /class\s+(\w+)/g;
+    const classes = [];
+    let match;
+    while ((match = classRegex.exec(content)) !== null) {
+      classes.push(match[1]);
+    }
+    return classes;
+  }
+  /**
+   * Executa a movimentação de método
+   */
+  async performMethodMove(editor, methodRange, methodCode, targetClass) {
+    const choice = await vscode16.window.showInformationMessage(
+      `Move method to class "${targetClass}"?`,
+      "Move",
+      "Cancel"
+    );
+    if (choice !== "Move")
+      return;
+    await editor.edit((editBuilder) => {
+      editBuilder.delete(methodRange);
+    });
+    const classPosition = this.findClassPosition(editor.document, targetClass);
+    if (classPosition) {
+      await editor.edit((editBuilder) => {
+        editBuilder.insert(classPosition, `
+    ${methodCode}
+`);
+      });
+    }
+    vscode16.window.showInformationMessage(`\u2705 Method moved to "${targetClass}"!`);
+  }
+  /**
+   * Encontra posição de uma classe
+   */
+  findClassPosition(document, className) {
+    const content = document.getText();
+    const classRegex = new RegExp(`class\\s+${className}\\s*{`, "g");
+    const match = classRegex.exec(content);
+    if (!match)
+      return null;
+    const classStart = match.index + match[0].length;
+    let braceCount = 1;
+    let insertPosition = classStart;
+    for (let i2 = classStart; i2 < content.length; i2++) {
+      if (content[i2] === "{")
+        braceCount++;
+      if (content[i2] === "}") {
+        braceCount--;
+        if (braceCount === 0) {
+          insertPosition = i2;
+          break;
+        }
+      }
+    }
+    return document.positionAt(insertPosition);
+  }
+  /**
+   * Mostra preview da classe extraída
+   */
+  async showExtractClassPreview(original, extracted, className) {
+    const choice = await vscode16.window.showInformationMessage(
+      `Class "${className}" generated! Do you want to view it?`,
+      "Apply",
+      "View",
+      "Cancel"
+    );
+    if (choice === "View") {
+      const doc = await vscode16.workspace.openTextDocument({
+        content: `// EXTRACTED CLASS: ${className}
+
+${extracted}`,
+        language: "typescript"
+      });
+      await vscode16.window.showTextDocument(doc);
+    } else if (choice === "Apply") {
+      const editor = vscode16.window.activeTextEditor;
+      if (editor) {
+        const insertPosition = this.findBestInsertionPoint(editor.document);
+        await editor.edit((editBuilder) => {
+          editBuilder.insert(insertPosition, `
+${extracted}
+`);
+        });
+        vscode16.window.showInformationMessage(`\u2705 Class "${className}" created!`);
+      }
+    }
+  }
+};
+
+// src/services/RefactoringCodeLensProvider.ts
+var vscode17 = __toESM(require("vscode"));
+var RefactoringCodeLensProvider = class _RefactoringCodeLensProvider {
+  constructor() {
+    this._onDidChangeCodeLenses = new vscode17.EventEmitter();
+    this.onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
+    this.patternDetectionService = PatternDetectionService.getInstance();
+    this.refactoringService = RefactoringService.getInstance();
+  }
+  static getInstance() {
+    if (!_RefactoringCodeLensProvider.instance) {
+      _RefactoringCodeLensProvider.instance = new _RefactoringCodeLensProvider();
+    }
+    return _RefactoringCodeLensProvider.instance;
+  }
+  /**
+   * Fornece CodeLens para o documento
+   */
+  async provideCodeLenses(document, token) {
+    const codeLenses = [];
+    try {
+      const suggestions = await this.detectRefactoringSuggestions(document);
+      for (const suggestion of suggestions) {
+        const codeLens = new vscode17.CodeLens(suggestion.range, {
+          title: `\u{1F4A1} ${suggestion.description}`,
+          command: suggestion.command,
+          arguments: suggestion.args || []
+        });
+        codeLenses.push(codeLens);
+      }
+    } catch (error) {
+      console.error("Error providing code lenses:", error);
+    }
+    return codeLenses;
+  }
+  /**
+   * Detecta sugestões de refatoração para o documento
+   */
+  async detectRefactoringSuggestions(document) {
+    const suggestions = [];
+    const content = document.getText();
+    const lines = content.split("\n");
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2];
+      const lineNumber = i2;
+      if (this.isLongFunction(lines, i2)) {
+        const functionRange = this.getFunctionRange(lines, i2);
+        suggestions.push({
+          range: new vscode17.Range(lineNumber, 0, lineNumber, line.length),
+          type: "extract-method",
+          description: "Extract function - Function too long",
+          command: "xcopilot.extractMethod",
+          args: [document.uri, functionRange]
+        });
+      }
+      if (this.hasTooManyParameters(line)) {
+        suggestions.push({
+          range: new vscode17.Range(lineNumber, 0, lineNumber, line.length),
+          type: "extract-class",
+          description: "Extract to class - Too many parameters",
+          command: "xcopilot.extractClass",
+          args: [document.uri, new vscode17.Range(lineNumber, 0, lineNumber, line.length)]
+        });
+      }
+      if (this.isCodeDuplication(lines, i2)) {
+        suggestions.push({
+          range: new vscode17.Range(lineNumber, 0, lineNumber, line.length),
+          type: "extract-method",
+          description: "Extract method - Duplicate code",
+          command: "xcopilot.extractDuplicatedCode",
+          args: [document.uri, new vscode17.Range(lineNumber, 0, lineNumber, line.length)]
+        });
+      }
+      const modernizationSuggestions = this.detectModernizationOpportunities(line, lineNumber);
+      suggestions.push(...modernizationSuggestions);
+    }
+    return suggestions;
+  }
+  /**
+   * Detecta oportunidades de modernização de código
+   */
+  detectModernizationOpportunities(line, lineNumber) {
+    const suggestions = [];
+    if (this.canConvertToAsyncAwait(line)) {
+      suggestions.push({
+        range: new vscode17.Range(lineNumber, 0, lineNumber, line.length),
+        type: "modernize-async",
+        description: "Convert to async/await",
+        command: "xcopilot.convertToAsyncAwait",
+        args: [lineNumber]
+      });
+    }
+    if (this.canConvertToArrowFunction(line)) {
+      suggestions.push({
+        range: new vscode17.Range(lineNumber, 0, lineNumber, line.length),
+        type: "modernize-arrow",
+        description: "Convert to arrow function",
+        command: "xcopilot.convertToArrowFunction",
+        args: [lineNumber]
+      });
+    }
+    if (this.canUseDestructuring(line)) {
+      suggestions.push({
+        range: new vscode17.Range(lineNumber, 0, lineNumber, line.length),
+        type: "modernize-destructuring",
+        description: "Use destructuring",
+        command: "xcopilot.applyDestructuring",
+        args: [lineNumber]
+      });
+    }
+    return suggestions;
+  }
+  /**
+   * Verifica se pode converter callback para async/await
+   */
+  canConvertToAsyncAwait(line) {
+    const callbackPatterns = [
+      /\.then\s*\(/,
+      /\.catch\s*\(/,
+      /callback\s*\(/,
+      /function\s*\(\s*err\s*,/
+    ];
+    return callbackPatterns.some((pattern) => pattern.test(line));
+  }
+  /**
+   * Verifica se pode converter para arrow function
+   */
+  canConvertToArrowFunction(line) {
+    return /function\s*\([^)]*\)\s*\{/.test(line) && !line.includes("function ");
+  }
+  /**
+   * Verifica se pode usar destructuring
+   */
+  canUseDestructuring(line) {
+    const objectAccessPattern = /(\w+)\.(\w+).*\1\.(\w+)/;
+    return objectAccessPattern.test(line);
+  }
+  // Métodos auxiliares reutilizados do PatternDetectionService
+  isLongFunction(lines, currentIndex) {
+    const line = lines[currentIndex];
+    const functionRegex = /(function|def|void|int|string|bool|var|let|const)\s+\w+\s*\(/;
+    if (!functionRegex.test(line))
+      return false;
+    let braceCount = 0;
+    let lineCount = 0;
+    let started = false;
+    for (let i2 = currentIndex; i2 < lines.length; i2++) {
+      const currentLine = lines[i2];
+      if (currentLine.includes("{")) {
+        braceCount += (currentLine.match(/\{/g) || []).length;
+        started = true;
+      }
+      if (currentLine.includes("}")) {
+        braceCount -= (currentLine.match(/\}/g) || []).length;
+      }
+      if (started) {
+        lineCount++;
+        if (braceCount === 0)
+          break;
+      }
+    }
+    return lineCount > 20;
+  }
+  hasTooManyParameters(line) {
+    const functionRegex = /(function\s+\w+\s*\(([^)]*)\)|(\w+)\s*\(([^)]*)\)\s*\{|(\w+)\s*:\s*\(([^)]*)\)\s*=>|(\w+)\s*=\s*\(([^)]*)\)\s*=>)/;
+    const match = line.match(functionRegex);
+    if (!match)
+      return false;
+    const params = match[2] || match[4] || match[6] || match[8] || "";
+    if (!params.trim())
+      return false;
+    const parameterCount = params.split(",").filter((p) => p.trim().length > 0).length;
+    return parameterCount > 5;
+  }
+  isCodeDuplication(lines, currentIndex) {
+    const currentLine = lines[currentIndex].trim();
+    if (currentLine.length < 20)
+      return false;
+    let duplicateCount = 0;
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      if (i2 !== currentIndex && lines[i2].trim() === currentLine) {
+        duplicateCount++;
+      }
+    }
+    return duplicateCount >= 2;
+  }
+  getFunctionRange(lines, startIndex) {
+    let braceCount = 0;
+    let endIndex = startIndex;
+    let started = false;
+    for (let i2 = startIndex; i2 < lines.length; i2++) {
+      const currentLine = lines[i2];
+      if (currentLine.includes("{")) {
+        braceCount += (currentLine.match(/\{/g) || []).length;
+        started = true;
+      }
+      if (currentLine.includes("}")) {
+        braceCount -= (currentLine.match(/\}/g) || []).length;
+      }
+      if (started && braceCount === 0) {
+        endIndex = i2;
+        break;
+      }
+    }
+    return new vscode17.Range(startIndex, 0, endIndex, lines[endIndex]?.length || 0);
+  }
+  /**
+   * Atualiza as CodeLenses
+   */
+  refresh() {
+    this._onDidChangeCodeLenses.fire();
+  }
+  /**
+   * Registra o provider
+   */
+  register(context) {
+    const supportedLanguages = [
+      "typescript",
+      "javascript",
+      "python",
+      "java",
+      "csharp"
+    ];
+    for (const language of supportedLanguages) {
+      const disposable = vscode17.languages.registerCodeLensProvider(
+        { language },
+        this
+      );
+      context.subscriptions.push(disposable);
+    }
+  }
+};
+
+// src/services/VectorEmbeddingService.ts
+var vscode18 = __toESM(require("vscode"));
+
+// src/views/WebviewHtml.ts
+function getChatHtml() {
+  return `<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --hacker-bg-primary: #0a0a0f;
+            --hacker-bg-secondary: #1a1a2e;
+            --hacker-bg-tertiary: #16213e;
+            --hacker-accent: #00d4ff;
+            --hacker-accent-dark: #0099cc;
+            --hacker-text-primary: #e0e6ed;
+            --hacker-text-secondary: #8892b0;
+            --hacker-text-muted: #495670;
+            --hacker-border: #233554;
+            --hacker-shadow: 0 4px 20px rgba(0, 212, 255, 0.1);
+            --hacker-glow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            padding:0px !important;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            background: var(--hacker-bg-primary);
+            color: var(--hacker-text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(circle at 20% 80%, rgba(0, 212, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(0, 212, 255, 0.08) 0%, transparent 50%),
+                linear-gradient(45deg, transparent 49%, rgba(0, 212, 255, 0.02) 50%, transparent 51%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--hacker-bg-secondary);
+            border-bottom: 1px solid var(--hacker-border);
+            box-shadow: var(--hacker-shadow);
+            position: relative;
+            z-index: 2;
+            min-height: 48px;
+        }
+
+        .logo {
+            width: 24px;
+            height: 24px;
+            margin-right: 12px;
+            background: linear-gradient(135deg, var(--hacker-accent) 0%, var(--hacker-accent-dark) 100%);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--hacker-bg-primary);
+            font-weight: bold;
+            font-size: 12px;
+            box-shadow: var(--hacker-glow);
+            animation: pulse 2s infinite;
+        }
+
+        .title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--hacker-text-primary);
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+            letter-spacing: 0.5px;
+        }
+
+        .subtitle {
+            font-size: 9px;
+            color: var(--hacker-accent);
+            margin-left: auto;
+            padding: 2px 6px;
+            background: rgba(0, 212, 255, 0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            animation: flicker 3s infinite;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            z-index: 1;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            scroll-behavior: smooth;
+        }
+        
+        .message {
+            margin-bottom: 12px;
+            animation: slideInMatrix 0.5s ease-out;
+            width: 100%;
+        }
+        
+        .message.user {
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .message.assistant {
+            display: flex;
+            justify-content: flex-start;
+        }
+        
+        .message-content {
+            width: 100%;
+            max-width: none;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 11px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            position: relative;
+            backdrop-filter: blur(10px);
+        }
+        
+        .message.user .message-content {
+            background: linear-gradient(135deg, var(--hacker-accent) 0%, var(--hacker-accent-dark) 100%);
+            color: var(--hacker-bg-primary);
+            border-bottom-right-radius: 2px;
+            box-shadow: var(--hacker-glow);
+            font-weight: 500;
+            max-width: 85%;
+        }
+        
+        .message.assistant .message-content {
+            background: rgba(26, 26, 46, 0.8);
+            color: var(--hacker-text-primary);
+            border: 1px solid var(--hacker-border);
+            border-bottom-left-radius: 2px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .message.assistant .message-content::before {
+            content: '> ';
+            color: var(--hacker-accent);
+            font-weight: bold;
+        }
+        
+        /* Markdown Styles */
+        .message-content h1, .message-content h2, .message-content h3 {
+            color: var(--hacker-accent);
+            margin: 8px 0 4px 0;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .message-content h1 { font-size: 13px; }
+        .message-content h2 { font-size: 12px; }
+        .message-content h3 { font-size: 11px; }
+        
+        .message-content p {
+            margin: 4px 0;
+            font-size: 11px;
+        }
+        
+        .message-content code {
+            background: rgba(0, 212, 255, 0.1);
+            color: var(--hacker-accent);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+        
+        .message-content pre {
+            background: var(--hacker-bg-primary);
+            border: 1px solid var(--hacker-border);
+            border-radius: 4px;
+            padding: 8px;
+            margin: 6px 0;
+            overflow-x: auto;
+            font-size: 10px;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .message-content pre code {
+            background: none;
+            border: none;
+            padding: 0;
+            font-size: 10px;
+        }
+        
+        .message-content ul, .message-content ol {
+            margin: 4px 0;
+            padding-left: 16px;
+            font-size: 11px;
+        }
+        
+        .message-content li {
+            margin: 2px 0;
+        }
+        
+        .message-content blockquote {
+            border-left: 2px solid var(--hacker-accent);
+            margin: 6px 0;
+            padding-left: 8px;
+            color: var(--hacker-text-secondary);
+            font-style: italic;
+            font-size: 11px;
+        }
+        
+        .message-content strong {
+            color: var(--hacker-accent);
+            font-weight: bold;
+        }
+        
+        .message-content em {
+            color: var(--hacker-text-secondary);
+            font-style: italic;
+        }
+        
+        .message-content a {
+            color: var(--hacker-accent);
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        
+        .message-content a:hover {
+            color: var(--hacker-accent-dark);
+        }
+        
+        .input-container {
+            padding: 12px;
+            background: var(--hacker-bg-secondary);
+            border-top: 1px solid var(--hacker-border);
+            position: relative;
+            z-index: 2;
+        }
+
+        .input-wrapper {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            position: relative;
+            background: var(--hacker-bg-tertiary);
+            border-radius: 16px;
+            border: 1px solid var(--hacker-border);
+            padding: 3px;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .input-wrapper:focus-within {
+            border-color: var(--hacker-accent);
+            box-shadow: var(--hacker-glow);
+        }
+
+        .input-field {
+            flex: 1;
+            min-height: 32px;
+            max-height: 80px;
+            padding: 8px 12px;
+            padding-right: 50px;
+            border: none;
+            border-radius: 14px;
+            background: transparent;
+            color: var(--hacker-text-primary);
+            font-size: 11px;
+            line-height: 1.3;
+            resize: none;
+            outline: none;
+            font-family: inherit;
+            width: 100%;
+        }
+
+        .input-field::placeholder {
+            color: var(--hacker-text-muted);
+            font-size: 11px;
+        }
+
+        .send-button {
+            position: absolute;
+            right: 4px;
+            bottom: 4px;
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--hacker-accent) 0%, var(--hacker-accent-dark) 100%);
+            color: var(--hacker-bg-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: var(--hacker-glow);
+        }
+
+        .send-button:hover:not(:disabled) {
+            transform: scale(1.1);
+            box-shadow: 0 0 25px rgba(0, 212, 255, 0.6);
+        }
+
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            color: var(--hacker-accent);
+            font-style: italic;
+            animation: flicker 2s infinite;
+            font-size: 10px;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dots span {
+            width: 6px;
+            height: 6px;
+            background: var(--hacker-accent);
+            border-radius: 50%;
+            animation: matrixPulse 1.4s infinite ease-in-out;
+            box-shadow: 0 0 8px var(--hacker-accent);
+        }
+
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+        .welcome-message {
+            text-align: center;
+            padding: 40px 16px;
+            color: var(--hacker-text-secondary);
+        }
+
+        .welcome-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            animation: float 3s ease-in-out infinite;
+            filter: drop-shadow(0 0 15px var(--hacker-accent));
+        }
+
+        .welcome-text {
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: var(--hacker-text-primary);
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+            font-weight: 600;
+        }
+
+        .welcome-subtitle {
+            font-size: 11px;
+            color: var(--hacker-accent);
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* Animations */
+        @keyframes slideInMatrix {
+            from {
+                opacity: 0;
+                transform: translateX(-20px) translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0) translateY(0);
+            }
+        }
+
+        @keyframes matrixPulse {
+            0%, 80%, 100% {
+                transform: scale(0.8);
+                opacity: 0.3;
+            }
+            40% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(0, 212, 255, 0.6); }
+        }
+
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* Scrollbar styling */
+        .messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .messages::-webkit-scrollbar-track {
+            background: var(--hacker-bg-secondary);
+            border-radius: 4px;
+        }
+
+        .messages::-webkit-scrollbar-thumb {
+            background: linear-gradient(var(--hacker-accent), var(--hacker-accent-dark));
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+        }
+
+        .messages::-webkit-scrollbar-thumb:hover {
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
+        }
+
+        /* Matrix-like terminal effect */
+        .terminal-line {
+            font-family: 'Courier New', monospace;
+            color: var(--hacker-accent);
+            opacity: 0.7;
+            font-size: 12px;
+            margin: 2px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">\u26A1</div>
+        <div class="title">xCOPILOT</div>
+        <div class="subtitle">NEURAL NET</div>
+    </div>
+
+    <div class="chat-container">
+        <div class="messages" id="messages">
+            <div class="welcome-message">
+                <div class="welcome-icon">\u{1F574}\uFE0F</div>
+                <div class="welcome-text">SISTEMA INICIALIZADO</div>
+                <div class="welcome-subtitle">ANONYMOUS AI READY</div>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <span>PROCESSANDO...</span>
+        </div>
+
+        <div class="input-container">
+            <div class="input-wrapper">
+                <textarea
+                    id="prompt"
+                    class="input-field"
+                    placeholder=">>> Digite seu comando..."
+                    rows="1"
+                ></textarea>
+                <button id="send" class="send-button" title="Executar comando">
+                    \u25B6
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        const promptInput = document.getElementById('prompt');
+        const sendButton = document.getElementById('send');
+        const messagesContainer = document.getElementById('messages');
+        const typingIndicator = document.getElementById('typingIndicator');
+
+        let isWaitingResponse = false;
+        
+        // Simple markdown parser
+        function parseMarkdown(text) {
+            return text
+        }
+
+        // Auto-resize textarea
+        promptInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 80) + 'px';
+        });
+
+        function addMessage(content, isUser) {
+            const welcomeMsg = messagesContainer.querySelector('.welcome-message');
+            if (welcomeMsg && isUser) {
+                welcomeMsg.remove();
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + (isUser ? 'user' : 'assistant');
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            
+            if (isUser) {
+                contentDiv.textContent = content;
+            } else {
+                contentDiv.innerHTML = parseMarkdown(content);
+            }
+
+            messageDiv.appendChild(contentDiv);
+            messagesContainer.appendChild(messageDiv);
+
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function showTyping() {
+            typingIndicator.style.display = 'flex';
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function hideTyping() {
+            typingIndicator.style.display = 'none';
+        }
+
+        function sendMessage() {
+            const prompt = promptInput.value.trim();
+            if (!prompt || isWaitingResponse) return;
+
+            // Add user message
+            addMessage(prompt, true);
+
+            // Clear input
+            promptInput.value = '';
+            promptInput.style.height = 'auto';
+
+            // Show typing indicator
+            isWaitingResponse = true;
+            sendButton.disabled = true;
+            showTyping();
+
+            // Send to backend
+            vscode.postMessage({ type: 'ask', prompt: prompt });
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+
+        promptInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Handle messages from extension
+        window.addEventListener('message', (event) => {
+            const message = event.data;
+            if (message.type === 'answer') {
+                hideTyping();
+                addMessage(message.text, false);
+                isWaitingResponse = false;
+                sendButton.disabled = false;
+                promptInput.focus();
+            }
+        });
+
+        // Focus input on load
+        promptInput.focus();
+    </script>
+</body>
+</html>`;
+}
+
+// src/views/ChatWebviewProvider.ts
+var ChatWebviewProvider = class {
+  constructor() {
+    this.backendService = BackendService.getInstance();
+    this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance();
+    this.conversationHistoryService = ConversationHistoryService.getInstance();
+  }
+  /**
+   * Resolve a webview view
+   */
+  resolveWebviewView(webviewView) {
+    Logger.info("Webview view resolved successfully");
+    this.view = webviewView;
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: []
+    };
+    Logger.debug("Setting HTML content...");
+    webviewView.webview.html = getChatHtml();
+    webviewView.webview.onDidReceiveMessage(async (message) => {
+      await this.handleMessage(message);
+    });
+    Logger.info("Webview fully configured");
+  }
+  /**
+   * Lida com mensagens recebidas da webview
+   */
+  async handleMessage(message) {
+    Logger.debug("Received message:", message);
+    if (message.type === "ask" && message.prompt) {
+      Logger.info(`Processing ask request: ${message.prompt}`);
+      this.sendMessage({ type: "answer", text: "Pensando..." });
+      try {
+        const contextualPrompt = this.workspaceAnalysisService.formatContextForPrompt(message.prompt);
+        const recentConversations = this.conversationHistoryService.getRecentEntries(5);
+        let finalPrompt = contextualPrompt;
+        if (recentConversations.length > 0) {
+          const conversationContext = recentConversations.map(
+            (conv) => `Q: ${conv.userMessage}
+A: ${conv.aiResponse.substring(0, 200)}...`
+          ).join("\n\n");
+          finalPrompt = `[CONVERSATION HISTORY]
+${conversationContext}
+
+${contextualPrompt}`;
+        }
+        const answer = await this.backendService.askQuestion(finalPrompt);
+        this.conversationHistoryService.addEntry(message.prompt, answer);
+        this.sendMessage({ type: "answer", text: answer });
+      } catch (error) {
+        Logger.error("Error calling backend:", error);
+        this.sendMessage({
+          type: "answer",
+          text: `Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`
+        });
+      }
+    }
+  }
+  /**
+   * Envia uma mensagem para a webview
+   */
+  sendMessage(message) {
+    if (this.view) {
+      this.view.webview.postMessage(message);
+    }
+  }
+  /**
+   * Envia uma pergunta programaticamente para o chat
+   */
+  async askQuestion(prompt) {
+    if (!this.view) {
+      throw new Error("Webview n\xE3o est\xE1 inicializada");
+    }
+    Logger.info(`Sending programmatic question: ${prompt}`);
+    this.sendMessage({ type: "answer", text: "Pensando..." });
+    try {
+      const answer = await this.backendService.askQuestion(prompt);
+      this.sendMessage({ type: "answer", text: answer });
+    } catch (error) {
+      Logger.error("Error in programmatic question:", error);
+      this.sendMessage({
+        type: "answer",
+        text: `Erro: ${error instanceof Error ? error.message : "Erro desconhecido"}`
+      });
+    }
+  }
+  /**
+   * Verifica se a webview está ativa
+   */
+  isActive() {
+    return this.view !== void 0;
+  }
+  /**
+   * Obtém a instância da view (se disponível)
+   */
+  getView() {
+    return this.view;
+  }
+};
+
+// src/views/SidebarChatProvider.ts
+var vscode19 = __toESM(require("vscode"));
+var SidebarChatProvider = class {
+  constructor(context, chatProvider) {
+    this.context = context;
+    this.chatProvider = chatProvider;
+    this.contextAwareService = ContextAwareService.getInstance(context);
+    this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance(context);
+  }
+  static {
+    this.viewType = "xcopilotChat";
+  }
+  /**
+   * Resolve a webview view
+   */
+  resolveWebviewView(webviewView, context, token) {
+    this.webview = webviewView.webview;
+    this.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode19.Uri.joinPath(this.context.extensionUri, "media"),
+        vscode19.Uri.joinPath(this.context.extensionUri, "dist")
+      ]
+    };
+    this.webview.html = this.getWebviewContent(this.webview);
+    this.setupMessageHandlers();
+    Logger.info("Sidebar chat provider resolved");
+  }
+  /**
+   * Configura os handlers de mensagens
+   */
+  setupMessageHandlers() {
+    if (!this.webview)
+      return;
+    this.webview.onDidReceiveMessage(async (message) => {
+      try {
+        switch (message.type) {
+          case "askQuestion":
+            await this.handleAskQuestion(message.prompt, message.includeContext);
+            break;
+          case "explainCode":
+            await this.handleExplainCode(message.code);
+            break;
+          case "clearChat":
+            this.clearChat();
+            break;
+          case "ready":
+            await this.handleReady();
+            break;
+          case "refreshContext":
+            await this.handleRefreshContext();
+            break;
+          case "executeSuggestion":
+            await this.handleExecuteSuggestion(message.suggestionId);
+            break;
+        }
+      } catch (error) {
+        Logger.error("Error handling sidebar message:", error);
+        this.sendMessage({
+          type: "error",
+          message: "Erro ao processar mensagem"
+        });
+      }
+    });
+  }
+  /**
+   * Processa pergunta do usuário com context-aware features
+   */
+  async handleAskQuestion(prompt, includeContext) {
+    try {
+      this.sendMessage({
+        type: "loading",
+        loading: true
+      });
+      let conversationContext = null;
+      let finalResponse;
+      let contextUsed = {};
+      if (includeContext) {
+        conversationContext = await this.contextAwareService.getConversationContext(prompt);
+        this.sendContextUpdate(conversationContext);
+        const backendService = this.chatProvider["backendService"];
+        const result = await backendService.askQuestionWithContext({
+          prompt,
+          workspaceContext: conversationContext.workspaceAnalysis ? {
+            language: conversationContext.workspaceAnalysis.architecture.language,
+            frameworks: conversationContext.workspaceAnalysis.architecture.frameworks,
+            totalFiles: conversationContext.workspaceAnalysis.projectStructure.totalFiles,
+            architecturePattern: conversationContext.workspaceAnalysis.architecture.pattern
+          } : null,
+          conversationHistory: conversationContext.recentConversations,
+          gitInfo: conversationContext.gitInfo,
+          codeContext: {
+            currentFile: conversationContext.currentFile,
+            relevantCode: conversationContext.relevantCode
+          }
+        });
+        finalResponse = result.response;
+        contextUsed = result.contextUsed;
+      } else {
+        const backendService = this.chatProvider["backendService"];
+        finalResponse = await backendService.askQuestion(prompt);
+      }
+      this.sendMessage({
+        type: "response",
+        response: finalResponse,
+        prompt,
+        context: conversationContext ? {
+          hasWorkspaceAnalysis: !!conversationContext.workspaceAnalysis,
+          hasGitInfo: !!conversationContext.gitInfo,
+          suggestionCount: conversationContext.suggestions.length,
+          memoryItems: conversationContext.recentConversations.length,
+          contextUsed
+        } : void 0
+      });
+      if (conversationContext?.suggestions && conversationContext.suggestions.length > 0) {
+        this.sendMessage({
+          type: "suggestions",
+          suggestions: conversationContext.suggestions.slice(0, 3)
+        });
+      }
+    } catch (error) {
+      Logger.error("Error processing question:", error);
+      this.sendMessage({
+        type: "error",
+        message: "Erro ao processar pergunta"
+      });
+    } finally {
+      this.sendMessage({
+        type: "loading",
+        loading: false
+      });
+    }
+  }
+  /**
+   * Explica código selecionado
+   */
+  async handleExplainCode(code) {
+    try {
+      this.sendMessage({
+        type: "loading",
+        loading: true
+      });
+      const backendService = this.chatProvider["backendService"];
+      const prompt = `Explique o seguinte c\xF3digo de forma detalhada:
+\`\`\`
+${code}
+\`\`\``;
+      const response = await backendService.askQuestion(prompt);
+      this.sendMessage({
+        type: "response",
+        response,
+        prompt: `Explicar c\xF3digo: ${code.substring(0, 50)}...`
+      });
+    } catch (error) {
+      Logger.error("Error explaining code:", error);
+      this.sendMessage({
+        type: "error",
+        message: "Erro ao explicar c\xF3digo"
+      });
+    } finally {
+      this.sendMessage({
+        type: "loading",
+        loading: false
+      });
+    }
+  }
+  /**
+   * Manipula evento ready do webview
+   */
+  async handleReady() {
+    const contextStats = this.contextAwareService.getContextStats();
+    const analysis = this.workspaceAnalysisService.getCurrentAnalysis();
+    this.sendMessage({
+      type: "initialize",
+      data: {
+        ready: true,
+        contextStats,
+        hasWorkspaceAnalysis: !!analysis,
+        projectInfo: analysis ? {
+          language: analysis.architecture.language,
+          frameworks: analysis.architecture.frameworks,
+          totalFiles: analysis.projectStructure.totalFiles
+        } : null
+      }
+    });
+  }
+  /**
+   * Atualiza contexto do workspace
+   */
+  async handleRefreshContext() {
+    try {
+      this.sendMessage({
+        type: "loading",
+        loading: true
+      });
+      await this.contextAwareService.refreshWorkspaceAnalysis();
+      const analysis = this.workspaceAnalysisService.getCurrentAnalysis();
+      this.sendMessage({
+        type: "contextRefreshed",
+        data: {
+          hasWorkspaceAnalysis: !!analysis,
+          projectInfo: analysis ? {
+            language: analysis.architecture.language,
+            frameworks: analysis.architecture.frameworks,
+            totalFiles: analysis.projectStructure.totalFiles,
+            lastAnalyzed: analysis.lastAnalyzed
+          } : null
+        }
+      });
+    } catch (error) {
+      Logger.error("Error refreshing context:", error);
+      this.sendMessage({
+        type: "error",
+        message: "Erro ao atualizar contexto"
+      });
+    } finally {
+      this.sendMessage({
+        type: "loading",
+        loading: false
+      });
+    }
+  }
+  /**
+   * Executa sugestão contextual
+   */
+  async handleExecuteSuggestion(suggestionId) {
+    try {
+      const context = await this.contextAwareService.getConversationContext("");
+      const suggestion = context.suggestions.find((s2) => s2.id === suggestionId);
+      if (suggestion?.action) {
+        await vscode19.commands.executeCommand(suggestion.action);
+        this.sendMessage({
+          type: "suggestionExecuted",
+          suggestionId
+        });
+      }
+    } catch (error) {
+      Logger.error("Error executing suggestion:", error);
+      this.sendMessage({
+        type: "error",
+        message: "Erro ao executar sugest\xE3o"
+      });
+    }
+  }
+  /**
+   * Envia atualizações de contexto para o UI
+   */
+  sendContextUpdate(context) {
+    this.sendMessage({
+      type: "contextUpdate",
+      data: {
+        hasWorkspace: !!context.workspaceAnalysis,
+        hasGit: !!context.gitInfo,
+        memoryItems: context.recentConversations.length,
+        codeItems: context.relevantCode.length,
+        currentFile: context.currentFile?.fileName || null,
+        projectLanguage: context.workspaceAnalysis?.architecture.language || null
+      }
+    });
+  }
+  /**
+   * Limpa o chat
+   */
+  clearChat() {
+    this.sendMessage({
+      type: "clear"
+    });
+  }
+  /**
+   * Envia mensagem para a webview
+   */
+  sendMessage(message) {
+    if (this.webview) {
+      this.webview.postMessage(message);
+    }
+  }
+  /**
+   * Abre chat com código selecionado
+   */
+  openWithSelectedCode(code) {
+    this.sendMessage({
+      type: "setInput",
+      text: `Explique este c\xF3digo:
+\`\`\`
+${code}
+\`\`\``
+    });
+  }
+  /**
+   * Abre chat com pergunta específica
+   */
+  openWithQuestion(question) {
+    this.sendMessage({
+      type: "setInput",
+      text: question
+    });
+  }
+  /**
+   * Gera o conteúdo HTML da webview com context indicators
+   */
+  getWebviewContent(webview) {
+    return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xCopilot Context-Aware Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--vscode-font-family);
+            font-size: var(--vscode-font-size);
+            line-height: var(--vscode-font-weight);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-editor-background);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            padding: 10px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            background-color: var(--vscode-sideBar-background);
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h3 {
+            margin: 0;
+            color: var(--vscode-sideBarTitle-foreground);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .context-indicators {
+            margin-top: 8px;
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .context-indicator {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .context-indicator.active {
+            background-color: var(--vscode-charts-green);
+            color: var(--vscode-button-foreground);
+        }
+
+        .context-indicator.inactive {
+            background-color: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            opacity: 0.6;
+        }
+
+        .context-indicator.loading {
+            background-color: var(--vscode-charts-orange);
+            color: var(--vscode-button-foreground);
+        }
+
+        .clear-btn, .refresh-btn {
+            background: none;
+            border: none;
+            color: var(--vscode-button-foreground);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-left: 4px;
+        }
+
+        .clear-btn:hover, .refresh-btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            max-width: 100%;
+            word-wrap: break-word;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            padding: 8px 12px;
+            border-radius: 12px 12px 4px 12px;
+            max-width: 85%;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            padding: 8px 12px;
+            border-radius: 12px 12px 12px 4px;
+            max-width: 95%;
+        }
+
+        .message-context {
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+            margin-top: 4px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .context-badge {
+            background-color: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            padding: 1px 4px;
+            border-radius: 3px;
+        }
+
+        .message pre {
+            background-color: var(--vscode-textCodeBlock-background);
+            padding: 8px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 4px 0;
+            font-family: var(--vscode-editor-font-family);
+            font-size: 13px;
+        }
+
+        .message code {
+            background-color: var(--vscode-textCodeBlock-background);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: var(--vscode-editor-font-family);
+        }
+
+        .suggestions-container {
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px solid var(--vscode-panel-border);
+        }
+
+        .suggestions-title {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            margin-bottom: 6px;
+        }
+
+        .contextual-suggestions {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .contextual-suggestion {
+            padding: 6px 8px;
+            background-color: var(--vscode-button-secondaryBackground);
+            border: 1px solid var(--vscode-button-border);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+
+        .contextual-suggestion:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+
+        .suggestion-relevance {
+            background-color: var(--vscode-charts-blue);
+            color: white;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-size: 9px;
+        }
+
+        .input-container {
+            padding: 10px;
+            border-top: 1px solid var(--vscode-panel-border);
+            background-color: var(--vscode-sideBar-background);
+        }
+
+        .input-row {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .input-area {
+            flex: 1;
+            min-height: 34px;
+            max-height: 100px;
+            padding: 8px 12px;
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            font-family: var(--vscode-font-family);
+            font-size: var(--vscode-font-size);
+            resize: none;
+            outline: none;
+        }
+
+        .input-area:focus {
+            border-color: var(--vscode-focusBorder);
+        }
+
+        .send-btn {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            height: 34px;
+            font-weight: 500;
+        }
+
+        .send-btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            color: var(--vscode-descriptionForeground);
+            font-style: italic;
+        }
+
+        .spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--vscode-progressBar-background);
+            border-top: 2px solid var(--vscode-button-background);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .context-options {
+            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        .context-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .context-option input {
+            margin: 0;
+        }
+
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: var(--vscode-descriptionForeground);
+            padding: 20px;
+        }
+
+        .empty-state h4 {
+            margin-bottom: 8px;
+            color: var(--vscode-foreground);
+        }
+
+        .project-info {
+            margin-top: 8px;
+            padding: 8px;
+            background-color: var(--vscode-input-background);
+            border-radius: 4px;
+            font-size: 11px;
+            border: 1px solid var(--vscode-input-border);
+        }
+
+        .project-info-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .suggestions {
+            display: grid;
+            gap: 8px;
+            margin-top: 16px;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .suggestion {
+            padding: 8px 12px;
+            background-color: var(--vscode-button-secondaryBackground);
+            border: 1px solid var(--vscode-button-border);
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+            transition: background-color 0.2s;
+            font-size: 12px;
+        }
+
+        .suggestion:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-top">
+            <h3>\u{1F9E0} xCopilot Context-Aware</h3>
+            <div>
+                <button class="refresh-btn" onclick="refreshContext()" title="Atualizar contexto">\u{1F504}</button>
+                <button class="clear-btn" onclick="clearChat()">\u{1F5D1}\uFE0F</button>
+            </div>
+        </div>
+        <div class="context-indicators" id="contextIndicators">
+            <div class="context-indicator inactive">
+                <span>\u{1F3D7}\uFE0F</span> Workspace
+            </div>
+            <div class="context-indicator inactive">
+                <span>\u{1F500}</span> Git
+            </div>
+            <div class="context-indicator inactive">
+                <span>\u{1F4AD}</span> Memory
+            </div>
+            <div class="context-indicator inactive">
+                <span>\u{1F4C1}</span> File
+            </div>
+        </div>
+    </div>
+    
+    <div class="chat-container">
+        <div class="messages" id="messages">
+            <div class="empty-state">
+                <h4>\u{1F916} Context-Aware Assistant</h4>
+                <p>Agora com consci\xEAncia total do seu projeto!</p>
+                <div class="project-info" id="projectInfo" style="display: none;">
+                    <div class="project-info-title">\u{1F4CA} Projeto</div>
+                    <div id="projectDetails">Carregando informa\xE7\xF5es...</div>
+                </div>
+                <div class="suggestions">
+                    <div class="suggestion" onclick="askSuggestion('Como a arquitetura deste projeto est\xE1 organizada?')">
+                        Arquitetura do projeto
+                    </div>
+                    <div class="suggestion" onclick="askSuggestion('Quais s\xE3o as principais depend\xEAncias do projeto?')">
+                        Depend\xEAncias
+                    </div>
+                    <div class="suggestion" onclick="askSuggestion('Como posso melhorar este c\xF3digo baseado no padr\xE3o do projeto?')">
+                        Melhorar c\xF3digo
+                    </div>
+                    <div class="suggestion" onclick="askSuggestion('Gerar testes seguindo o padr\xE3o do projeto')">
+                        Gerar testes
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="input-container">
+            <div class="input-row">
+                <textarea 
+                    id="messageInput" 
+                    class="input-area" 
+                    placeholder="Pergunte qualquer coisa sobre o projeto..."
+                    rows="1"
+                ></textarea>
+                <button id="sendBtn" class="send-btn" onclick="sendMessage()">\u{1F4E4}</button>
+            </div>
+            <div class="context-options">
+                <div class="context-option">
+                    <input type="checkbox" id="includeContext" checked>
+                    <label for="includeContext">Usar contexto do projeto</label>
+                </div>
+                <div class="context-option">
+                    <input type="checkbox" id="includeMemory" checked>
+                    <label for="includeMemory">Incluir mem\xF3ria de conversas</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        let isLoading = false;
+        let currentSuggestions = [];
+
+        // Auto-resize textarea
+        const messageInput = document.getElementById('messageInput');
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+        });
+
+        // Send on Enter (Shift+Enter for new line)
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Message handlers
+        window.addEventListener('message', event => {
+            const message = event.data;
+            
+            switch (message.type) {
+                case 'initialize':
+                    handleInitialize(message.data);
+                    break;
+                case 'response':
+                    addMessage('user', message.prompt);
+                    addMessage('assistant', message.response, message.context);
+                    break;
+                case 'suggestions':
+                    showContextualSuggestions(message.suggestions);
+                    break;
+                case 'contextUpdate':
+                    updateContextIndicators(message.data);
+                    break;
+                case 'contextRefreshed':
+                    handleContextRefreshed(message.data);
+                    break;
+                case 'loading':
+                    handleLoading(message.loading);
+                    break;
+                case 'error':
+                    addMessage('assistant', '\u274C ' + message.message);
+                    break;
+                case 'clear':
+                    clearMessages();
+                    break;
+                case 'setInput':
+                    document.getElementById('messageInput').value = message.text;
+                    messageInput.style.height = 'auto';
+                    messageInput.style.height = Math.min(messageInput.scrollHeight, 100) + 'px';
+                    messageInput.focus();
+                    break;
+                case 'suggestionExecuted':
+                    highlightExecutedSuggestion(message.suggestionId);
+                    break;
+            }
+        });
+
+        function handleInitialize(data) {
+            if (data.projectInfo) {
+                showProjectInfo(data.projectInfo);
+            }
+            if (data.contextStats) {
+                updateInitialContextIndicators(data.contextStats);
+            }
+        }
+
+        function showProjectInfo(projectInfo) {
+            const projectInfoDiv = document.getElementById('projectInfo');
+            const projectDetails = document.getElementById('projectDetails');
+            
+            projectDetails.innerHTML = \`
+                <strong>\${projectInfo.language}</strong><br>
+                \${projectInfo.frameworks.join(', ') || 'Nenhum framework detectado'}<br>
+                <small>\${projectInfo.totalFiles} arquivos</small>
+            \`;
+            
+            projectInfoDiv.style.display = 'block';
+        }
+
+        function updateInitialContextIndicators(contextStats) {
+            const indicators = document.getElementById('contextIndicators');
+            const children = indicators.children;
+            
+            // Update workspace indicator
+            if (contextStats.hasWorkspaceAnalysis) {
+                children[0].className = 'context-indicator active';
+            }
+            
+            // Update memory indicator
+            if (contextStats.conversationCount > 0) {
+                children[2].className = 'context-indicator active';
+                children[2].innerHTML = '<span>\u{1F4AD}</span> Memory (' + contextStats.conversationCount + ')';
+            }
+        }
+
+        function updateContextIndicators(contextData) {
+            const indicators = document.getElementById('contextIndicators');
+            const children = indicators.children;
+            
+            // Workspace indicator
+            children[0].className = contextData.hasWorkspace ? 'context-indicator active' : 'context-indicator inactive';
+            
+            // Git indicator
+            children[1].className = contextData.hasGit ? 'context-indicator active' : 'context-indicator inactive';
+            
+            // Memory indicator
+            children[2].className = contextData.memoryItems > 0 ? 'context-indicator active' : 'context-indicator inactive';
+            if (contextData.memoryItems > 0) {
+                children[2].innerHTML = '<span>\u{1F4AD}</span> Memory (' + contextData.memoryItems + ')';
+            }
+            
+            // File indicator
+            children[3].className = contextData.currentFile ? 'context-indicator active' : 'context-indicator inactive';
+            if (contextData.currentFile) {
+                const fileName = contextData.currentFile.split('/').pop();
+                children[3].innerHTML = '<span>\u{1F4C1}</span> ' + fileName;
+            }
+        }
+
+        function handleContextRefreshed(data) {
+            if (data.projectInfo) {
+                showProjectInfo(data.projectInfo);
+            }
+            addMessage('assistant', '\u2705 Contexto do projeto atualizado!');
+        }
+
+        function showContextualSuggestions(suggestions) {
+            currentSuggestions = suggestions;
+            const messagesContainer = document.getElementById('messages');
+            
+            const suggestionsContainer = document.createElement('div');
+            suggestionsContainer.className = 'suggestions-container';
+            suggestionsContainer.innerHTML = \`
+                <div class="suggestions-title">\u{1F4A1} Sugest\xF5es contextuais:</div>
+                <div class="contextual-suggestions">
+                    \${suggestions.map(suggestion => \`
+                        <div class="contextual-suggestion" onclick="executeSuggestion('\${suggestion.id}')">
+                            <div>
+                                <strong>\${suggestion.title}</strong><br>
+                                <small>\${suggestion.description}</small>
+                            </div>
+                            <div class="suggestion-relevance">\${Math.round(suggestion.relevance * 100)}%</div>
+                        </div>
+                    \`).join('')}
+                </div>
+            \`;
+            
+            messagesContainer.appendChild(suggestionsContainer);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function executeSuggestion(suggestionId) {
+            vscode.postMessage({
+                type: 'executeSuggestion',
+                suggestionId: suggestionId
+            });
+        }
+
+        function highlightExecutedSuggestion(suggestionId) {
+            // Find and highlight the executed suggestion
+            const suggestionElements = document.querySelectorAll('.contextual-suggestion');
+            suggestionElements.forEach(el => {
+                if (el.onclick.toString().includes(suggestionId)) {
+                    el.style.backgroundColor = 'var(--vscode-charts-green)';
+                    el.style.color = 'white';
+                    setTimeout(() => {
+                        el.style.backgroundColor = '';
+                        el.style.color = '';
+                    }, 2000);
+                }
+            });
+        }
+
+        function sendMessage() {
+            if (isLoading) return;
+            
+            const input = document.getElementById('messageInput');
+            const includeContext = document.getElementById('includeContext').checked;
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            vscode.postMessage({
+                type: 'askQuestion',
+                prompt: message,
+                includeContext: includeContext
+            });
+            
+            input.value = '';
+            input.style.height = 'auto';
+        }
+
+        function clearChat() {
+            clearMessages();
+            vscode.postMessage({ type: 'clearChat' });
+        }
+
+        function refreshContext() {
+            vscode.postMessage({ type: 'refreshContext' });
+        }
+
+        function askSuggestion(question) {
+            document.getElementById('messageInput').value = question;
+            sendMessage();
+        }
+
+        function addMessage(type, content, context) {
+            const messagesContainer = document.getElementById('messages');
+            const emptyState = messagesContainer.querySelector('.empty-state');
+            
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = \`message \${type}\`;
+            
+            // Process markdown-like formatting
+            let processedContent = content
+                .replace(/\`\`\`([\\s\\S]*?)\`\`\`/g, '<pre><code>$1</code></pre>')
+                .replace(/\`([^\`]+)\`/g, '<code>$1</code>')
+                .replace(/\\n/g, '<br>');
+            
+            messageDiv.innerHTML = processedContent;
+            
+            // Add context information for assistant messages
+            if (type === 'assistant' && context) {
+                const contextDiv = document.createElement('div');
+                contextDiv.className = 'message-context';
+                
+                const badges = [];
+                if (context.hasWorkspaceAnalysis) badges.push('<span class="context-badge">\u{1F3D7}\uFE0F Workspace</span>');
+                if (context.hasGitInfo) badges.push('<span class="context-badge">\u{1F500} Git</span>');
+                if (context.memoryItems > 0) badges.push('<span class="context-badge">\u{1F4AD} ' + context.memoryItems + ' memories</span>');
+                if (context.suggestionCount > 0) badges.push('<span class="context-badge">\u{1F4A1} ' + context.suggestionCount + ' suggestions</span>');
+                
+                contextDiv.innerHTML = badges.join('');
+                messageDiv.appendChild(contextDiv);
+            }
+            
+            messagesContainer.appendChild(messageDiv);
+            
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function clearMessages() {
+            const messagesContainer = document.getElementById('messages');
+            messagesContainer.innerHTML = \`
+                <div class="empty-state">
+                    <h4>\u{1F916} Context-Aware Assistant</h4>
+                    <p>Agora com consci\xEAncia total do seu projeto!</p>
+                    <div class="project-info" id="projectInfo" style="display: none;">
+                        <div class="project-info-title">\u{1F4CA} Projeto</div>
+                        <div id="projectDetails">Carregando informa\xE7\xF5es...</div>
+                    </div>
+                    <div class="suggestions">
+                        <div class="suggestion" onclick="askSuggestion('Como a arquitetura deste projeto est\xE1 organizada?')">
+                            Arquitetura do projeto
+                        </div>
+                        <div class="suggestion" onclick="askSuggestion('Quais s\xE3o as principais depend\xEAncias do projeto?')">
+                            Depend\xEAncias
+                        </div>
+                        <div class="suggestion" onclick="askSuggestion('Como posso melhorar este c\xF3digo baseado no padr\xE3o do projeto?')">
+                            Melhorar c\xF3digo
+                        </div>
+                        <div class="suggestion" onclick="askSuggestion('Gerar testes seguindo o padr\xE3o do projeto')">
+                            Gerar testes
+                        </div>
+                    </div>
+                </div>
+            \`;
+        }
+
+        function handleLoading(loading) {
+            isLoading = loading;
+            const sendBtn = document.getElementById('sendBtn');
+            const messagesContainer = document.getElementById('messages');
+            
+            if (loading) {
+                sendBtn.disabled = true;
+                
+                // Update context indicators to show loading
+                const indicators = document.getElementById('contextIndicators');
+                const children = indicators.children;
+                for (let i = 0; i < children.length; i++) {
+                    if (children[i].className.includes('active')) {
+                        children[i].className = 'context-indicator loading';
+                    }
+                }
+                
+                const loadingDiv = document.createElement('div');
+                loadingDiv.className = 'loading';
+                loadingDiv.innerHTML = '<div class="spinner"></div> Analisando contexto...';
+                loadingDiv.id = 'loading-indicator';
+                messagesContainer.appendChild(loadingDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            } else {
+                sendBtn.disabled = false;
+                
+                // Restore context indicators
+                const indicators = document.getElementById('contextIndicators');
+                const children = indicators.children;
+                for (let i = 0; i < children.length; i++) {
+                    if (children[i].className.includes('loading')) {
+                        children[i].className = 'context-indicator active';
+                    }
+                }
+                
+                const loadingIndicator = document.getElementById('loading-indicator');
+                if (loadingIndicator) {
+                    loadingIndicator.remove();
+                }
+            }
+        }
+
+        // Initialize
+        vscode.postMessage({ type: 'ready' });
+    </script>
+</body>
+</html>`;
+  }
+};
+
+// src/ExtensionManager.ts
+var ExtensionManager = class {
+  constructor() {
+    this.outputChannel = vscode20.window.createOutputChannel("xCopilot");
+    Logger.init(this.outputChannel);
+    this.configService = ConfigurationService.getInstance();
+  }
+  /**
+   * Ativa a extensão
+   */
+  activate(context) {
+    Logger.info("\u{1F680} xCopilot extension is now active!");
+    try {
+      this.conversationHistoryService = ConversationHistoryService.getInstance(context);
+      this.chatProvider = new ChatWebviewProvider();
+      this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
+      this.chatCommands = new ChatCommands(this.chatProvider);
+      this.codeGenerationCommands = new CodeGenerationCommands();
+      this.conversationHistoryService = ConversationHistoryService.getInstance();
+      this.codeSuggestionsService = CodeSuggestionsService.getInstance();
+      this.codeExplanationService = CodeExplanationService.getInstance();
+      this.ghostTextService = GhostTextService.getInstance();
+      this.inlineCompletionService = InlineCompletionService.getInstance();
+      this.multilineGenerationService = MultilineGenerationService.getInstance();
+      this.refactoringService = RefactoringService.getInstance();
+      this.patternDetectionService = PatternDetectionService.getInstance();
+      this.refactoringCodeLensProvider = RefactoringCodeLensProvider.getInstance();
+      this.registerWebviewProvider(context);
+      this.chatCommands.registerCommands(context);
+      this.codeGenerationCommands.registerCommands(context);
+      this.refactoringService.registerCommands(context);
+      this.patternDetectionService.registerCommands(context);
+      this.registerCodeExplanationCommands(context);
+      this.registerCodeProviders(context);
+      this.refactoringCodeLensProvider.register(context);
+      this.setupConfigurationWatcher(context);
+      this.startWorkspaceAnalysis();
+      context.subscriptions.push(this.outputChannel);
+      Logger.info("\u2705 Extension activation completed successfully");
+    } catch (error) {
+      Logger.error("\u274C CRITICAL ERROR during extension activation:", error);
+      vscode20.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+    }
+  }
+  /**
+   * Registra o provider da webview
+   */
+  registerWebviewProvider(context) {
+    Logger.info("\u{1F4DD} Registering WebviewViewProvider for xcopilotPanel...");
+    const mainDisposable = vscode20.window.registerWebviewViewProvider(
+      "xcopilotPanel",
+      this.chatProvider,
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
+      }
+    );
+    const sidebarDisposable = vscode20.window.registerWebviewViewProvider(
+      "xcopilotChat",
+      this.sidebarChatProvider,
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
+      }
+    );
+    context.subscriptions.push(mainDisposable, sidebarDisposable);
+    Logger.info("\u2705 WebviewViewProvider registered successfully!");
+  }
+  /**
+   * Registra os providers de código (completion, diagnostics, etc.)
+   */
+  registerCodeProviders(context) {
+    Logger.info("\u{1F9E0} Registering code providers...");
+    const codeSuggestionsDisposables = this.codeSuggestionsService.getDisposables();
+    const patternDetectionDisposables = this.patternDetectionService.getDisposables();
+    const ghostTextDisposables = this.ghostTextService.getDisposables();
+    const inlineCompletionDisposables = this.inlineCompletionService.getDisposables();
+    context.subscriptions.push(
+      ...codeSuggestionsDisposables,
+      ...patternDetectionDisposables,
+      ...ghostTextDisposables,
+      ...inlineCompletionDisposables
+    );
+    Logger.info("\u2705 Code providers registered successfully!");
+  }
+  /**
+   * Registra comandos de explicação de código
+   */
+  registerCodeExplanationCommands(context) {
+    const commands10 = [
+      vscode20.commands.registerCommand("xcopilot.explainSelected", () => {
+        this.codeExplanationService.explainSelectedCode();
+      }),
+      vscode20.commands.registerCommand("xcopilot.explainFunction", () => {
+        this.codeExplanationService.explainCurrentFunction();
+      }),
+      vscode20.commands.registerCommand("xcopilot.explainFile", () => {
+        this.codeExplanationService.explainEntireFile();
+      }),
+      vscode20.commands.registerCommand("xcopilot.acceptGhostText", () => {
+        this.ghostTextService.acceptGhostText();
+      }),
+      vscode20.commands.registerCommand("xcopilot.openChat", () => {
+        vscode20.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+        vscode20.commands.executeCommand("setContext", "xcopilot.chatVisible", true);
+      }),
+      vscode20.commands.registerCommand("xcopilot.closeChat", () => {
+        vscode20.commands.executeCommand("workbench.action.closePanel");
+        vscode20.commands.executeCommand("setContext", "xcopilot.chatVisible", false);
+      }),
+      vscode20.commands.registerCommand("xcopilot.toggleChat", () => {
+        vscode20.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+      }),
+      vscode20.commands.registerCommand("xcopilot.openChatWithCode", () => {
+        const editor = vscode20.window.activeTextEditor;
+        if (editor && !editor.selection.isEmpty) {
+          const selectedCode = editor.document.getText(editor.selection);
+          vscode20.commands.executeCommand("xcopilot.openChat");
+          this.sidebarChatProvider.openWithSelectedCode(selectedCode);
+        } else {
+          vscode20.window.showWarningMessage("Selecione c\xF3digo para explicar no chat");
+        }
+      }),
+      vscode20.commands.registerCommand("xcopilot.toggleInlineCompletion", () => {
+        const currentState = this.inlineCompletionService.isServiceEnabled();
+        this.inlineCompletionService.setEnabled(!currentState);
+        vscode20.window.showInformationMessage(
+          `Inline Completion ${!currentState ? "habilitado" : "desabilitado"}`
+        );
+      }),
+      vscode20.commands.registerCommand("xcopilot.clearCompletionCache", () => {
+        this.inlineCompletionService.clearCache();
+        vscode20.window.showInformationMessage("Cache de completions limpo");
+      }),
+      vscode20.commands.registerCommand("xcopilot.showCompletionStats", () => {
+        const stats = this.inlineCompletionService.getStats();
+        const message = `Estat\xEDsticas de Completion:
+Requisi\xE7\xF5es: ${stats.requestCount}
+Cache Hits: ${stats.cacheHits}
+Taxa de Cache: ${stats.cacheHitRate.toFixed(1)}%
+Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats.utilization.toFixed(1)}%)`;
+        vscode20.window.showInformationMessage(message);
+      })
+    ];
+    context.subscriptions.push(...commands10);
+    Logger.info("\u2705 Code explanation commands registered");
+  }
+  /**
+   * Configura observadores para alterações de configuração relevantes
+   */
+  setupConfigurationWatcher(context) {
+    const disposable = vscode20.workspace.onDidChangeConfiguration((e2) => {
+      if (e2.affectsConfiguration("xcopilot")) {
+        Logger.info("xcopilot configuration changed; services may need to refresh");
+        try {
+          if (this.inlineCompletionService && typeof this.inlineCompletionService.refreshConfiguration === "function") {
+            this.inlineCompletionService.refreshConfiguration();
+          }
+        } catch (err) {
+          Logger.debug("Error while handling configuration change:", err);
+        }
+      }
+    });
+    context.subscriptions.push(disposable);
+  }
+  /**
+   * Inicia a análise do workspace de forma assíncrona (não bloqueante)
+   */
+  async startWorkspaceAnalysis() {
+    try {
+      const wsService = WorkspaceAnalysisService.getInstance();
+      wsService.analyzeWorkspaceOnStartup().catch((err) => {
+        Logger.error("Error during workspace analysis startup:", err);
+      });
+    } catch (err) {
+      Logger.error("Failed to start workspace analysis:", err);
+    }
+  }
+};
+
+// src/extension.ts
+var extensionManager;
+async function activate(context) {
+  extensionManager = new ExtensionManager();
+  await extensionManager.activate(context);
+}
+function deactivate() {
+  if (extensionManager) {
+    extensionManager.deactivate();
+  }
+}
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  activate,
+  deactivate
+});
+/*! Bundled license information:
+
+web-streams-polyfill/dist/ponyfill.es2018.js:
+  (**
+   * @license
+   * web-streams-polyfill v3.3.3
+   * Copyright 2024 Mattias Buelens, Diwank Singh Tomer and other contributors.
+   * This code is released under the MIT license.
+   * SPDX-License-Identifier: MIT
+   *)
+
+fetch-blob/index.js:
+  (*! fetch-blob. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> *)
+
+formdata-polyfill/esm.min.js:
+  (*! formdata-polyfill. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> *)
+
+node-domexception/index.js:
+  (*! node-domexception. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> *)
+*/

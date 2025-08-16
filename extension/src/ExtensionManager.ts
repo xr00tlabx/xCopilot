@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ChatCommands } from './commands';
+import { ChatCommands, CodeGenerationCommands } from './commands';
 import {
     CodeExplanationService,
     CodeSuggestionsService,
@@ -10,9 +10,9 @@ import {
     MultilineGenerationService,
     PatternDetectionService,
     RefactoringCodeLensProvider,
-    RefactoringService,
-    WorkspaceAnalysisService
+    RefactoringService
 } from './services';
+import { WorkspaceAnalysisService } from './services/WorkspaceAnalysisService';
 import { Logger } from './utils';
 import { ChatWebviewProvider, SidebarChatProvider } from './views';
 
@@ -23,6 +23,7 @@ export class ExtensionManager {
     private chatProvider!: ChatWebviewProvider;
     private sidebarChatProvider!: SidebarChatProvider;
     private chatCommands!: ChatCommands;
+    private codeGenerationCommands!: CodeGenerationCommands;
     private configService: ConfigurationService;
     private conversationHistoryService!: ConversationHistoryService;
     private codeSuggestionsService!: CodeSuggestionsService;
@@ -31,9 +32,8 @@ export class ExtensionManager {
     private inlineCompletionService!: InlineCompletionService;
     private multilineGenerationService!: MultilineGenerationService;
     private refactoringService!: RefactoringService;
-    private patternDetectionService!: PatternDetectionService;
     private refactoringCodeLensProvider!: RefactoringCodeLensProvider;
-    private workspaceAnalysisService!: WorkspaceAnalysisService;
+    private patternDetectionService!: PatternDetectionService;
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
@@ -59,6 +59,7 @@ export class ExtensionManager {
             this.chatProvider = new ChatWebviewProvider();
             this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
             this.chatCommands = new ChatCommands(this.chatProvider);
+            this.codeGenerationCommands = new CodeGenerationCommands();
 
             // Inicializar todos os serviços IA
             this.conversationHistoryService = ConversationHistoryService.getInstance();
@@ -69,14 +70,17 @@ export class ExtensionManager {
             this.multilineGenerationService = MultilineGenerationService.getInstance();
             this.refactoringService = RefactoringService.getInstance();
             this.patternDetectionService = PatternDetectionService.getInstance();
+
+            // Initialize CodeLens provider instance
+            // (constructed lazily via singleton getter)
             this.refactoringCodeLensProvider = RefactoringCodeLensProvider.getInstance();
-            this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance();
 
             // Registrar o provider da webview
             this.registerWebviewProvider(context);
 
             // Registrar comandos
             this.chatCommands.registerCommands(context);
+            this.codeGenerationCommands.registerCommands(context);
             this.refactoringService.registerCommands(context);
             this.patternDetectionService.registerCommands(context);
             this.registerCodeExplanationCommands(context);
@@ -223,40 +227,36 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
     }
 
     /**
-     * Configura monitoramento de mudanças na configuração
+     * Configura observadores para alterações de configuração relevantes
      */
     private setupConfigurationWatcher(context: vscode.ExtensionContext): void {
-        // Monitorar mudanças na configuração da extensão
-        const configWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
-            if (event.affectsConfiguration('xcopilot')) {
-                Logger.info('🔄 Configuration changed, updating services...');
-                
-                // Atualizar configurações dos serviços
+        const disposable = vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('xcopilot')) {
+                Logger.info('xcopilot configuration changed; services may need to refresh');
                 try {
-                    this.inlineCompletionService?.updateFromConfig();
-                    this.refactoringCodeLensProvider?.refresh();
-                    Logger.info('Services updated with new configuration');
-                } catch (error) {
-                    Logger.error('Error updating services configuration:', error);
+                    if (this.inlineCompletionService && typeof (this.inlineCompletionService as any).refreshConfiguration === 'function') {
+                        (this.inlineCompletionService as any).refreshConfiguration();
+                    }
+                } catch (err) {
+                    Logger.debug('Error while handling configuration change:', err);
                 }
             }
         });
 
-        context.subscriptions.push(configWatcher);
-        Logger.info('✅ Configuration watcher setup completed');
+        context.subscriptions.push(disposable);
     }
 
     /**
-     * Inicia análise do workspace
+     * Inicia a análise do workspace de forma assíncrona (não bloqueante)
      */
-    private startWorkspaceAnalysis(): void {
-        // Executar análise em background após um delay
-        setTimeout(async () => {
-            try {
-                await this.workspaceAnalysisService.analyzeWorkspaceOnStartup();
-            } catch (error) {
-                Logger.error('Error during workspace analysis startup:', error);
-            }
-        }, 3000); // 3 segundos de delay para não interferir na inicialização
+    private async startWorkspaceAnalysis(): Promise<void> {
+        try {
+            const wsService = WorkspaceAnalysisService.getInstance();
+            wsService.analyzeWorkspaceOnStartup().catch(err => {
+                Logger.error('Error during workspace analysis startup:', err);
+            });
+        } catch (err) {
+            Logger.error('Failed to start workspace analysis:', err);
+        }
     }
 }

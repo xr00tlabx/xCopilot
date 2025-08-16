@@ -1,18 +1,18 @@
 import * as vscode from 'vscode';
-import { 
-    ConversationContext, 
-    ContextualSuggestion, 
-    WorkspaceAnalysis,
-    ConversationEntry,
+import {
     CodeContext,
+    ContextAwareConfig,
+    ContextualSuggestion,
+    ConversationContext,
+    ConversationEntry,
     GitInfo,
-    ContextAwareConfig
+    WorkspaceAnalysis
 } from '../types';
 import { Logger } from '../utils/Logger';
-import { WorkspaceAnalysisService } from './WorkspaceAnalysisService';
-import { ConversationHistoryService } from './ConversationHistoryService';
 import { CodeContextService } from './CodeContextService';
+import { ConversationHistoryService } from './ConversationHistoryService';
 import { GitIntegrationService } from './GitIntegrationService';
+import { WorkspaceAnalysisService } from './WorkspaceAnalysisService';
 
 /**
  * Serviço principal para gerenciar contexto consciente
@@ -60,21 +60,21 @@ export class ContextAwareService {
                 cancellable: false
             }, async (progress) => {
                 progress.report({ increment: 20, message: "Carregando configurações..." });
-                
+
                 progress.report({ increment: 40, message: "Analisando estrutura do projeto..." });
                 await this.workspaceAnalysisService.analyzeWorkspace();
-                
+
                 progress.report({ increment: 80, message: "Configurando contexto..." });
                 await this.setupContextWatchers();
-                
+
                 progress.report({ increment: 100, message: "Pronto!" });
             });
 
             this.isInitialized = true;
-            
+
             // Set context for UI
             vscode.commands.executeCommand('setContext', 'xcopilot.contextAware', true);
-            
+
             Logger.info('Context-Aware Service initialized successfully');
 
         } catch (error) {
@@ -101,7 +101,7 @@ export class ContextAwareService {
             }
 
             // Get current file context
-            const currentFile = this.codeContextService.getCurrentContext(true);
+            const currentFile = this.codeContextService.getCurrentContext(true) || undefined;
             if (currentFile) {
                 context.currentFile = currentFile;
             }
@@ -124,7 +124,7 @@ export class ContextAwareService {
             // Get semantic context (simplified - would use vector search in full implementation)
             context.memoryContext = this.getMemoryContext(userMessage, context);
 
-            Logger.debug('Generated conversation context', { 
+            Logger.debug('Generated conversation context', {
                 hasWorkspace: !!context.workspaceAnalysis,
                 hasCurrentFile: !!context.currentFile,
                 hasGit: !!context.gitInfo,
@@ -149,7 +149,7 @@ export class ContextAwareService {
 
         // Get conversations from the same file
         if (currentFile?.fileName) {
-            const sameFileConversations = allEntries.filter(entry => 
+            const sameFileConversations = allEntries.filter(entry =>
                 entry.fileName === currentFile.fileName
             ).slice(0, 3);
             relevant.push(...sameFileConversations);
@@ -235,7 +235,7 @@ export class ContextAwareService {
         try {
             const pattern = `**/${baseNameWithoutPath}.*`;
             const files = await vscode.workspace.findFiles(pattern, '**/node_modules/**', 10);
-            
+
             for (const file of files) {
                 const filePath = file.fsPath;
                 if (filePath !== fileName) {
@@ -495,7 +495,7 @@ export class ContextAwareService {
     /**
      * Obtém estatísticas do contexto
      */
-    getContextStats(): { 
+    getContextStats(): {
         isInitialized: boolean;
         hasWorkspaceAnalysis: boolean;
         conversationCount: number;
@@ -508,7 +508,8 @@ export class ContextAwareService {
             isInitialized: this.isInitialized,
             hasWorkspaceAnalysis: !!analysis,
             conversationCount,
-            lastAnalysis: analysis?.lastAnalyzed
+            lastAnalysis: analysis?.lastUpdated ? new Date(analysis.lastUpdated) : undefined
         };
     }
 }
+

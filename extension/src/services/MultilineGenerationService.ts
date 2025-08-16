@@ -20,7 +20,7 @@ export class MultilineGenerationService {
         this.backendService = BackendService.getInstance();
         this.contextService = CodeContextService.getInstance();
         this.configService = ConfigurationService.getInstance();
-        
+
         this.setupEventListeners();
     }
 
@@ -77,7 +77,7 @@ export class MultilineGenerationService {
             '/**', // JSDoc
         ];
 
-        return triggers.some(trigger => 
+        return triggers.some(trigger =>
             text.toLowerCase().includes(trigger.toLowerCase())
         );
     }
@@ -86,13 +86,13 @@ export class MultilineGenerationService {
      * Trata trigger de geração detectado
      */
     private async handleGenerationTrigger(
-        document: vscode.TextDocument, 
+        document: vscode.TextDocument,
         change: vscode.TextDocumentContentChangeEvent
     ): Promise<void> {
         try {
             const position = change.range.start;
             const line = document.lineAt(position.line);
-            
+
             // Aguardar um momento para o usuário terminar de digitar
             setTimeout(async () => {
                 await this.offerCodeGeneration(document, position, line.text);
@@ -112,7 +112,7 @@ export class MultilineGenerationService {
         lineText: string
     ): Promise<void> {
         const generationType = this.detectGenerationType(lineText, document, position);
-        
+
         if (!generationType) {
             return;
         }
@@ -131,12 +131,12 @@ export class MultilineGenerationService {
      * Detecta o tipo de geração necessária
      */
     private detectGenerationType(
-        lineText: string, 
-        document: vscode.TextDocument, 
+        lineText: string,
+        document: vscode.TextDocument,
         position: vscode.Position
     ): GenerationType | null {
         const line = lineText.trim().toLowerCase();
-        
+
         // Função a partir de comentário JSDoc
         if (line.includes('/**') || this.isJSDocComment(document, position)) {
             return {
@@ -191,7 +191,7 @@ export class MultilineGenerationService {
                 prompt: generationType.prompt,
                 type: generationType.type,
                 language: document.languageId,
-                context: this.contextService.getContextWithFallback(20)?.content || ''
+                context: this.contextService.getContextWithFallback(20)?.fullFileContent || ''
             });
 
             if (response.code) {
@@ -221,7 +221,7 @@ export class MultilineGenerationService {
 
         // Determinar posição de inserção baseada no tipo
         let insertPosition = position;
-        
+
         if (type === 'function' || type === 'class') {
             // Inserir após o comentário/declaração
             insertPosition = new vscode.Position(position.line + 1, 0);
@@ -271,18 +271,18 @@ export class MultilineGenerationService {
      * Obtém contexto ao redor de uma posição
      */
     private getContextAroundPosition(
-        document: vscode.TextDocument, 
-        position: vscode.Position, 
+        document: vscode.TextDocument,
+        position: vscode.Position,
         lines: number
     ): string {
         const startLine = Math.max(0, position.line - lines);
         const endLine = Math.min(document.lineCount - 1, position.line + lines);
-        
+
         let context = '';
         for (let i = startLine; i <= endLine; i++) {
             context += document.lineAt(i).text + '\n';
         }
-        
+
         return context;
     }
 
@@ -305,8 +305,8 @@ export class MultilineGenerationService {
      */
     private isInterfaceImplementation(document: vscode.TextDocument, position: vscode.Position): boolean {
         const text = this.getContextAroundPosition(document, position, 10);
-        return text.includes('implements ') || text.includes('extends ') || 
-               text.includes('interface ') || text.includes('class ');
+        return text.includes('implements ') || text.includes('extends ') ||
+            text.includes('interface ') || text.includes('class ');
     }
 
     /**
@@ -327,11 +327,11 @@ export class MultilineGenerationService {
 
         // Procurar por comentários TODO/FIXME não implementados
         const todos = this.findUnimplementedTodos(document);
-        
+
         if (todos.length > 0) {
             const message = `xCopilot encontrou ${todos.length} TODO(s) não implementado(s). Gerar implementações?`;
             const choice = await vscode.window.showInformationMessage(message, 'Gerar Todos', 'Ignorar');
-            
+
             if (choice === 'Gerar Todos') {
                 await this.generateAllTodos(document, todos);
             }
@@ -343,12 +343,12 @@ export class MultilineGenerationService {
      */
     private findUnimplementedTodos(document: vscode.TextDocument): TodoItem[] {
         const todos: TodoItem[] = [];
-        
+
         for (let i = 0; i < document.lineCount; i++) {
             const line = document.lineAt(i);
             const text = line.text.toLowerCase();
-            
-            if ((text.includes('todo:') || text.includes('fixme:')) && 
+
+            if ((text.includes('todo:') || text.includes('fixme:')) &&
                 !this.hasImplementationBelow(document, i)) {
                 todos.push({
                     line: i,
@@ -357,7 +357,7 @@ export class MultilineGenerationService {
                 });
             }
         }
-        
+
         return todos;
     }
 
@@ -386,12 +386,12 @@ export class MultilineGenerationService {
                     description: 'TODO implementation',
                     prompt: this.buildTodoPrompt(document, todo.position, todo.text)
                 };
-                
+
                 await this.generateImplementation(document, todo.position, generationType);
-                
+
                 // Pequeno delay entre gerações
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                
+
             } catch (error) {
                 Logger.error(`Error generating TODO at line ${todo.line}:`, error);
             }
@@ -438,3 +438,4 @@ interface TodoItem {
     text: string;
     position: vscode.Position;
 }
+

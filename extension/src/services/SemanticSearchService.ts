@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { SemanticSearchResult, ConversationEntry } from '../types';
+import { ConversationEntry, SemanticSearchResult } from '../types';
 import { Logger } from '../utils/Logger';
 
 /**
@@ -97,8 +97,8 @@ export class SemanticSearchService {
      * Extrai context relevante usando RAG simplificado
      */
     async extractRelevantContext(
-        query: string, 
-        conversations: ConversationEntry[], 
+        query: string,
+        conversations: ConversationEntry[],
         codeSnippets: string[] = []
     ): Promise<string> {
         const contextParts: string[] = [];
@@ -140,7 +140,7 @@ export class SemanticSearchService {
      */
     private generateSimpleVector(text: string): number[] {
         const cacheKey = this.hashString(text);
-        
+
         if (this.vectorCache.has(cacheKey)) {
             return this.vectorCache.get(cacheKey)!;
         }
@@ -225,7 +225,7 @@ export class SemanticSearchService {
      */
     private summarizeConversation(conversationText: string): string {
         const sentences = conversationText.split(/[.!?]+/).filter(s => s.trim().length > 0);
-        
+
         if (sentences.length <= 2) {
             return conversationText.substring(0, 150);
         }
@@ -243,7 +243,7 @@ export class SemanticSearchService {
 
         try {
             const results = await this.searchConversations(query, conversations, 10);
-            
+
             for (const result of results) {
                 const keywords = this.extractTopicKeywords(result.content);
                 keywords.forEach(keyword => topics.add(keyword));
@@ -263,7 +263,7 @@ export class SemanticSearchService {
     private extractTopicKeywords(text: string): string[] {
         const words = text.toLowerCase().split(/\W+/);
         const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by']);
-        
+
         return words
             .filter(word => word.length > 3 && !stopWords.has(word))
             .filter((word, index, arr) => arr.indexOf(word) === index) // Remove duplicates
@@ -287,3 +287,4 @@ export class SemanticSearchService {
         return { size, memory };
     }
 }
+
