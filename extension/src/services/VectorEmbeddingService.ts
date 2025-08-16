@@ -119,8 +119,6 @@ export class VectorEmbeddingService {
             const content = await fs.promises.readFile(filePath, 'utf-8');
             const stats = await fs.promises.stat(filePath);
 
-            // Skip very large files (>100KB)
-            if (stats.size > 100 * 1024) {
             // Skip very large files (>configured limit)
             const maxFileSize = this.configService.getMaxFileSizeForIndexing
                 ? this.configService.getMaxFileSizeForIndexing()
