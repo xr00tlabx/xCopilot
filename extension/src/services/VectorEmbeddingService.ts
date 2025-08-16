@@ -121,7 +121,12 @@ export class VectorEmbeddingService {
 
             // Skip very large files (>100KB)
             if (stats.size > 100 * 1024) {
-                Logger.debug(`Skipping large file: ${filePath}`);
+            // Skip very large files (>configured limit)
+            const maxFileSize = this.configService.getMaxFileSizeForIndexing
+                ? this.configService.getMaxFileSizeForIndexing()
+                : 100 * 1024; // fallback to 100KB if not configured
+            if (stats.size > maxFileSize) {
+                Logger.debug(`Skipping large file: ${filePath} (size: ${stats.size} bytes, limit: ${maxFileSize} bytes)`);
                 return;
             }
 
