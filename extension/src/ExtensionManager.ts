@@ -173,6 +173,9 @@ export class ExtensionManager {
             vscode.commands.registerCommand('xcopilot.acceptGhostText', () => {
                 this.ghostTextService.acceptGhostText();
             }),
+            vscode.commands.registerCommand('xcopilot.dismissGhostText', () => {
+                this.ghostTextService.dismissGhostText();
+            }),
             vscode.commands.registerCommand('xcopilot.openChat', () => {
                 vscode.commands.executeCommand('workbench.view.extension.xcopilot-sidebar');
                 vscode.commands.executeCommand('setContext', 'xcopilot.chatVisible', true);

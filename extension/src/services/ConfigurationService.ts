@@ -29,6 +29,10 @@ export class ConfigurationService {
                 throttleMs: config.get<number>('inlineCompletion.throttleMs') || 300,
                 cacheSize: config.get<number>('inlineCompletion.cacheSize') || 100,
                 maxContextLines: config.get<number>('inlineCompletion.maxContextLines') || 15
+            },
+            ghostText: {
+                enabled: config.get<boolean>('ghostText.enabled') ?? true,
+                throttleMs: config.get<number>('ghostText.throttleMs') || 300
             }
         };
     }
@@ -58,7 +62,8 @@ export class ConfigurationService {
     onConfigurationChanged(callback: () => void): vscode.Disposable {
         return vscode.workspace.onDidChangeConfiguration(e => {
             if (e.affectsConfiguration('xcopilot.backendUrl') || 
-                e.affectsConfiguration('xcopilot.inlineCompletion')) {
+                e.affectsConfiguration('xcopilot.inlineCompletion') ||
+                e.affectsConfiguration('xcopilot.ghostText')) {
                 Logger.info('Configuration changed');
                 callback();
             }
