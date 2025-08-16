@@ -7,7 +7,58 @@
 
 ## 🎯 Milestone: GitHub Copilot Level Features
 
-### 🔥 **PRIORIDADE ALTA** (Core Features)
+## 🤖 **TAREFAS DELEGADAS PARA CODING AGENT** ✅
+
+### 🔥 **CRÍTICAS** (Core Features - GitHub Copilot Level)
+
+#### 1. 🤖 [#23 - Inline Code Completion](https://github.com/xr00tlabx/xCopilot/issues/23) `DELEGADO`
+**Status**: 🤖 Coding Agent implementando  
+**Complexidade**: ALTA - Requer VS Code CompletionItemProvider, OpenAI integration, cache LRU  
+**Impacto**: CRÍTICO - Base principal do GitHub Copilot
+
+#### 2. 👻 [#24 - Ghost Text Suggestions](https://github.com/xr00tlabx/xCopilot/issues/24) `DELEGADO`
+**Status**: 🤖 Coding Agent implementando  
+**Complexidade**: ALTA - InlineCompletionItemProvider, UI em cinza, Tab/Esc controls  
+**Impacto**: CRÍTICO - UX principal do Copilot
+
+#### 3. 🏗️ [#25 - Multi-line Code Generation](https://github.com/xr00tlabx/xCopilot/issues/25) `DELEGADO`
+**Status**: 🤖 Coding Agent implementando  
+**Complexidade**: MUITO ALTA - AST parsing, comment analysis, template engine  
+**Impacto**: CRÍTICO - Diferencial competitivo
+
+#### 4. 🧠 [#26 - Context-Aware Chat](https://github.com/xr00tlabx/xCopilot/issues/26) `DELEGADO`
+**Status**: 🤖 Coding Agent implementando  
+**Complexidade**: MUITO ALTA - RAG, vector embeddings, workspace analysis  
+**Impacto**: CRÍTICO - Inteligência do sistema
+
+### ⚡ **ALTAS** (Advanced Features)
+
+#### 5. 🔒 [#27 - Security Detection](https://github.com/xr00tlabx/xCopilot/issues/27) `DELEGADO`
+**Status**: 🤖 Coding Agent implementando  
+**Complexidade**: ALTA - SAST, vulnerability patterns, auto-fix suggestions  
+**Impacto**: ALTO - Segurança é essencial
+
+#### 6. 🔄 [#28 - Smart Refactoring](https://github.com/xr00tlabx/xCopilot/issues/28) `DELEGADO`
+**Status**: 🤖 Coding Agent implementando  
+**Complexidade**: ALTA - Code analysis, pattern detection, automated refactoring  
+**Impacto**: ALTO - Produtividade developer
+
+---
+
+## 🎯 **ESTRATÉGIA DE DELEGAÇÃO**
+
+### ✅ **Por que delegar ao Coding Agent?**
+1. **Complexidade Técnica**: Tasks requerem integração profunda com VS Code API
+2. **Volume de Código**: Cada feature precisa de 500+ linhas de código novo
+3. **Expertise Específica**: Requer conhecimento avançado de language servers
+4. **Paralelização**: Coding agent pode trabalhar em múltiplas tasks simultaneamente
+5. **Qualidade**: AI pode gerar código mais consistente e otimizado
+
+### 🤖 **Labels de Tracking**
+- `coding-agent` - Tarefa delegada para AI
+- `priority:high` - Alta prioridade de implementação
+- `core-feature` - Funcionalidade principal do GitHub Copilot
+
 
 #### 1. 🤖 [Inline Code Completion](https://github.com/xr00tlabx/xCopilot/issues/9) `core-feature`
 **Objetivo**: Sugestões de código em tempo real durante digitação
@@ -91,6 +142,7 @@
 - Health check automático
 
 ## 📈 Cronograma de Implementação
+
 
 ### **Setembro 2025** - Sprint 1 (Core Features)
 - [x] ~~Infraestrutura básica~~ ✅
