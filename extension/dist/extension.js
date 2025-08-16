@@ -5102,7 +5102,7 @@ __export(extension_exports, {
 module.exports = __toCommonJS(extension_exports);
 
 // src/ExtensionManager.ts
-var vscode12 = __toESM(require("vscode"));
+var vscode14 = __toESM(require("vscode"));
 
 // src/commands/ChatCommands.ts
 var vscode = __toESM(require("vscode"));
@@ -7113,14 +7113,1451 @@ Foque nos aspectos arquiteturais e de design.`;
   }
 };
 
-// src/services/CodeSuggestionsService.ts
+// src/services/CodeReviewService.ts
+var vscode7 = __toESM(require("vscode"));
+
+// src/services/PatternDetectionService.ts
 var vscode5 = __toESM(require("vscode"));
+var PatternDetectionService = class _PatternDetectionService {
+  constructor() {
+    this.isEnabled = true;
+    this.backendService = BackendService.getInstance();
+    this.contextService = CodeContextService.getInstance();
+    this.diagnosticCollection = vscode5.languages.createDiagnosticCollection("xcopilot-patterns");
+    this.setupDocumentWatcher();
+  }
+  static getInstance() {
+    if (!_PatternDetectionService.instance) {
+      _PatternDetectionService.instance = new _PatternDetectionService();
+    }
+    return _PatternDetectionService.instance;
+  }
+  /**
+   * Configura o monitoramento de documentos
+   */
+  setupDocumentWatcher() {
+    vscode5.workspace.onDidSaveTextDocument((document) => {
+      if (this.isEnabled && this.shouldAnalyzeFile(document)) {
+        this.analyzeDocument(document);
+      }
+    });
+    vscode5.workspace.onDidChangeTextDocument((event) => {
+      if (this.isEnabled && this.shouldAnalyzeFile(event.document)) {
+        this.scheduleAnalysis(event.document);
+      }
+    });
+    vscode5.workspace.onDidOpenTextDocument((document) => {
+      if (this.isEnabled && this.shouldAnalyzeFile(document)) {
+        this.analyzeDocument(document);
+      }
+    });
+  }
+  /**
+   * Agenda análise com debounce
+   */
+  scheduleAnalysis(document) {
+    if (this.analysisDebounceTimer) {
+      clearTimeout(this.analysisDebounceTimer);
+    }
+    this.analysisDebounceTimer = setTimeout(() => {
+      this.analyzeDocument(document);
+    }, 2e3);
+  }
+  /**
+   * Verifica se deve analisar o arquivo
+   */
+  shouldAnalyzeFile(document) {
+    const supportedLanguages = [
+      "typescript",
+      "javascript",
+      "python",
+      "java",
+      "csharp",
+      "cpp",
+      "c",
+      "php",
+      "ruby",
+      "go",
+      "rust"
+    ];
+    return supportedLanguages.includes(document.languageId) && !document.isUntitled && document.uri.scheme === "file";
+  }
+  /**
+   * Analisa documento e detecta padrões
+   */
+  async analyzeDocument(document) {
+    try {
+      Logger.info(`Analyzing patterns in ${document.fileName}`);
+      const patterns = await this.detectPatterns(document);
+      this.updateDiagnostics(document, patterns);
+      const criticalPatterns = patterns.filter((p) => p.severity === "error");
+      if (criticalPatterns.length > 0) {
+        const choice = await vscode5.window.showWarningMessage(
+          `${criticalPatterns.length} padr\xE3o(\xF5es) cr\xEDtico(s) detectado(s) em ${document.fileName}`,
+          "Ver Problemas",
+          "Ignorar"
+        );
+        if (choice === "Ver Problemas") {
+          vscode5.commands.executeCommand("workbench.panel.markers.view.focus");
+        }
+      }
+    } catch (error) {
+      Logger.error("Error analyzing document patterns:", error);
+    }
+  }
+  /**
+   * Detecta padrões no documento
+   */
+  async detectPatterns(document) {
+    const content = document.getText();
+    const patterns = [];
+    patterns.push(...await this.detectLocalPatterns(document, content));
+    patterns.push(...await this.detectAIPatterns(document, content));
+    return patterns;
+  }
+  /**
+   * Detecta padrões locais (sem IA)
+   */
+  async detectLocalPatterns(document, content) {
+    const patterns = [];
+    const lines = content.split("\n");
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2];
+      const lineNumber = i2;
+      if (this.isCodeDuplication(lines, i2)) {
+        patterns.push({
+          type: "code-duplication",
+          description: "Poss\xEDvel c\xF3digo duplicado detectado",
+          location: new vscode5.Range(lineNumber, 0, lineNumber, line.length),
+          severity: "warning",
+          suggestion: "Considere extrair em uma fun\xE7\xE3o reutiliz\xE1vel",
+          autoFixAvailable: false
+        });
+      }
+      if (this.isLongFunction(lines, i2)) {
+        patterns.push({
+          type: "long-function",
+          description: "Fun\xE7\xE3o muito longa detectada",
+          location: new vscode5.Range(lineNumber, 0, lineNumber, line.length),
+          severity: "info",
+          suggestion: "Considere dividir em fun\xE7\xF5es menores",
+          autoFixAvailable: true
+        });
+      }
+      if (this.isHighComplexity(line)) {
+        patterns.push({
+          type: "high-complexity",
+          description: "Alta complexidade ciclom\xE1tica",
+          location: new vscode5.Range(lineNumber, 0, lineNumber, line.length),
+          severity: "warning",
+          suggestion: "Simplifique a l\xF3gica condicional",
+          autoFixAvailable: false
+        });
+      }
+      const magicNumbers = this.findMagicNumbers(line);
+      for (const magicNumber of magicNumbers) {
+        patterns.push({
+          type: "magic-number",
+          description: `N\xFAmero m\xE1gico detectado: ${magicNumber.value}`,
+          location: new vscode5.Range(lineNumber, magicNumber.start, lineNumber, magicNumber.end),
+          severity: "info",
+          suggestion: "Considere usar uma constante nomeada",
+          autoFixAvailable: true
+        });
+      }
+      const todoMatch = line.match(/(TODO|FIXME|HACK):\s*(.+)/i);
+      if (todoMatch) {
+        patterns.push({
+          type: "todo",
+          description: `${todoMatch[1]}: ${todoMatch[2]}`,
+          location: new vscode5.Range(lineNumber, 0, lineNumber, line.length),
+          severity: "info",
+          suggestion: "Item pendente identificado",
+          autoFixAvailable: false
+        });
+      }
+    }
+    return patterns;
+  }
+  /**
+   * Detecta padrões usando IA
+   */
+  async detectAIPatterns(document, content) {
+    try {
+      const sample = content.length > 2e3 ? content.substring(0, 2e3) + "..." : content;
+      const prompt = `
+Analise o seguinte c\xF3digo ${document.languageId} e detecte padr\xF5es problem\xE1ticos:
+
+\`\`\`${document.languageId}
+${sample}
+\`\`\`
+
+Identifique:
+1. Anti-padr\xF5es de design
+2. Viola\xE7\xF5es de princ\xEDpios SOLID
+3. Problemas de performance
+4. Vulnerabilidades de seguran\xE7a
+5. C\xF3digo mal estruturado
+
+Para cada padr\xE3o encontrado, retorne JSON no formato:
+{
+  "patterns": [
+    {
+      "type": "tipo-do-padrao",
+      "description": "descri\xE7\xE3o do problema",
+      "line": n\xFAmero_da_linha_aproximado,
+      "severity": "info|warning|error",
+      "suggestion": "sugest\xE3o de melhoria"
+    }
+  ]
+}
+`;
+      const response = await this.backendService.askQuestion(prompt);
+      const analysisResult = this.parseAIResponse(response, document);
+      return analysisResult;
+    } catch (error) {
+      Logger.error("Error in AI pattern detection:", error);
+      return [];
+    }
+  }
+  /**
+   * Parse da resposta da IA
+   */
+  parseAIResponse(response, document) {
+    try {
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch)
+        return [];
+      const parsed = JSON.parse(jsonMatch[0]);
+      const patterns = [];
+      if (parsed.patterns && Array.isArray(parsed.patterns)) {
+        for (const pattern of parsed.patterns) {
+          const lineNumber = Math.max(0, Math.min(pattern.line - 1, document.lineCount - 1));
+          const line = document.lineAt(lineNumber);
+          patterns.push({
+            type: pattern.type || "ai-detected",
+            description: pattern.description || "Padr\xE3o detectado pela IA",
+            location: new vscode5.Range(lineNumber, 0, lineNumber, line.text.length),
+            severity: pattern.severity || "info",
+            suggestion: pattern.suggestion || "Revisar c\xF3digo",
+            autoFixAvailable: false
+          });
+        }
+      }
+      return patterns;
+    } catch (error) {
+      Logger.error("Error parsing AI response:", error);
+      return [];
+    }
+  }
+  /**
+   * Atualiza diagnósticos no VS Code
+   */
+  updateDiagnostics(document, patterns) {
+    const diagnostics = patterns.map((pattern) => {
+      const diagnostic = new vscode5.Diagnostic(
+        pattern.location,
+        `[${pattern.type}] ${pattern.description}`,
+        this.severityToVSCode(pattern.severity)
+      );
+      diagnostic.source = "xCopilot Pattern Detection";
+      return diagnostic;
+    });
+    this.diagnosticCollection.set(document.uri, diagnostics);
+  }
+  /**
+   * Converte severidade para VS Code
+   */
+  severityToVSCode(severity) {
+    switch (severity) {
+      case "error":
+        return vscode5.DiagnosticSeverity.Error;
+      case "warning":
+        return vscode5.DiagnosticSeverity.Warning;
+      case "info":
+      default:
+        return vscode5.DiagnosticSeverity.Information;
+    }
+  }
+  /**
+   * Detecta duplicação de código simples
+   */
+  isCodeDuplication(lines, currentIndex) {
+    const currentLine = lines[currentIndex].trim();
+    if (currentLine.length < 20)
+      return false;
+    let duplicateCount = 0;
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      if (i2 !== currentIndex && lines[i2].trim() === currentLine) {
+        duplicateCount++;
+      }
+    }
+    return duplicateCount >= 2;
+  }
+  /**
+   * Detecta funções muito longas
+   */
+  isLongFunction(lines, currentIndex) {
+    const line = lines[currentIndex];
+    const functionRegex = /(function|def|void|int|string|bool|var|let|const)\s+\w+\s*\(/;
+    if (!functionRegex.test(line))
+      return false;
+    let braceCount = 0;
+    let lineCount = 0;
+    let started = false;
+    for (let i2 = currentIndex; i2 < lines.length; i2++) {
+      const currentLine = lines[i2];
+      if (currentLine.includes("{")) {
+        braceCount += (currentLine.match(/\{/g) || []).length;
+        started = true;
+      }
+      if (currentLine.includes("}")) {
+        braceCount -= (currentLine.match(/\}/g) || []).length;
+      }
+      if (started) {
+        lineCount++;
+        if (braceCount === 0)
+          break;
+      }
+    }
+    return lineCount > 50;
+  }
+  /**
+   * Detecta alta complexidade ciclomática
+   */
+  isHighComplexity(line) {
+    const complexityKeywords = ["if", "else", "switch", "case", "for", "while", "catch", "&&", "||"];
+    let complexityScore = 0;
+    for (const keyword of complexityKeywords) {
+      const regex = new RegExp(`\\b${keyword}\\b`, "g");
+      const matches = line.match(regex);
+      if (matches) {
+        complexityScore += matches.length;
+      }
+    }
+    return complexityScore >= 4;
+  }
+  /**
+   * Encontra magic numbers
+   */
+  findMagicNumbers(line) {
+    const magicNumbers = [];
+    const numberRegex = /\b(\d+\.?\d*)\b/g;
+    let match;
+    while ((match = numberRegex.exec(line)) !== null) {
+      const value = match[1];
+      if (!["0", "1", "2", "10", "100", "1000"].includes(value)) {
+        magicNumbers.push({
+          value,
+          start: match.index,
+          end: match.index + value.length
+        });
+      }
+    }
+    return magicNumbers;
+  }
+  /**
+   * Registra comandos relacionados à detecção de padrões
+   */
+  registerCommands(context) {
+    const analyzeCommand = vscode5.commands.registerCommand(
+      "xcopilot.analyzePatterns",
+      () => this.analyzeCurrentFile()
+    );
+    const analyzeWorkspaceCommand = vscode5.commands.registerCommand(
+      "xcopilot.analyzeWorkspacePatterns",
+      () => this.analyzeWorkspace()
+    );
+    const toggleCommand = vscode5.commands.registerCommand(
+      "xcopilot.togglePatternDetection",
+      () => this.togglePatternDetection()
+    );
+    context.subscriptions.push(analyzeCommand, analyzeWorkspaceCommand, toggleCommand);
+  }
+  /**
+   * Analisa arquivo atual
+   */
+  async analyzeCurrentFile() {
+    const editor = vscode5.window.activeTextEditor;
+    if (!editor) {
+      vscode5.window.showWarningMessage("Nenhum arquivo ativo para analisar");
+      return;
+    }
+    vscode5.window.showInformationMessage("\u{1F50D} Analisando padr\xF5es de c\xF3digo...");
+    await this.analyzeDocument(editor.document);
+    vscode5.window.showInformationMessage("\u2705 An\xE1lise de padr\xF5es conclu\xEDda!");
+  }
+  /**
+   * Analisa workspace inteiro
+   */
+  async analyzeWorkspace() {
+    const files = await vscode5.workspace.findFiles("**/*.{ts,js,py,java,cs,cpp,c,php,rb,go,rs}");
+    if (files.length === 0) {
+      vscode5.window.showInformationMessage("Nenhum arquivo de c\xF3digo encontrado no workspace");
+      return;
+    }
+    vscode5.window.showInformationMessage(`\u{1F50D} Analisando ${files.length} arquivo(s)...`);
+    for (const fileUri of files) {
+      try {
+        const document = await vscode5.workspace.openTextDocument(fileUri);
+        await this.analyzeDocument(document);
+      } catch (error) {
+        Logger.error(`Error analyzing file ${fileUri.fsPath}:`, error);
+      }
+    }
+    vscode5.window.showInformationMessage("\u2705 An\xE1lise do workspace conclu\xEDda!");
+  }
+  /**
+   * Toggle da detecção automática
+   */
+  togglePatternDetection() {
+    this.isEnabled = !this.isEnabled;
+    if (!this.isEnabled) {
+      this.diagnosticCollection.clear();
+    }
+    vscode5.window.showInformationMessage(
+      `Detec\xE7\xE3o de padr\xF5es ${this.isEnabled ? "ativada" : "desativada"}`
+    );
+  }
+  /**
+   * Obtém disposables para limpeza
+   */
+  getDisposables() {
+    return [this.diagnosticCollection];
+  }
+  /**
+   * Limpa recursos
+   */
+  dispose() {
+    if (this.analysisDebounceTimer) {
+      clearTimeout(this.analysisDebounceTimer);
+    }
+    this.diagnosticCollection.dispose();
+  }
+};
+
+// src/services/GitIntegrationService.new.ts
+var vscode6 = __toESM(require("vscode"));
+var GitIntegrationService = class _GitIntegrationService {
+  constructor() {
+    this.isInitialized = false;
+    this.initializeGitExtension();
+  }
+  static getInstance() {
+    if (!_GitIntegrationService.instance) {
+      _GitIntegrationService.instance = new _GitIntegrationService();
+    }
+    return _GitIntegrationService.instance;
+  }
+  /**
+   * Inicializa a extensão do Git
+   */
+  async initializeGitExtension() {
+    try {
+      const gitExtension = vscode6.extensions.getExtension("vscode.git");
+      if (gitExtension) {
+        if (!gitExtension.isActive) {
+          await gitExtension.activate();
+        }
+        this.gitExtension = gitExtension.exports?.getAPI?.(1);
+        if (this.gitExtension) {
+          this.isInitialized = true;
+          Logger.info("Git extension initialized successfully");
+        } else {
+          Logger.warn("Git API not available - Git features will be disabled");
+        }
+      } else {
+        Logger.warn("Git extension not found - Git features will be disabled");
+      }
+    } catch (error) {
+      Logger.warn("Git extension not available - Git features will be disabled");
+      this.gitExtension = void 0;
+    }
+  }
+  /**
+   * Verifica se o Git está disponível
+   */
+  isGitAvailable() {
+    try {
+      return this.isInitialized && !!this.gitExtension && !!this.gitExtension.repositories;
+    } catch (error) {
+      Logger.warn("Error checking Git availability:", error);
+      return false;
+    }
+  }
+  /**
+   * Obtém informações do Git para o workspace atual
+   */
+  async getGitInfo() {
+    if (!this.isGitAvailable()) {
+      Logger.warn("Git not available for getGitInfo");
+      return null;
+    }
+    try {
+      const workspaceFolders = vscode6.workspace.workspaceFolders;
+      if (!workspaceFolders?.length) {
+        Logger.warn("No workspace folders found");
+        return null;
+      }
+      const repository = this.gitExtension.getRepository(workspaceFolders[0].uri);
+      if (!repository) {
+        Logger.warn("No Git repository found in workspace");
+        return null;
+      }
+      const gitInfo = {
+        currentBranch: repository.state.HEAD?.name || "unknown",
+        hasUncommittedChanges: repository.state.workingTreeChanges.length > 0 || repository.state.indexChanges.length > 0,
+        lastCommitMessage: repository.state.HEAD?.commit?.message || "",
+        changedFiles: [
+          ...repository.state.workingTreeChanges.map((c) => c.uri.fsPath),
+          ...repository.state.indexChanges.map((c) => c.uri.fsPath)
+        ],
+        diff: await this.getRepositoryDiff(repository)
+      };
+      Logger.debug("Git info retrieved successfully");
+      return gitInfo;
+    } catch (error) {
+      Logger.error("Error getting Git info:", error);
+      return null;
+    }
+  }
+  /**
+   * Obtém diff do repositório
+   */
+  async getRepositoryDiff(repository) {
+    try {
+      const changes = repository.state.workingTreeChanges.length + repository.state.indexChanges.length;
+      return changes > 0 ? `${changes} files changed` : void 0;
+    } catch (error) {
+      Logger.warn("Error getting repository diff:", error);
+      return void 0;
+    }
+  }
+  /**
+   * Obtém diff do arquivo atual
+   */
+  async getCurrentFileDiff() {
+    if (!this.isGitAvailable()) {
+      Logger.warn("Git not available for getCurrentFileDiff");
+      return null;
+    }
+    try {
+      const editor = vscode6.window.activeTextEditor;
+      if (!editor) {
+        Logger.warn("No active editor for diff analysis");
+        return null;
+      }
+      const workspaceFolders = vscode6.workspace.workspaceFolders;
+      if (!workspaceFolders?.length) {
+        return null;
+      }
+      const repository = this.gitExtension.getRepository(workspaceFolders[0].uri);
+      if (!repository) {
+        return null;
+      }
+      const fileName = editor.document.fileName;
+      const isModified = editor.document.isDirty || repository.state.workingTreeChanges.some(
+        (c) => c.uri.fsPath === fileName
+      );
+      return isModified ? `File modified: ${fileName}` : null;
+    } catch (error) {
+      Logger.error("Error getting file diff:", error);
+      return null;
+    }
+  }
+  /**
+   * Gera sugestão de mensagem de commit baseada nas mudanças
+   */
+  async generateCommitMessage(changedFiles, diff) {
+    const fileTypes = this.analyzeFileTypes(changedFiles);
+    const changeScope = this.analyzeChangeScope(changedFiles);
+    let type = "feat";
+    if (changedFiles.some((f3) => f3.includes("test") || f3.includes("spec"))) {
+      type = "test";
+    } else if (changedFiles.some((f3) => f3.includes("doc") || f3.includes("README"))) {
+      type = "docs";
+    } else if (changedFiles.some((f3) => f3.includes("fix") || f3.includes("bug"))) {
+      type = "fix";
+    } else if (changedFiles.some((f3) => f3.includes("style") || f3.includes("css"))) {
+      type = "style";
+    }
+    const scope = changeScope.length > 0 ? `(${changeScope.join(", ")})` : "";
+    const fileTypesList = fileTypes.length > 0 ? ` - ${fileTypes.join(", ")}` : "";
+    return `${type}${scope}: update ${changedFiles.length} file(s)${fileTypesList}`;
+  }
+  /**
+   * Analisa tipos de arquivos modificados
+   */
+  analyzeFileTypes(files) {
+    const types3 = /* @__PURE__ */ new Set();
+    files.forEach((file) => {
+      const ext = file.split(".").pop()?.toLowerCase();
+      if (ext) {
+        types3.add(ext);
+      }
+    });
+    return Array.from(types3).slice(0, 3);
+  }
+  /**
+   * Analisa escopo das mudanças
+   */
+  analyzeChangeScope(files) {
+    const scopes = /* @__PURE__ */ new Set();
+    files.forEach((file) => {
+      const parts = file.split("/");
+      if (parts.length > 1) {
+        scopes.add(parts[parts.length - 2]);
+      }
+    });
+    return Array.from(scopes).slice(0, 2);
+  }
+};
+
+// src/services/CodeReviewService.ts
+var CodeReviewService = class _CodeReviewService {
+  constructor() {
+    this.patternDetectionService = PatternDetectionService.getInstance();
+    this.gitService = GitIntegrationService.getInstance();
+    this.backendService = BackendService.getInstance();
+    this.configService = ConfigurationService.getInstance();
+    this.registerCommands();
+  }
+  static getInstance() {
+    if (!_CodeReviewService.instance) {
+      _CodeReviewService.instance = new _CodeReviewService();
+    }
+    return _CodeReviewService.instance;
+  }
+  /**
+   * Registra comandos relacionados ao code review
+   */
+  registerCommands() {
+    vscode7.commands.registerCommand("xcopilot.reviewCurrentFile", () => this.reviewCurrentFile());
+    vscode7.commands.registerCommand("xcopilot.reviewChangedFiles", () => this.reviewChangedFiles());
+    vscode7.commands.registerCommand("xcopilot.reviewWorkspace", () => this.reviewWorkspace());
+    vscode7.commands.registerCommand("xcopilot.generateReviewSummary", () => this.generateReviewSummary());
+  }
+  /**
+   * Realiza review do arquivo atual
+   */
+  async reviewCurrentFile() {
+    const editor = vscode7.window.activeTextEditor;
+    if (!editor) {
+      vscode7.window.showWarningMessage("Nenhum arquivo aberto para review");
+      return;
+    }
+    try {
+      await vscode7.window.withProgress({
+        location: vscode7.ProgressLocation.Notification,
+        title: "Analisando arquivo...",
+        cancellable: false
+      }, async () => {
+        const result = await this.analyzeFile(editor.document);
+        await this.showReviewResults(result);
+      });
+    } catch (error) {
+      Logger.error("Error reviewing current file:", error);
+      vscode7.window.showErrorMessage("Erro ao analisar arquivo: " + error.message);
+    }
+  }
+  /**
+   * Realiza review dos arquivos modificados
+   */
+  async reviewChangedFiles() {
+    if (!this.gitService.isGitAvailable()) {
+      vscode7.window.showWarningMessage("Git n\xE3o dispon\xEDvel no workspace atual");
+      return;
+    }
+    try {
+      await vscode7.window.withProgress({
+        location: vscode7.ProgressLocation.Notification,
+        title: "Analisando arquivos modificados...",
+        cancellable: false
+      }, async () => {
+        const gitInfo = await this.gitService.getGitInfo();
+        if (!gitInfo?.changedFiles.length) {
+          vscode7.window.showInformationMessage("Nenhum arquivo modificado encontrado");
+          return;
+        }
+        const results = [];
+        for (const filePath of gitInfo.changedFiles) {
+          const document = await this.openDocument(filePath);
+          if (document) {
+            const result = await this.analyzeFile(document);
+            results.push(result);
+          }
+        }
+        const combinedResult = this.combineReviewResults(results);
+        await this.showReviewResults(combinedResult);
+      });
+    } catch (error) {
+      Logger.error("Error reviewing changed files:", error);
+      vscode7.window.showErrorMessage("Erro ao analisar arquivos modificados: " + error.message);
+    }
+  }
+  /**
+   * Realiza review completo do workspace
+   */
+  async reviewWorkspace() {
+    const workspaceFolders = vscode7.workspace.workspaceFolders;
+    if (!workspaceFolders?.length) {
+      vscode7.window.showWarningMessage("Nenhum workspace aberto");
+      return;
+    }
+    const include = "**/*.{js,ts,jsx,tsx,py,java,cpp,c,cs,php,go,rs,rb,swift,kt}";
+    const exclude = "**/node_modules/**";
+    try {
+      await vscode7.window.withProgress({
+        location: vscode7.ProgressLocation.Notification,
+        title: "Analisando workspace...",
+        cancellable: false
+      }, async (progress) => {
+        const files = await vscode7.workspace.findFiles(include, exclude, 50);
+        const results = [];
+        for (let i2 = 0; i2 < files.length; i2++) {
+          const file = files[i2];
+          progress.report({
+            message: `Analisando ${file.fsPath}`,
+            increment: 100 / files.length
+          });
+          const document = await this.openDocument(file.fsPath);
+          if (document) {
+            const result = await this.analyzeFile(document);
+            results.push(result);
+          }
+        }
+        const combinedResult = this.combineReviewResults(results);
+        await this.showReviewResults(combinedResult);
+      });
+    } catch (error) {
+      Logger.error("Error reviewing workspace:", error);
+      vscode7.window.showErrorMessage("Erro ao analisar workspace: " + error.message);
+    }
+  }
+  /**
+   * Gera summary do review
+   */
+  async generateReviewSummary() {
+    try {
+      await vscode7.window.withProgress({
+        location: vscode7.ProgressLocation.Notification,
+        title: "Gerando summary de review...",
+        cancellable: false
+      }, async () => {
+        const gitInfo = await this.gitService.getGitInfo();
+        const summary = await this.generateAISummary(gitInfo);
+        await this.showSummary(summary);
+      });
+    } catch (error) {
+      Logger.error("Error generating review summary:", error);
+      vscode7.window.showErrorMessage("Erro ao gerar summary: " + error.message);
+    }
+  }
+  /**
+   * Analisa um arquivo específico
+   */
+  async analyzeFile(document) {
+    const issues = [];
+    const fileName = document.fileName;
+    const content = document.getText();
+    const language = document.languageId;
+    const codeQualityIssues = await this.analyzeCodeQuality(content, language, fileName);
+    issues.push(...codeQualityIssues);
+    const bestPracticeIssues = await this.analyzeBestPractices(content, language, fileName);
+    issues.push(...bestPracticeIssues);
+    const securityIssues = await this.analyzeSecurityIssues(content, language, fileName);
+    issues.push(...securityIssues);
+    const testingIssues = await this.analyzeTestCoverage(content, language, fileName);
+    issues.push(...testingIssues);
+    const documentationIssues = await this.analyzeDocumentation(content, language, fileName);
+    issues.push(...documentationIssues);
+    const performanceIssues = await this.analyzePerformance(content, language, fileName);
+    issues.push(...performanceIssues);
+    return this.calculateReviewScore(issues, [fileName]);
+  }
+  /**
+   * Analisa qualidade do código
+   */
+  async analyzeCodeQuality(content, language, fileName) {
+    const issues = [];
+    const lines = content.split("\n");
+    let functionStartLine = -1;
+    let functionLines = 0;
+    let braceCount = 0;
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2].trim();
+      if (this.isFunctionStart(line, language)) {
+        functionStartLine = i2;
+        functionLines = 0;
+        braceCount = 0;
+      }
+      if (functionStartLine >= 0) {
+        functionLines++;
+        braceCount += (line.match(/\{/g) || []).length;
+        braceCount -= (line.match(/\}/g) || []).length;
+        if (braceCount === 0 && functionLines > 1) {
+          if (functionLines > 20) {
+            issues.push({
+              type: "code_smell",
+              severity: functionLines > 50 ? "high" : "medium",
+              message: `Fun\xE7\xE3o muito longa (${functionLines} linhas)`,
+              suggestion: "Considere quebrar em fun\xE7\xF5es menores para melhor legibilidade",
+              file: fileName,
+              line: functionStartLine + 1,
+              endLine: i2 + 1,
+              autoFixAvailable: false
+            });
+          }
+          functionStartLine = -1;
+        }
+      }
+      const complexityKeywords = ["if", "else", "switch", "case", "for", "while", "catch", "&&", "||"];
+      let complexity = 0;
+      for (const keyword of complexityKeywords) {
+        const regex = new RegExp(`\\b${keyword}\\b`, "g");
+        const matches = line.match(regex);
+        if (matches) {
+          complexity += matches.length;
+        }
+      }
+      if (complexity >= 5) {
+        issues.push({
+          type: "code_smell",
+          severity: complexity >= 10 ? "high" : "medium",
+          message: `Alta complexidade ciclom\xE1tica (${complexity} condi\xE7\xF5es)`,
+          suggestion: "Simplifique a l\xF3gica ou extraia condi\xE7\xF5es para m\xE9todos separados",
+          file: fileName,
+          line: i2 + 1,
+          autoFixAvailable: false
+        });
+      }
+      if (this.isCodeDuplication(lines, i2)) {
+        issues.push({
+          type: "code_smell",
+          severity: "medium",
+          message: "Poss\xEDvel duplica\xE7\xE3o de c\xF3digo detectada",
+          suggestion: "Extraia c\xF3digo comum para uma fun\xE7\xE3o ou m\xE9todo separado",
+          file: fileName,
+          line: i2 + 1,
+          autoFixAvailable: false
+        });
+      }
+    }
+    return issues;
+  }
+  /**
+   * Analisa best practices
+   */
+  async analyzeBestPractices(content, language, fileName) {
+    const issues = [];
+    const lines = content.split("\n");
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2].trim();
+      const magicNumberRegex = /\b(\d{2,})\b/g;
+      let match;
+      while ((match = magicNumberRegex.exec(line)) !== null) {
+        const number = parseInt(match[1]);
+        if (number > 1 && number !== 100 && number !== 1e3) {
+          issues.push({
+            type: "best_practice",
+            severity: "low",
+            message: `Magic number detectado: ${number}`,
+            suggestion: "Considere usar uma constante nomeada",
+            file: fileName,
+            line: i2 + 1,
+            column: match.index,
+            autoFixAvailable: false
+          });
+        }
+      }
+      const varRegex = /\b(var|let|const)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=/g;
+      while ((match = varRegex.exec(line)) !== null) {
+        const varName = match[2];
+        if (varName.length <= 2 && !["i", "j", "k", "x", "y", "z"].includes(varName)) {
+          issues.push({
+            type: "best_practice",
+            severity: "low",
+            message: `Nome de vari\xE1vel muito curto: ${varName}`,
+            suggestion: "Use nomes mais descritivos para vari\xE1veis",
+            file: fileName,
+            line: i2 + 1,
+            autoFixAvailable: false
+          });
+        }
+      }
+    }
+    return issues;
+  }
+  /**
+   * Analisa problemas de segurança
+   */
+  async analyzeSecurityIssues(content, language, fileName) {
+    const issues = [];
+    const lines = content.split("\n");
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2].trim();
+      if (line.includes("SELECT") && (line.includes("+") || line.includes("${") || line.includes("`"))) {
+        issues.push({
+          type: "security",
+          severity: "high",
+          message: "Poss\xEDvel vulnerabilidade de SQL Injection",
+          suggestion: "Use prepared statements ou parameterized queries",
+          file: fileName,
+          line: i2 + 1,
+          autoFixAvailable: false
+        });
+      }
+      const secretPatterns = [
+        /password\s*[:=]\s*["'].*["']/i,
+        /api[_-]?key\s*[:=]\s*["'].*["']/i,
+        /secret\s*[:=]\s*["'].*["']/i,
+        /token\s*[:=]\s*["'].*["']/i
+      ];
+      for (const pattern of secretPatterns) {
+        if (pattern.test(line)) {
+          issues.push({
+            type: "security",
+            severity: "critical",
+            message: "Poss\xEDvel credencial hardcoded detectada",
+            suggestion: "Use vari\xE1veis de ambiente ou servi\xE7os de secrets management",
+            file: fileName,
+            line: i2 + 1,
+            autoFixAvailable: false
+          });
+        }
+      }
+      if (line.includes("eval(")) {
+        issues.push({
+          type: "security",
+          severity: "high",
+          message: "Uso de eval() detectado",
+          suggestion: "Evite usar eval() por quest\xF5es de seguran\xE7a",
+          file: fileName,
+          line: i2 + 1,
+          autoFixAvailable: false
+        });
+      }
+    }
+    return issues;
+  }
+  /**
+   * Analisa cobertura de testes
+   */
+  async analyzeTestCoverage(content, language, fileName) {
+    const issues = [];
+    const isTestFile = /\.(test|spec)\.(js|ts|py|java)$/.test(fileName) || fileName.includes("__tests__") || fileName.includes("/tests/");
+    if (isTestFile) {
+      return issues;
+    }
+    const lines = content.split("\n");
+    let publicFunctions = 0;
+    let hasTests = false;
+    for (const line of lines) {
+      if (this.isPublicFunction(line, language)) {
+        publicFunctions++;
+      }
+    }
+    const baseName = fileName.replace(/\.(js|ts|py|java)$/, "");
+    const testFiles = [
+      `${baseName}.test.${language}`,
+      `${baseName}.spec.${language}`,
+      `${baseName.replace("/src/", "/tests/")}.test.${language}`,
+      `${baseName}/${fileName.split("/").pop()?.replace(/\.(js|ts|py|java)$/, "")}.test.${language}`
+    ];
+    if (publicFunctions > 0 && !hasTests) {
+      issues.push({
+        type: "testing",
+        severity: "medium",
+        message: `Arquivo com ${publicFunctions} fun\xE7\xE3o(\xF5es) p\xFAblica(s) sem testes`,
+        suggestion: "Adicione testes unit\xE1rios para cobrir as fun\xE7\xF5es p\xFAblicas",
+        file: fileName,
+        autoFixAvailable: false
+      });
+    }
+    return issues;
+  }
+  /**
+   * Analisa documentação
+   */
+  async analyzeDocumentation(content, language, fileName) {
+    const issues = [];
+    const lines = content.split("\n");
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2].trim();
+      if (this.isPublicFunction(line, language)) {
+        const previousLine = i2 > 0 ? lines[i2 - 1].trim() : "";
+        const hasDoc = previousLine.includes("/**") || previousLine.includes('"""') || previousLine.includes("/*") || line.includes("//");
+        if (!hasDoc) {
+          issues.push({
+            type: "documentation",
+            severity: "low",
+            message: "Fun\xE7\xE3o p\xFAblica sem documenta\xE7\xE3o",
+            suggestion: "Adicione JSDoc/docstring explicando o prop\xF3sito da fun\xE7\xE3o",
+            file: fileName,
+            line: i2 + 1,
+            autoFixAvailable: false
+          });
+        }
+      }
+    }
+    return issues;
+  }
+  /**
+   * Analisa problemas de performance
+   */
+  async analyzePerformance(content, language, fileName) {
+    const issues = [];
+    const lines = content.split("\n");
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2].trim();
+      if (line.includes("for") && i2 < lines.length - 10) {
+        let nestedLoops = 0;
+        for (let j = i2 + 1; j < Math.min(i2 + 10, lines.length); j++) {
+          if (lines[j].trim().includes("for") || lines[j].trim().includes("while")) {
+            nestedLoops++;
+          }
+        }
+        if (nestedLoops >= 2) {
+          issues.push({
+            type: "performance",
+            severity: "medium",
+            message: `Loops aninhados detectados (${nestedLoops + 1} n\xEDveis)`,
+            suggestion: "Considere otimizar a l\xF3gica ou usar estruturas de dados mais eficientes",
+            file: fileName,
+            line: i2 + 1,
+            autoFixAvailable: false
+          });
+        }
+      }
+      if (line.includes(".push(") && (line.includes("for") || i2 > 0 && lines[i2 - 1].includes("for"))) {
+        issues.push({
+          type: "performance",
+          severity: "low",
+          message: "Array.push() em loop pode ser ineficiente",
+          suggestion: "Considere usar spread operator ou Array.concat()",
+          file: fileName,
+          line: i2 + 1,
+          autoFixAvailable: false
+        });
+      }
+    }
+    return issues;
+  }
+  /**
+   * Calcula score do review
+   */
+  calculateReviewScore(issues, changedFiles) {
+    let score = 100;
+    let codeQuality = 100;
+    let bestPractices = 100;
+    let testing = 100;
+    let documentation = 100;
+    let security = 100;
+    let performance = 100;
+    const categoryCounts = {
+      code_smell: 0,
+      best_practice: 0,
+      testing: 0,
+      documentation: 0,
+      security: 0,
+      performance: 0
+    };
+    for (const issue of issues) {
+      categoryCounts[issue.type]++;
+      let penalty = 0;
+      switch (issue.severity) {
+        case "critical":
+          penalty = 20;
+          break;
+        case "high":
+          penalty = 10;
+          break;
+        case "medium":
+          penalty = 5;
+          break;
+        case "low":
+          penalty = 2;
+          break;
+      }
+      score -= penalty;
+      switch (issue.type) {
+        case "code_smell":
+          codeQuality -= penalty;
+          break;
+        case "best_practice":
+          bestPractices -= penalty;
+          break;
+        case "testing":
+          testing -= penalty;
+          break;
+        case "documentation":
+          documentation -= penalty;
+          break;
+        case "security":
+          security -= penalty * 1.5;
+          break;
+        case "performance":
+          performance -= penalty;
+          break;
+      }
+    }
+    score = Math.max(0, score);
+    codeQuality = Math.max(0, codeQuality);
+    bestPractices = Math.max(0, bestPractices);
+    testing = Math.max(0, testing);
+    documentation = Math.max(0, documentation);
+    security = Math.max(0, security);
+    performance = Math.max(0, performance);
+    const recommendations = [];
+    if (codeQuality < 80) {
+      recommendations.push("Refatore c\xF3digos complexos e elimine duplica\xE7\xF5es");
+    }
+    if (security < 90) {
+      recommendations.push("Corrija imediatamente os problemas de seguran\xE7a identificados");
+    }
+    if (testing < 70) {
+      recommendations.push("Adicione testes unit\xE1rios para melhor cobertura");
+    }
+    if (documentation < 60) {
+      recommendations.push("Melhore a documenta\xE7\xE3o das fun\xE7\xF5es p\xFAblicas");
+    }
+    return {
+      overallScore: Math.round(score),
+      issues,
+      summary: {
+        totalIssues: issues.length,
+        codeQuality: Math.round(codeQuality),
+        bestPractices: Math.round(bestPractices),
+        testing: Math.round(testing),
+        documentation: Math.round(documentation),
+        security: Math.round(security),
+        performance: Math.round(performance)
+      },
+      recommendations,
+      changedFiles,
+      addedLines: 0,
+      // Seria calculado via Git diff
+      removedLines: 0
+      // Seria calculado via Git diff
+    };
+  }
+  /**
+   * Combina resultados de múltiplos arquivos
+   */
+  combineReviewResults(results) {
+    if (results.length === 0) {
+      return {
+        overallScore: 100,
+        issues: [],
+        summary: {
+          totalIssues: 0,
+          codeQuality: 100,
+          bestPractices: 100,
+          testing: 100,
+          documentation: 100,
+          security: 100,
+          performance: 100
+        },
+        recommendations: [],
+        changedFiles: [],
+        addedLines: 0,
+        removedLines: 0
+      };
+    }
+    const allIssues = results.flatMap((r2) => r2.issues);
+    const allFiles = results.flatMap((r2) => r2.changedFiles);
+    const avgScore = results.reduce((sum, r2) => sum + r2.overallScore, 0) / results.length;
+    const avgCodeQuality = results.reduce((sum, r2) => sum + r2.summary.codeQuality, 0) / results.length;
+    const avgBestPractices = results.reduce((sum, r2) => sum + r2.summary.bestPractices, 0) / results.length;
+    const avgTesting = results.reduce((sum, r2) => sum + r2.summary.testing, 0) / results.length;
+    const avgDocumentation = results.reduce((sum, r2) => sum + r2.summary.documentation, 0) / results.length;
+    const avgSecurity = results.reduce((sum, r2) => sum + r2.summary.security, 0) / results.length;
+    const avgPerformance = results.reduce((sum, r2) => sum + r2.summary.performance, 0) / results.length;
+    const allRecommendations = [...new Set(results.flatMap((r2) => r2.recommendations))];
+    return {
+      overallScore: Math.round(avgScore),
+      issues: allIssues,
+      summary: {
+        totalIssues: allIssues.length,
+        codeQuality: Math.round(avgCodeQuality),
+        bestPractices: Math.round(avgBestPractices),
+        testing: Math.round(avgTesting),
+        documentation: Math.round(avgDocumentation),
+        security: Math.round(avgSecurity),
+        performance: Math.round(avgPerformance)
+      },
+      recommendations: allRecommendations,
+      changedFiles: [...new Set(allFiles)],
+      addedLines: results.reduce((sum, r2) => sum + r2.addedLines, 0),
+      removedLines: results.reduce((sum, r2) => sum + r2.removedLines, 0)
+    };
+  }
+  /**
+   * Exibe resultados do review
+   */
+  async showReviewResults(result) {
+    const severityCount = {
+      critical: result.issues.filter((i2) => i2.severity === "critical").length,
+      high: result.issues.filter((i2) => i2.severity === "high").length,
+      medium: result.issues.filter((i2) => i2.severity === "medium").length,
+      low: result.issues.filter((i2) => i2.severity === "low").length
+    };
+    const scoreColor = result.overallScore >= 90 ? "\u{1F7E2}" : result.overallScore >= 70 ? "\u{1F7E1}" : "\u{1F534}";
+    const message = `**xCopilot Code Review** ${scoreColor}
+
+**Score Geral: ${result.overallScore}/100**
+
+**Resumo:**
+- \u{1F50D} Qualidade: ${result.summary.codeQuality}/100
+- \u{1F4CB} Best Practices: ${result.summary.bestPractices}/100  
+- \u{1F9EA} Testes: ${result.summary.testing}/100
+- \u{1F4DA} Documenta\xE7\xE3o: ${result.summary.documentation}/100
+- \u{1F512} Seguran\xE7a: ${result.summary.security}/100
+- \u26A1 Performance: ${result.summary.performance}/100
+
+**Issues Encontradas: ${result.issues.length}**
+- \u274C Cr\xEDticas: ${severityCount.critical}
+- \u{1F534} Altas: ${severityCount.high}
+- \u{1F7E1} M\xE9dias: ${severityCount.medium}
+- \u{1F7E2} Baixas: ${severityCount.low}
+
+**Arquivos Analisados: ${result.changedFiles.length}**`;
+    const action = await vscode7.window.showInformationMessage(
+      message,
+      "Ver Detalhes",
+      "Exportar Report",
+      "Fechar"
+    );
+    if (action === "Ver Detalhes") {
+      await this.showDetailedResults(result);
+    } else if (action === "Exportar Report") {
+      await this.exportReviewReport(result);
+    }
+  }
+  /**
+   * Exibe resultados detalhados
+   */
+  async showDetailedResults(result) {
+    const document = await vscode7.workspace.openTextDocument({
+      content: this.formatDetailedReport(result),
+      language: "markdown"
+    });
+    await vscode7.window.showTextDocument(document);
+  }
+  /**
+   * Formata report detalhado
+   */
+  formatDetailedReport(result) {
+    let report = `# xCopilot Code Review Report
+
+`;
+    report += `**Score Geral: ${result.overallScore}/100**
+
+`;
+    report += `## \u{1F4CA} Resumo por Categoria
+
+`;
+    report += `| Categoria | Score | Status |
+`;
+    report += `|-----------|-------|--------|
+`;
+    report += `| Qualidade de C\xF3digo | ${result.summary.codeQuality}/100 | ${result.summary.codeQuality >= 80 ? "\u2705" : "\u274C"} |
+`;
+    report += `| Best Practices | ${result.summary.bestPractices}/100 | ${result.summary.bestPractices >= 80 ? "\u2705" : "\u274C"} |
+`;
+    report += `| Testes | ${result.summary.testing}/100 | ${result.summary.testing >= 70 ? "\u2705" : "\u274C"} |
+`;
+    report += `| Documenta\xE7\xE3o | ${result.summary.documentation}/100 | ${result.summary.documentation >= 60 ? "\u2705" : "\u274C"} |
+`;
+    report += `| Seguran\xE7a | ${result.summary.security}/100 | ${result.summary.security >= 90 ? "\u2705" : "\u274C"} |
+`;
+    report += `| Performance | ${result.summary.performance}/100 | ${result.summary.performance >= 80 ? "\u2705" : "\u274C"} |
+
+`;
+    if (result.recommendations.length > 0) {
+      report += `## \u{1F4A1} Recomenda\xE7\xF5es
+
+`;
+      for (const rec of result.recommendations) {
+        report += `- ${rec}
+`;
+      }
+      report += `
+`;
+    }
+    if (result.issues.length > 0) {
+      report += `## \u{1F41B} Issues Encontradas
+
+`;
+      const groupedIssues = result.issues.reduce((groups, issue) => {
+        const key = issue.type;
+        if (!groups[key])
+          groups[key] = [];
+        groups[key].push(issue);
+        return groups;
+      }, {});
+      for (const [type, issues] of Object.entries(groupedIssues)) {
+        const typeLabel = this.getTypeLabel(type);
+        report += `### ${typeLabel}
+
+`;
+        for (const issue of issues) {
+          const severityIcon = this.getSeverityIcon(issue.severity);
+          const location = issue.line ? `:${issue.line}` : "";
+          report += `${severityIcon} **${issue.file}${location}**
+`;
+          report += `- ${issue.message}
+`;
+          report += `- \u{1F4A1} ${issue.suggestion}
+
+`;
+        }
+      }
+    }
+    report += `## \u{1F4C1} Arquivos Analisados
+
+`;
+    for (const file of result.changedFiles) {
+      report += `- ${file}
+`;
+    }
+    return report;
+  }
+  /**
+   * Exporta report para arquivo
+   */
+  async exportReviewReport(result) {
+    const content = this.formatDetailedReport(result);
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+    const fileName = `xcopilot-review-${timestamp}.md`;
+    try {
+      const workspaceFolder = vscode7.workspace.workspaceFolders?.[0];
+      if (workspaceFolder) {
+        const filePath = vscode7.Uri.joinPath(workspaceFolder.uri, fileName);
+        await vscode7.workspace.fs.writeFile(filePath, Buffer.from(content, "utf8"));
+        vscode7.window.showInformationMessage(`Report exportado: ${fileName}`);
+        const action = await vscode7.window.showInformationMessage(
+          "Report salvo com sucesso!",
+          "Abrir Arquivo"
+        );
+        if (action === "Abrir Arquivo") {
+          const document = await vscode7.workspace.openTextDocument(filePath);
+          await vscode7.window.showTextDocument(document);
+        }
+      }
+    } catch (error) {
+      Logger.error("Error exporting review report:", error);
+      vscode7.window.showErrorMessage("Erro ao exportar report: " + error.message);
+    }
+  }
+  /**
+   * Gera summary usando IA
+   */
+  async generateAISummary(gitInfo) {
+    try {
+      const prompt = `Analise as seguintes mudan\xE7as de c\xF3digo e gere um summary de code review:
+
+Branch: ${gitInfo?.currentBranch || "unknown"}
+Arquivos modificados: ${gitInfo?.changedFiles?.length || 0}
+Tem mudan\xE7as n\xE3o commitadas: ${gitInfo?.hasUncommittedChanges ? "Sim" : "N\xE3o"}
+
+Gere um summary destacando:
+- Principais mudan\xE7as identificadas
+- Poss\xEDveis impactos
+- Recomenda\xE7\xF5es de review
+- Score estimado (0-100)`;
+      const response = await this.backendService.sendRequest(prompt, {});
+      return response.response || response.resposta || "Erro ao gerar summary";
+    } catch (error) {
+      Logger.error("Error generating AI summary:", error);
+      return "Erro ao gerar summary com IA";
+    }
+  }
+  /**
+   * Exibe summary
+   */
+  async showSummary(summary) {
+    const document = await vscode7.workspace.openTextDocument({
+      content: `# xCopilot Review Summary
+
+${summary}`,
+      language: "markdown"
+    });
+    await vscode7.window.showTextDocument(document);
+  }
+  // Helper methods
+  async openDocument(filePath) {
+    try {
+      const uri = vscode7.Uri.file(filePath);
+      return await vscode7.workspace.openTextDocument(uri);
+    } catch (error) {
+      Logger.warn("Could not open document:", filePath, error);
+      return null;
+    }
+  }
+  isFunctionStart(line, language) {
+    const patterns = {
+      javascript: /^\s*(function\s+\w+|const\s+\w+\s*=\s*\(|class\s+\w+|\w+\s*\([^)]*\)\s*{)/,
+      typescript: /^\s*(function\s+\w+|const\s+\w+\s*=\s*\(|class\s+\w+|\w+\s*\([^)]*\)\s*{|public\s+\w+|private\s+\w+)/,
+      python: /^\s*(def\s+\w+|class\s+\w+)/,
+      java: /^\s*(public|private|protected).*\w+\s*\([^)]*\)\s*{/,
+      csharp: /^\s*(public|private|protected).*\w+\s*\([^)]*\)\s*{/
+    };
+    const pattern = patterns[language] || patterns.javascript;
+    return pattern.test(line);
+  }
+  isPublicFunction(line, language) {
+    const patterns = {
+      javascript: /^\s*(export\s+)?(function\s+\w+|const\s+\w+\s*=\s*\()/,
+      typescript: /^\s*(export\s+)?(function\s+\w+|const\s+\w+\s*=\s*\(|public\s+\w+)/,
+      python: /^\s*def\s+\w+/,
+      java: /^\s*public.*\w+\s*\([^)]*\)\s*{/,
+      csharp: /^\s*public.*\w+\s*\([^)]*\)\s*{/
+    };
+    const pattern = patterns[language] || patterns.javascript;
+    return pattern.test(line);
+  }
+  isCodeDuplication(lines, currentIndex) {
+    const currentLine = lines[currentIndex].trim();
+    if (currentLine.length < 10)
+      return false;
+    for (let i2 = Math.max(0, currentIndex - 20); i2 < Math.min(lines.length, currentIndex + 20); i2++) {
+      if (i2 !== currentIndex && lines[i2].trim() === currentLine) {
+        return true;
+      }
+    }
+    return false;
+  }
+  getTypeLabel(type) {
+    const labels = {
+      code_smell: "\u{1F9A8} Code Smells",
+      best_practice: "\u{1F4CB} Best Practices",
+      testing: "\u{1F9EA} Testing",
+      documentation: "\u{1F4DA} Documentation",
+      security: "\u{1F512} Security",
+      performance: "\u26A1 Performance"
+    };
+    return labels[type] || type;
+  }
+  getSeverityIcon(severity) {
+    const icons = {
+      critical: "\u274C",
+      high: "\u{1F534}",
+      medium: "\u{1F7E1}",
+      low: "\u{1F7E2}"
+    };
+    return icons[severity] || "\u26AA";
+  }
+};
+
+// src/services/CodeSuggestionsService.ts
+var vscode8 = __toESM(require("vscode"));
 var CodeSuggestionsService = class _CodeSuggestionsService {
   constructor() {
     this.isEnabled = true;
     this.backendService = BackendService.getInstance();
     this.contextService = CodeContextService.getInstance();
-    this.diagnosticCollection = vscode5.languages.createDiagnosticCollection("xcopilot-suggestions");
+    this.diagnosticCollection = vscode8.languages.createDiagnosticCollection("xcopilot-suggestions");
     this.initializeProviders();
   }
   static getInstance() {
@@ -7133,7 +8570,7 @@ var CodeSuggestionsService = class _CodeSuggestionsService {
    * Inicializa os providers de sugestões
    */
   initializeProviders() {
-    this.suggestionProvider = vscode5.languages.registerCompletionItemProvider(
+    this.suggestionProvider = vscode8.languages.registerCompletionItemProvider(
       ["typescript", "javascript", "python", "java", "csharp"],
       {
         provideCompletionItems: async (document, position, token, context) => {
@@ -7145,7 +8582,7 @@ var CodeSuggestionsService = class _CodeSuggestionsService {
       "(",
       "{"
     );
-    vscode5.workspace.onDidChangeTextDocument(async (event) => {
+    vscode8.workspace.onDidChangeTextDocument(async (event) => {
       if (this.isEnabled) {
         await this.analyzeCodeChanges(event);
       }
@@ -7168,13 +8605,13 @@ var CodeSuggestionsService = class _CodeSuggestionsService {
       const context_info = this.contextService.getCurrentContext();
       const suggestions = await this.generateCodeSuggestions(beforeCursor, context_info);
       return suggestions.map((suggestion, index) => {
-        const item = new vscode5.CompletionItem(
+        const item = new vscode8.CompletionItem(
           suggestion.text,
-          vscode5.CompletionItemKind.Snippet
+          vscode8.CompletionItemKind.Snippet
         );
         item.detail = suggestion.description;
-        item.documentation = new vscode5.MarkdownString(suggestion.explanation);
-        item.insertText = new vscode5.SnippetString(suggestion.text);
+        item.documentation = new vscode8.MarkdownString(suggestion.explanation);
+        item.insertText = new vscode8.SnippetString(suggestion.text);
         item.sortText = `00${index}`;
         return item;
       });
@@ -7250,10 +8687,10 @@ Foque em:
       const patterns = await this.detectCodePatterns(text, document.languageId);
       for (const pattern of patterns) {
         if (pattern.severity === "warning" || pattern.severity === "info") {
-          const diagnostic = new vscode5.Diagnostic(
+          const diagnostic = new vscode8.Diagnostic(
             pattern.range,
             pattern.message,
-            pattern.severity === "warning" ? vscode5.DiagnosticSeverity.Warning : vscode5.DiagnosticSeverity.Information
+            pattern.severity === "warning" ? vscode8.DiagnosticSeverity.Warning : vscode8.DiagnosticSeverity.Information
           );
           diagnostic.source = "xCopilot AI";
           diagnostic.code = pattern.code;
@@ -7301,7 +8738,7 @@ Foque em:
       if (jsonMatch) {
         const patterns = JSON.parse(jsonMatch[0]);
         return patterns.map((pattern) => ({
-          range: new vscode5.Range(
+          range: new vscode8.Range(
             Math.max(0, pattern.line - 1),
             0,
             Math.max(0, pattern.line - 1),
@@ -7407,7 +8844,7 @@ Retorne apenas uma lista de sugest\xF5es claras e objetivas.
 };
 
 // src/services/GhostTextService.ts
-var vscode6 = __toESM(require("vscode"));
+var vscode9 = __toESM(require("vscode"));
 var GhostTextService = class _GhostTextService {
   constructor() {
     this.isEnabled = true;
@@ -7427,9 +8864,9 @@ var GhostTextService = class _GhostTextService {
    * Configura as decorações para ghost text
    */
   setupDecorations() {
-    this.decorationType = vscode6.window.createTextEditorDecorationType({
+    this.decorationType = vscode9.window.createTextEditorDecorationType({
       after: {
-        color: new vscode6.ThemeColor("editorGhostText.foreground"),
+        color: new vscode9.ThemeColor("editorGhostText.foreground"),
         fontStyle: "italic"
       }
     });
@@ -7439,20 +8876,20 @@ var GhostTextService = class _GhostTextService {
    */
   setupEventListeners() {
     this.disposables.push(
-      vscode6.window.onDidChangeActiveTextEditor((editor) => {
+      vscode9.window.onDidChangeActiveTextEditor((editor) => {
         this.activeEditor = editor;
         this.clearGhostText();
       })
     );
     this.disposables.push(
-      vscode6.workspace.onDidChangeTextDocument((event) => {
+      vscode9.workspace.onDidChangeTextDocument((event) => {
         if (this.activeEditor && event.document === this.activeEditor.document) {
           this.scheduleGhostText();
         }
       })
     );
     this.disposables.push(
-      vscode6.window.onDidChangeTextEditorSelection((event) => {
+      vscode9.window.onDidChangeTextEditorSelection((event) => {
         if (event.textEditor === this.activeEditor) {
           this.scheduleGhostText();
         }
@@ -7514,7 +8951,7 @@ var GhostTextService = class _GhostTextService {
       const startLine = Math.max(0, position.line - 8);
       const endLine = Math.min(document.lineCount - 1, position.line + 3);
       const contextCode = document.getText(
-        new vscode6.Range(startLine, 0, endLine, 0)
+        new vscode9.Range(startLine, 0, endLine, 0)
       );
       const currentLine = document.lineAt(position).text;
       const prompt = `
@@ -7566,11 +9003,11 @@ Sugest\xE3o:`;
       return;
     }
     const decoration = {
-      range: new vscode6.Range(position, position),
+      range: new vscode9.Range(position, position),
       renderOptions: {
         after: {
           contentText: ` // ${suggestion}`,
-          color: new vscode6.ThemeColor("editorGhostText.foreground")
+          color: new vscode9.ThemeColor("editorGhostText.foreground")
         }
       }
     };
@@ -7653,10 +9090,10 @@ ${suggestion}`);
 };
 
 // src/services/GitIntegrationService.ts
-var vscode7 = __toESM(require("vscode"));
+var vscode10 = __toESM(require("vscode"));
 
 // src/services/InlineCompletionService.ts
-var vscode8 = __toESM(require("vscode"));
+var vscode11 = __toESM(require("vscode"));
 
 // src/utils/LRUCache.ts
 var LRUCache = class {
@@ -7765,7 +9202,7 @@ var InlineCompletionService = class _InlineCompletionService {
       "swift",
       "kotlin"
     ];
-    const provider = vscode8.languages.registerInlineCompletionItemProvider(
+    const provider = vscode11.languages.registerInlineCompletionItemProvider(
       selector,
       this
     );
@@ -7822,9 +9259,9 @@ var InlineCompletionService = class _InlineCompletionService {
         this.cacheHits++;
         Logger.debug(`Cache hit! (${this.cacheHits}/${this.requestCount})`);
         return [
-          new vscode8.InlineCompletionItem(
+          new vscode11.InlineCompletionItem(
             cachedCompletion,
-            new vscode8.Range(position, position)
+            new vscode11.Range(position, position)
           )
         ];
       }
@@ -7840,9 +9277,9 @@ var InlineCompletionService = class _InlineCompletionService {
       }
       this.setCachedCompletion(cacheKey, completion);
       return [
-        new vscode8.InlineCompletionItem(
+        new vscode11.InlineCompletionItem(
           completion,
-          new vscode8.Range(position, position)
+          new vscode11.Range(position, position)
         )
       ];
     } catch (error) {
@@ -7861,7 +9298,7 @@ var InlineCompletionService = class _InlineCompletionService {
       const startLine = Math.max(0, position.line - contextLines);
       const endLine = Math.min(document.lineCount - 1, position.line + contextLines);
       const surroundingCode = document.getText(
-        new vscode8.Range(startLine, 0, endLine, 0)
+        new vscode11.Range(startLine, 0, endLine, 0)
       );
       const prompt = `
 Complete o c\xF3digo seguinte de forma inteligente e contextual:
@@ -8015,428 +9452,8 @@ Complete a linha atual:`;
   }
 };
 
-// src/services/PatternDetectionService.ts
-var vscode9 = __toESM(require("vscode"));
-var PatternDetectionService = class _PatternDetectionService {
-  constructor() {
-    this.isEnabled = true;
-    this.backendService = BackendService.getInstance();
-    this.contextService = CodeContextService.getInstance();
-    this.diagnosticCollection = vscode9.languages.createDiagnosticCollection("xcopilot-patterns");
-    this.setupDocumentWatcher();
-  }
-  static getInstance() {
-    if (!_PatternDetectionService.instance) {
-      _PatternDetectionService.instance = new _PatternDetectionService();
-    }
-    return _PatternDetectionService.instance;
-  }
-  /**
-   * Configura o monitoramento de documentos
-   */
-  setupDocumentWatcher() {
-    vscode9.workspace.onDidSaveTextDocument((document) => {
-      if (this.isEnabled && this.shouldAnalyzeFile(document)) {
-        this.analyzeDocument(document);
-      }
-    });
-    vscode9.workspace.onDidChangeTextDocument((event) => {
-      if (this.isEnabled && this.shouldAnalyzeFile(event.document)) {
-        this.scheduleAnalysis(event.document);
-      }
-    });
-    vscode9.workspace.onDidOpenTextDocument((document) => {
-      if (this.isEnabled && this.shouldAnalyzeFile(document)) {
-        this.analyzeDocument(document);
-      }
-    });
-  }
-  /**
-   * Agenda análise com debounce
-   */
-  scheduleAnalysis(document) {
-    if (this.analysisDebounceTimer) {
-      clearTimeout(this.analysisDebounceTimer);
-    }
-    this.analysisDebounceTimer = setTimeout(() => {
-      this.analyzeDocument(document);
-    }, 2e3);
-  }
-  /**
-   * Verifica se deve analisar o arquivo
-   */
-  shouldAnalyzeFile(document) {
-    const supportedLanguages = [
-      "typescript",
-      "javascript",
-      "python",
-      "java",
-      "csharp",
-      "cpp",
-      "c",
-      "php",
-      "ruby",
-      "go",
-      "rust"
-    ];
-    return supportedLanguages.includes(document.languageId) && !document.isUntitled && document.uri.scheme === "file";
-  }
-  /**
-   * Analisa documento e detecta padrões
-   */
-  async analyzeDocument(document) {
-    try {
-      Logger.info(`Analyzing patterns in ${document.fileName}`);
-      const patterns = await this.detectPatterns(document);
-      this.updateDiagnostics(document, patterns);
-      const criticalPatterns = patterns.filter((p) => p.severity === "error");
-      if (criticalPatterns.length > 0) {
-        const choice = await vscode9.window.showWarningMessage(
-          `${criticalPatterns.length} padr\xE3o(\xF5es) cr\xEDtico(s) detectado(s) em ${document.fileName}`,
-          "Ver Problemas",
-          "Ignorar"
-        );
-        if (choice === "Ver Problemas") {
-          vscode9.commands.executeCommand("workbench.panel.markers.view.focus");
-        }
-      }
-    } catch (error) {
-      Logger.error("Error analyzing document patterns:", error);
-    }
-  }
-  /**
-   * Detecta padrões no documento
-   */
-  async detectPatterns(document) {
-    const content = document.getText();
-    const patterns = [];
-    patterns.push(...await this.detectLocalPatterns(document, content));
-    patterns.push(...await this.detectAIPatterns(document, content));
-    return patterns;
-  }
-  /**
-   * Detecta padrões locais (sem IA)
-   */
-  async detectLocalPatterns(document, content) {
-    const patterns = [];
-    const lines = content.split("\n");
-    for (let i2 = 0; i2 < lines.length; i2++) {
-      const line = lines[i2];
-      const lineNumber = i2;
-      if (this.isCodeDuplication(lines, i2)) {
-        patterns.push({
-          type: "code-duplication",
-          description: "Poss\xEDvel c\xF3digo duplicado detectado",
-          location: new vscode9.Range(lineNumber, 0, lineNumber, line.length),
-          severity: "warning",
-          suggestion: "Considere extrair em uma fun\xE7\xE3o reutiliz\xE1vel",
-          autoFixAvailable: false
-        });
-      }
-      if (this.isLongFunction(lines, i2)) {
-        patterns.push({
-          type: "long-function",
-          description: "Fun\xE7\xE3o muito longa detectada",
-          location: new vscode9.Range(lineNumber, 0, lineNumber, line.length),
-          severity: "info",
-          suggestion: "Considere dividir em fun\xE7\xF5es menores",
-          autoFixAvailable: true
-        });
-      }
-      if (this.isHighComplexity(line)) {
-        patterns.push({
-          type: "high-complexity",
-          description: "Alta complexidade ciclom\xE1tica",
-          location: new vscode9.Range(lineNumber, 0, lineNumber, line.length),
-          severity: "warning",
-          suggestion: "Simplifique a l\xF3gica condicional",
-          autoFixAvailable: false
-        });
-      }
-      const magicNumbers = this.findMagicNumbers(line);
-      for (const magicNumber of magicNumbers) {
-        patterns.push({
-          type: "magic-number",
-          description: `N\xFAmero m\xE1gico detectado: ${magicNumber.value}`,
-          location: new vscode9.Range(lineNumber, magicNumber.start, lineNumber, magicNumber.end),
-          severity: "info",
-          suggestion: "Considere usar uma constante nomeada",
-          autoFixAvailable: true
-        });
-      }
-      const todoMatch = line.match(/(TODO|FIXME|HACK):\s*(.+)/i);
-      if (todoMatch) {
-        patterns.push({
-          type: "todo",
-          description: `${todoMatch[1]}: ${todoMatch[2]}`,
-          location: new vscode9.Range(lineNumber, 0, lineNumber, line.length),
-          severity: "info",
-          suggestion: "Item pendente identificado",
-          autoFixAvailable: false
-        });
-      }
-    }
-    return patterns;
-  }
-  /**
-   * Detecta padrões usando IA
-   */
-  async detectAIPatterns(document, content) {
-    try {
-      const sample = content.length > 2e3 ? content.substring(0, 2e3) + "..." : content;
-      const prompt = `
-Analise o seguinte c\xF3digo ${document.languageId} e detecte padr\xF5es problem\xE1ticos:
-
-\`\`\`${document.languageId}
-${sample}
-\`\`\`
-
-Identifique:
-1. Anti-padr\xF5es de design
-2. Viola\xE7\xF5es de princ\xEDpios SOLID
-3. Problemas de performance
-4. Vulnerabilidades de seguran\xE7a
-5. C\xF3digo mal estruturado
-
-Para cada padr\xE3o encontrado, retorne JSON no formato:
-{
-  "patterns": [
-    {
-      "type": "tipo-do-padrao",
-      "description": "descri\xE7\xE3o do problema",
-      "line": n\xFAmero_da_linha_aproximado,
-      "severity": "info|warning|error",
-      "suggestion": "sugest\xE3o de melhoria"
-    }
-  ]
-}
-`;
-      const response = await this.backendService.askQuestion(prompt);
-      const analysisResult = this.parseAIResponse(response, document);
-      return analysisResult;
-    } catch (error) {
-      Logger.error("Error in AI pattern detection:", error);
-      return [];
-    }
-  }
-  /**
-   * Parse da resposta da IA
-   */
-  parseAIResponse(response, document) {
-    try {
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch)
-        return [];
-      const parsed = JSON.parse(jsonMatch[0]);
-      const patterns = [];
-      if (parsed.patterns && Array.isArray(parsed.patterns)) {
-        for (const pattern of parsed.patterns) {
-          const lineNumber = Math.max(0, Math.min(pattern.line - 1, document.lineCount - 1));
-          const line = document.lineAt(lineNumber);
-          patterns.push({
-            type: pattern.type || "ai-detected",
-            description: pattern.description || "Padr\xE3o detectado pela IA",
-            location: new vscode9.Range(lineNumber, 0, lineNumber, line.text.length),
-            severity: pattern.severity || "info",
-            suggestion: pattern.suggestion || "Revisar c\xF3digo",
-            autoFixAvailable: false
-          });
-        }
-      }
-      return patterns;
-    } catch (error) {
-      Logger.error("Error parsing AI response:", error);
-      return [];
-    }
-  }
-  /**
-   * Atualiza diagnósticos no VS Code
-   */
-  updateDiagnostics(document, patterns) {
-    const diagnostics = patterns.map((pattern) => {
-      const diagnostic = new vscode9.Diagnostic(
-        pattern.location,
-        `[${pattern.type}] ${pattern.description}`,
-        this.severityToVSCode(pattern.severity)
-      );
-      diagnostic.source = "xCopilot Pattern Detection";
-      return diagnostic;
-    });
-    this.diagnosticCollection.set(document.uri, diagnostics);
-  }
-  /**
-   * Converte severidade para VS Code
-   */
-  severityToVSCode(severity) {
-    switch (severity) {
-      case "error":
-        return vscode9.DiagnosticSeverity.Error;
-      case "warning":
-        return vscode9.DiagnosticSeverity.Warning;
-      case "info":
-      default:
-        return vscode9.DiagnosticSeverity.Information;
-    }
-  }
-  /**
-   * Detecta duplicação de código simples
-   */
-  isCodeDuplication(lines, currentIndex) {
-    const currentLine = lines[currentIndex].trim();
-    if (currentLine.length < 20)
-      return false;
-    let duplicateCount = 0;
-    for (let i2 = 0; i2 < lines.length; i2++) {
-      if (i2 !== currentIndex && lines[i2].trim() === currentLine) {
-        duplicateCount++;
-      }
-    }
-    return duplicateCount >= 2;
-  }
-  /**
-   * Detecta funções muito longas
-   */
-  isLongFunction(lines, currentIndex) {
-    const line = lines[currentIndex];
-    const functionRegex = /(function|def|void|int|string|bool|var|let|const)\s+\w+\s*\(/;
-    if (!functionRegex.test(line))
-      return false;
-    let braceCount = 0;
-    let lineCount = 0;
-    let started = false;
-    for (let i2 = currentIndex; i2 < lines.length; i2++) {
-      const currentLine = lines[i2];
-      if (currentLine.includes("{")) {
-        braceCount += (currentLine.match(/\{/g) || []).length;
-        started = true;
-      }
-      if (currentLine.includes("}")) {
-        braceCount -= (currentLine.match(/\}/g) || []).length;
-      }
-      if (started) {
-        lineCount++;
-        if (braceCount === 0)
-          break;
-      }
-    }
-    return lineCount > 50;
-  }
-  /**
-   * Detecta alta complexidade ciclomática
-   */
-  isHighComplexity(line) {
-    const complexityKeywords = ["if", "else", "switch", "case", "for", "while", "catch", "&&", "||"];
-    let complexityScore = 0;
-    for (const keyword of complexityKeywords) {
-      const regex = new RegExp(`\\b${keyword}\\b`, "g");
-      const matches = line.match(regex);
-      if (matches) {
-        complexityScore += matches.length;
-      }
-    }
-    return complexityScore >= 4;
-  }
-  /**
-   * Encontra magic numbers
-   */
-  findMagicNumbers(line) {
-    const magicNumbers = [];
-    const numberRegex = /\b(\d+\.?\d*)\b/g;
-    let match;
-    while ((match = numberRegex.exec(line)) !== null) {
-      const value = match[1];
-      if (!["0", "1", "2", "10", "100", "1000"].includes(value)) {
-        magicNumbers.push({
-          value,
-          start: match.index,
-          end: match.index + value.length
-        });
-      }
-    }
-    return magicNumbers;
-  }
-  /**
-   * Registra comandos relacionados à detecção de padrões
-   */
-  registerCommands(context) {
-    const analyzeCommand = vscode9.commands.registerCommand(
-      "xcopilot.analyzePatterns",
-      () => this.analyzeCurrentFile()
-    );
-    const analyzeWorkspaceCommand = vscode9.commands.registerCommand(
-      "xcopilot.analyzeWorkspacePatterns",
-      () => this.analyzeWorkspace()
-    );
-    const toggleCommand = vscode9.commands.registerCommand(
-      "xcopilot.togglePatternDetection",
-      () => this.togglePatternDetection()
-    );
-    context.subscriptions.push(analyzeCommand, analyzeWorkspaceCommand, toggleCommand);
-  }
-  /**
-   * Analisa arquivo atual
-   */
-  async analyzeCurrentFile() {
-    const editor = vscode9.window.activeTextEditor;
-    if (!editor) {
-      vscode9.window.showWarningMessage("Nenhum arquivo ativo para analisar");
-      return;
-    }
-    vscode9.window.showInformationMessage("\u{1F50D} Analisando padr\xF5es de c\xF3digo...");
-    await this.analyzeDocument(editor.document);
-    vscode9.window.showInformationMessage("\u2705 An\xE1lise de padr\xF5es conclu\xEDda!");
-  }
-  /**
-   * Analisa workspace inteiro
-   */
-  async analyzeWorkspace() {
-    const files = await vscode9.workspace.findFiles("**/*.{ts,js,py,java,cs,cpp,c,php,rb,go,rs}");
-    if (files.length === 0) {
-      vscode9.window.showInformationMessage("Nenhum arquivo de c\xF3digo encontrado no workspace");
-      return;
-    }
-    vscode9.window.showInformationMessage(`\u{1F50D} Analisando ${files.length} arquivo(s)...`);
-    for (const fileUri of files) {
-      try {
-        const document = await vscode9.workspace.openTextDocument(fileUri);
-        await this.analyzeDocument(document);
-      } catch (error) {
-        Logger.error(`Error analyzing file ${fileUri.fsPath}:`, error);
-      }
-    }
-    vscode9.window.showInformationMessage("\u2705 An\xE1lise do workspace conclu\xEDda!");
-  }
-  /**
-   * Toggle da detecção automática
-   */
-  togglePatternDetection() {
-    this.isEnabled = !this.isEnabled;
-    if (!this.isEnabled) {
-      this.diagnosticCollection.clear();
-    }
-    vscode9.window.showInformationMessage(
-      `Detec\xE7\xE3o de padr\xF5es ${this.isEnabled ? "ativada" : "desativada"}`
-    );
-  }
-  /**
-   * Obtém disposables para limpeza
-   */
-  getDisposables() {
-    return [this.diagnosticCollection];
-  }
-  /**
-   * Limpa recursos
-   */
-  dispose() {
-    if (this.analysisDebounceTimer) {
-      clearTimeout(this.analysisDebounceTimer);
-    }
-    this.diagnosticCollection.dispose();
-  }
-};
-
 // src/services/RefactoringService.ts
-var vscode10 = __toESM(require("vscode"));
+var vscode12 = __toESM(require("vscode"));
 var RefactoringService = class _RefactoringService {
   constructor() {
     this.backendService = BackendService.getInstance();
@@ -8452,23 +9469,23 @@ var RefactoringService = class _RefactoringService {
    * Registra os command handlers para refatoração
    */
   registerCommands(context) {
-    const refactorCommand = vscode10.commands.registerCommand(
+    const refactorCommand = vscode12.commands.registerCommand(
       "xcopilot.refactorCode",
       () => this.refactorSelectedCode()
     );
-    const extractFunctionCommand = vscode10.commands.registerCommand(
+    const extractFunctionCommand = vscode12.commands.registerCommand(
       "xcopilot.extractFunction",
       () => this.extractFunction()
     );
-    const extractVariableCommand = vscode10.commands.registerCommand(
+    const extractVariableCommand = vscode12.commands.registerCommand(
       "xcopilot.extractVariable",
       () => this.extractVariable()
     );
-    const optimizeImportsCommand = vscode10.commands.registerCommand(
+    const optimizeImportsCommand = vscode12.commands.registerCommand(
       "xcopilot.optimizeImports",
       () => this.optimizeImports()
     );
-    const applyPatternCommand = vscode10.commands.registerCommand(
+    const applyPatternCommand = vscode12.commands.registerCommand(
       "xcopilot.applyDesignPattern",
       () => this.applyDesignPattern()
     );
@@ -8484,23 +9501,23 @@ var RefactoringService = class _RefactoringService {
    * Refatora código selecionado
    */
   async refactorSelectedCode() {
-    const editor = vscode10.window.activeTextEditor;
+    const editor = vscode12.window.activeTextEditor;
     if (!editor) {
-      vscode10.window.showWarningMessage("Nenhum editor ativo encontrado");
+      vscode12.window.showWarningMessage("Nenhum editor ativo encontrado");
       return;
     }
     const selection = editor.selection;
     if (selection.isEmpty) {
-      vscode10.window.showWarningMessage("Selecione o c\xF3digo para refatorar");
+      vscode12.window.showWarningMessage("Selecione o c\xF3digo para refatorar");
       return;
     }
     try {
       const selectedText = editor.document.getText(selection);
       const context = this.contextService.getCurrentContext();
-      vscode10.window.showInformationMessage("\u{1F527} Analisando c\xF3digo para refatora\xE7\xE3o...");
+      vscode12.window.showInformationMessage("\u{1F527} Analisando c\xF3digo para refatora\xE7\xE3o...");
       const refactoredCode = await this.generateRefactoredCode(selectedText, context, editor.document.languageId);
       if (refactoredCode && refactoredCode !== selectedText) {
-        const choice = await vscode10.window.showInformationMessage(
+        const choice = await vscode12.window.showInformationMessage(
           "C\xF3digo refatorado gerado! Deseja aplicar as mudan\xE7as?",
           "Aplicar",
           "Visualizar",
@@ -8510,33 +9527,33 @@ var RefactoringService = class _RefactoringService {
           await editor.edit((editBuilder) => {
             editBuilder.replace(selection, refactoredCode);
           });
-          vscode10.window.showInformationMessage("\u2705 Refatora\xE7\xE3o aplicada com sucesso!");
+          vscode12.window.showInformationMessage("\u2705 Refatora\xE7\xE3o aplicada com sucesso!");
         } else if (choice === "Visualizar") {
           await this.showRefactoringPreview(selectedText, refactoredCode);
         }
       } else {
-        vscode10.window.showInformationMessage("Nenhuma melhoria de refatora\xE7\xE3o foi identificada");
+        vscode12.window.showInformationMessage("Nenhuma melhoria de refatora\xE7\xE3o foi identificada");
       }
     } catch (error) {
       Logger.error("Error refactoring code:", error);
-      vscode10.window.showErrorMessage("Erro ao refatorar c\xF3digo");
+      vscode12.window.showErrorMessage("Erro ao refatorar c\xF3digo");
     }
   }
   /**
    * Extrai função do código selecionado
    */
   async extractFunction() {
-    const editor = vscode10.window.activeTextEditor;
+    const editor = vscode12.window.activeTextEditor;
     if (!editor)
       return;
     const selection = editor.selection;
     if (selection.isEmpty) {
-      vscode10.window.showWarningMessage("Selecione o c\xF3digo para extrair em fun\xE7\xE3o");
+      vscode12.window.showWarningMessage("Selecione o c\xF3digo para extrair em fun\xE7\xE3o");
       return;
     }
     try {
       const selectedText = editor.document.getText(selection);
-      const functionName = await vscode10.window.showInputBox({
+      const functionName = await vscode12.window.showInputBox({
         prompt: "Nome da nova fun\xE7\xE3o:",
         value: "extractedFunction"
       });
@@ -8557,28 +9574,28 @@ var RefactoringService = class _RefactoringService {
 ${extraction.functionDefinition}
 `);
         });
-        vscode10.window.showInformationMessage(`\u2705 Fun\xE7\xE3o "${functionName}" extra\xEDda com sucesso!`);
+        vscode12.window.showInformationMessage(`\u2705 Fun\xE7\xE3o "${functionName}" extra\xEDda com sucesso!`);
       }
     } catch (error) {
       Logger.error("Error extracting function:", error);
-      vscode10.window.showErrorMessage("Erro ao extrair fun\xE7\xE3o");
+      vscode12.window.showErrorMessage("Erro ao extrair fun\xE7\xE3o");
     }
   }
   /**
    * Extrai variável do código selecionado
    */
   async extractVariable() {
-    const editor = vscode10.window.activeTextEditor;
+    const editor = vscode12.window.activeTextEditor;
     if (!editor)
       return;
     const selection = editor.selection;
     if (selection.isEmpty) {
-      vscode10.window.showWarningMessage("Selecione a express\xE3o para extrair em vari\xE1vel");
+      vscode12.window.showWarningMessage("Selecione a express\xE3o para extrair em vari\xE1vel");
       return;
     }
     try {
       const selectedText = editor.document.getText(selection);
-      const variableName = await vscode10.window.showInputBox({
+      const variableName = await vscode12.window.showInputBox({
         prompt: "Nome da nova vari\xE1vel:",
         value: "extractedVariable"
       });
@@ -8598,22 +9615,22 @@ ${extraction.functionDefinition}
 `);
           editBuilder.replace(selection, variableName);
         });
-        vscode10.window.showInformationMessage(`\u2705 Vari\xE1vel "${variableName}" extra\xEDda com sucesso!`);
+        vscode12.window.showInformationMessage(`\u2705 Vari\xE1vel "${variableName}" extra\xEDda com sucesso!`);
       }
     } catch (error) {
       Logger.error("Error extracting variable:", error);
-      vscode10.window.showErrorMessage("Erro ao extrair vari\xE1vel");
+      vscode12.window.showErrorMessage("Erro ao extrair vari\xE1vel");
     }
   }
   /**
    * Otimiza imports do arquivo atual
    */
   async optimizeImports() {
-    const editor = vscode10.window.activeTextEditor;
+    const editor = vscode12.window.activeTextEditor;
     if (!editor)
       return;
     try {
-      vscode10.window.showInformationMessage("\u{1F527} Otimizando imports...");
+      vscode12.window.showInformationMessage("\u{1F527} Otimizando imports...");
       const fileContent = editor.document.getText();
       const context = this.contextService.getCurrentContext();
       const optimizedImports = await this.generateOptimizedImports(
@@ -8622,27 +9639,27 @@ ${extraction.functionDefinition}
         editor.document.languageId
       );
       if (optimizedImports && optimizedImports !== fileContent) {
-        const choice = await vscode10.window.showInformationMessage(
+        const choice = await vscode12.window.showInformationMessage(
           "Imports otimizados! Aplicar mudan\xE7as?",
           "Aplicar",
           "Cancelar"
         );
         if (choice === "Aplicar") {
-          const fullRange = new vscode10.Range(
+          const fullRange = new vscode12.Range(
             editor.document.positionAt(0),
             editor.document.positionAt(fileContent.length)
           );
           await editor.edit((editBuilder) => {
             editBuilder.replace(fullRange, optimizedImports);
           });
-          vscode10.window.showInformationMessage("\u2705 Imports otimizados com sucesso!");
+          vscode12.window.showInformationMessage("\u2705 Imports otimizados com sucesso!");
         }
       } else {
-        vscode10.window.showInformationMessage("Imports j\xE1 est\xE3o otimizados");
+        vscode12.window.showInformationMessage("Imports j\xE1 est\xE3o otimizados");
       }
     } catch (error) {
       Logger.error("Error optimizing imports:", error);
-      vscode10.window.showErrorMessage("Erro ao otimizar imports");
+      vscode12.window.showErrorMessage("Erro ao otimizar imports");
     }
   }
   /**
@@ -8658,19 +9675,19 @@ ${extraction.functionDefinition}
       "Adapter",
       "Decorator"
     ];
-    const pattern = await vscode10.window.showQuickPick(patterns, {
+    const pattern = await vscode12.window.showQuickPick(patterns, {
       placeHolder: "Selecione o padr\xE3o de design a aplicar"
     });
     if (!pattern)
       return;
-    const editor = vscode10.window.activeTextEditor;
+    const editor = vscode12.window.activeTextEditor;
     if (!editor)
       return;
     try {
       const selection = editor.selection;
       const selectedText = selection.isEmpty ? editor.document.getText() : editor.document.getText(selection);
       const context = this.contextService.getCurrentContext();
-      vscode10.window.showInformationMessage(`\u{1F527} Aplicando padr\xE3o ${pattern}...`);
+      vscode12.window.showInformationMessage(`\u{1F527} Aplicando padr\xE3o ${pattern}...`);
       const patternCode = await this.generateDesignPattern(
         selectedText,
         pattern,
@@ -8682,7 +9699,7 @@ ${extraction.functionDefinition}
       }
     } catch (error) {
       Logger.error("Error applying design pattern:", error);
-      vscode10.window.showErrorMessage("Erro ao aplicar padr\xE3o de design");
+      vscode12.window.showErrorMessage("Erro ao aplicar padr\xE3o de design");
     }
   }
   /**
@@ -8800,7 +9817,7 @@ Retorne APENAS o c\xF3digo refatorado com o padr\xE3o aplicado:
    * Mostra preview da refatoração
    */
   async showRefactoringPreview(original, refactored) {
-    const doc = await vscode10.workspace.openTextDocument({
+    const doc = await vscode12.workspace.openTextDocument({
       content: `// ORIGINAL:
 ${original}
 
@@ -8808,25 +9825,25 @@ ${original}
 ${refactored}`,
       language: "typescript"
     });
-    await vscode10.window.showTextDocument(doc);
+    await vscode12.window.showTextDocument(doc);
   }
   /**
    * Mostra preview do padrão aplicado
    */
   async showPatternPreview(original, pattern, patternName) {
-    const choice = await vscode10.window.showInformationMessage(
+    const choice = await vscode12.window.showInformationMessage(
       `Padr\xE3o ${patternName} gerado! Deseja visualizar?`,
       "Visualizar",
       "Cancelar"
     );
     if (choice === "Visualizar") {
-      const doc = await vscode10.workspace.openTextDocument({
+      const doc = await vscode12.workspace.openTextDocument({
         content: `// PADR\xC3O ${patternName.toUpperCase()} APLICADO:
 
 ${pattern}`,
         language: "typescript"
       });
-      await vscode10.window.showTextDocument(doc);
+      await vscode12.window.showTextDocument(doc);
     }
   }
   /**
@@ -9536,7 +10553,7 @@ var ChatWebviewProvider = class {
 };
 
 // src/views/SidebarChatProvider.ts
-var vscode11 = __toESM(require("vscode"));
+var vscode13 = __toESM(require("vscode"));
 var SidebarChatProvider = class {
   constructor(context, chatProvider) {
     this.context = context;
@@ -9553,8 +10570,8 @@ var SidebarChatProvider = class {
     this.webview.options = {
       enableScripts: true,
       localResourceRoots: [
-        vscode11.Uri.joinPath(this.context.extensionUri, "media"),
-        vscode11.Uri.joinPath(this.context.extensionUri, "dist")
+        vscode13.Uri.joinPath(this.context.extensionUri, "media"),
+        vscode13.Uri.joinPath(this.context.extensionUri, "dist")
       ]
     };
     this.webview.html = this.getWebviewContent(this.webview);
@@ -10143,7 +11160,7 @@ ${code}
 // src/ExtensionManager.ts
 var ExtensionManager = class {
   constructor() {
-    this.outputChannel = vscode12.window.createOutputChannel("xCopilot");
+    this.outputChannel = vscode14.window.createOutputChannel("xCopilot");
     Logger.init(this.outputChannel);
     this.configService = ConfigurationService.getInstance();
   }
@@ -10158,6 +11175,7 @@ var ExtensionManager = class {
       this.chatCommands = new ChatCommands(this.chatProvider);
       this.codeSuggestionsService = CodeSuggestionsService.getInstance();
       this.codeExplanationService = CodeExplanationService.getInstance();
+      this.codeReviewService = CodeReviewService.getInstance();
       this.ghostTextService = GhostTextService.getInstance();
       this.inlineCompletionService = InlineCompletionService.getInstance();
       this.refactoringService = RefactoringService.getInstance();
@@ -10173,7 +11191,7 @@ var ExtensionManager = class {
       Logger.info("\u2705 Extension activation completed successfully");
     } catch (error) {
       Logger.error("\u274C CRITICAL ERROR during extension activation:", error);
-      vscode12.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+      vscode14.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
   }
   /**
@@ -10181,7 +11199,7 @@ var ExtensionManager = class {
    */
   registerWebviewProvider(context) {
     Logger.info("\u{1F4DD} Registering WebviewViewProvider for xcopilotPanel...");
-    const mainDisposable = vscode12.window.registerWebviewViewProvider(
+    const mainDisposable = vscode14.window.registerWebviewViewProvider(
       "xcopilotPanel",
       this.chatProvider,
       {
@@ -10190,7 +11208,7 @@ var ExtensionManager = class {
         }
       }
     );
-    const sidebarDisposable = vscode12.window.registerWebviewViewProvider(
+    const sidebarDisposable = vscode14.window.registerWebviewViewProvider(
       "xcopilotChat",
       this.sidebarChatProvider,
       {
@@ -10223,63 +11241,85 @@ var ExtensionManager = class {
    * Registra comandos de explicação de código
    */
   registerCodeExplanationCommands(context) {
-    const commands5 = [
-      vscode12.commands.registerCommand("xcopilot.explainSelected", () => {
+    const commands6 = [
+      vscode14.commands.registerCommand("xcopilot.explainSelected", () => {
         this.codeExplanationService.explainSelectedCode();
       }),
-      vscode12.commands.registerCommand("xcopilot.explainFunction", () => {
+      vscode14.commands.registerCommand("xcopilot.explainFunction", () => {
         this.codeExplanationService.explainCurrentFunction();
       }),
-      vscode12.commands.registerCommand("xcopilot.explainFile", () => {
+      vscode14.commands.registerCommand("xcopilot.explainFile", () => {
         this.codeExplanationService.explainEntireFile();
       }),
-      vscode12.commands.registerCommand("xcopilot.acceptGhostText", () => {
+      vscode14.commands.registerCommand("xcopilot.acceptGhostText", () => {
         this.ghostTextService.acceptGhostText();
       }),
-      vscode12.commands.registerCommand("xcopilot.openChat", () => {
-        vscode12.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
-        vscode12.commands.executeCommand("setContext", "xcopilot.chatVisible", true);
+      vscode14.commands.registerCommand("xcopilot.openChat", () => {
+        vscode14.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+        vscode14.commands.executeCommand("setContext", "xcopilot.chatVisible", true);
       }),
-      vscode12.commands.registerCommand("xcopilot.closeChat", () => {
-        vscode12.commands.executeCommand("workbench.action.closePanel");
-        vscode12.commands.executeCommand("setContext", "xcopilot.chatVisible", false);
+      vscode14.commands.registerCommand("xcopilot.closeChat", () => {
+        vscode14.commands.executeCommand("workbench.action.closePanel");
+        vscode14.commands.executeCommand("setContext", "xcopilot.chatVisible", false);
       }),
-      vscode12.commands.registerCommand("xcopilot.toggleChat", () => {
-        vscode12.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+      vscode14.commands.registerCommand("xcopilot.toggleChat", () => {
+        vscode14.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
       }),
-      vscode12.commands.registerCommand("xcopilot.openChatWithCode", () => {
-        const editor = vscode12.window.activeTextEditor;
+      vscode14.commands.registerCommand("xcopilot.openChatWithCode", () => {
+        const editor = vscode14.window.activeTextEditor;
         if (editor && !editor.selection.isEmpty) {
           const selectedCode = editor.document.getText(editor.selection);
-          vscode12.commands.executeCommand("xcopilot.openChat");
+          vscode14.commands.executeCommand("xcopilot.openChat");
           this.sidebarChatProvider.openWithSelectedCode(selectedCode);
         } else {
-          vscode12.window.showWarningMessage("Selecione c\xF3digo para explicar no chat");
+          vscode14.window.showWarningMessage("Selecione c\xF3digo para explicar no chat");
         }
       }),
-      vscode12.commands.registerCommand("xcopilot.toggleInlineCompletion", () => {
+      vscode14.commands.registerCommand("xcopilot.toggleInlineCompletion", () => {
         const currentState = this.inlineCompletionService.isServiceEnabled();
         this.inlineCompletionService.setEnabled(!currentState);
-        vscode12.window.showInformationMessage(
+        vscode14.window.showInformationMessage(
           `Inline Completion ${!currentState ? "habilitado" : "desabilitado"}`
         );
       }),
-      vscode12.commands.registerCommand("xcopilot.clearCompletionCache", () => {
+      vscode14.commands.registerCommand("xcopilot.clearCompletionCache", () => {
         this.inlineCompletionService.clearCache();
-        vscode12.window.showInformationMessage("Cache de completions limpo");
+        vscode14.window.showInformationMessage("Cache de completions limpo");
       }),
-      vscode12.commands.registerCommand("xcopilot.showCompletionStats", () => {
+      vscode14.commands.registerCommand("xcopilot.showCompletionStats", () => {
         const stats = this.inlineCompletionService.getStats();
         const message = `Estat\xEDsticas de Completion:
 Requisi\xE7\xF5es: ${stats.requestCount}
 Cache Hits: ${stats.cacheHits}
 Taxa de Cache: ${stats.cacheHitRate.toFixed(1)}%
 Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats.utilization.toFixed(1)}%)`;
-        vscode12.window.showInformationMessage(message);
+        vscode14.window.showInformationMessage(message);
       })
     ];
-    context.subscriptions.push(...commands5);
+    context.subscriptions.push(...commands6);
     Logger.info("\u2705 Code explanation commands registered");
+  }
+  /**
+   * Configura o monitoramento de mudanças de configuração
+   */
+  setupConfigurationWatcher(context) {
+    const configWatcher = vscode14.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("xcopilot")) {
+        Logger.info("\u{1F527} Configuration changed, reloading...");
+      }
+    });
+    context.subscriptions.push(configWatcher);
+    Logger.info("\u2705 Configuration watcher setup completed");
+  }
+  /**
+   * Desativa a extensão
+   */
+  deactivate() {
+    Logger.info("\u{1F6D1} Deactivating xCopilot extension...");
+    if (this.outputChannel) {
+      this.outputChannel.dispose();
+    }
+    Logger.info("\u2705 Extension deactivated successfully");
   }
 };
 

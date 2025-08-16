@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ChatCommands } from './commands';
 import {
     CodeExplanationService,
+    CodeReviewService,
     CodeSuggestionsService,
     ConfigurationService,
     GhostTextService,
@@ -22,6 +23,7 @@ export class ExtensionManager {
     private configService: ConfigurationService;
     private codeSuggestionsService!: CodeSuggestionsService;
     private codeExplanationService!: CodeExplanationService;
+    private codeReviewService!: CodeReviewService;
     private ghostTextService!: GhostTextService;
     private inlineCompletionService!: InlineCompletionService;
     private refactoringService!: RefactoringService;
@@ -52,6 +54,7 @@ export class ExtensionManager {
             // Inicializar todos os serviços IA
             this.codeSuggestionsService = CodeSuggestionsService.getInstance();
             this.codeExplanationService = CodeExplanationService.getInstance();
+            this.codeReviewService = CodeReviewService.getInstance();
             this.ghostTextService = GhostTextService.getInstance();
             this.inlineCompletionService = InlineCompletionService.getInstance();
             this.refactoringService = RefactoringService.getInstance();
@@ -200,5 +203,33 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
 
         context.subscriptions.push(...commands);
         Logger.info('✅ Code explanation commands registered');
+    }
+
+    /**
+     * Configura o monitoramento de mudanças de configuração
+     */
+    private setupConfigurationWatcher(context: vscode.ExtensionContext): void {
+        const configWatcher = vscode.workspace.onDidChangeConfiguration(event => {
+            if (event.affectsConfiguration('xcopilot')) {
+                Logger.info('🔧 Configuration changed, reloading...');
+                // Recarregar configurações dos serviços se necessário
+            }
+        });
+
+        context.subscriptions.push(configWatcher);
+        Logger.info('✅ Configuration watcher setup completed');
+    }
+
+    /**
+     * Desativa a extensão
+     */
+    deactivate(): void {
+        Logger.info('🛑 Deactivating xCopilot extension...');
+        
+        if (this.outputChannel) {
+            this.outputChannel.dispose();
+        }
+        
+        Logger.info('✅ Extension deactivated successfully');
     }
 }

@@ -159,6 +159,22 @@
             {
                 "command": "xcopilot.showCompletionStats",
                 "title": "xCopilot: Mostrar Estatísticas de Completion"
+            },
+            {
+                "command": "xcopilot.reviewCurrentFile",
+                "title": "xCopilot: Review do Arquivo Atual"
+            },
+            {
+                "command": "xcopilot.reviewChangedFiles", 
+                "title": "xCopilot: Review dos Arquivos Modificados"
+            },
+            {
+                "command": "xcopilot.reviewWorkspace",
+                "title": "xCopilot: Review do Workspace"
+            },
+            {
+                "command": "xcopilot.generateReviewSummary",
+                "title": "xCopilot: Gerar Summary de Review"
             }
         ],
         "viewsContainers": {
@@ -262,6 +278,18 @@
                 {
                     "command": "xcopilot.toggleChat",
                     "group": "xcopilot-chat@2"
+                },
+                {
+                    "command": "xcopilot.reviewCurrentFile",
+                    "group": "xcopilot-review@1"
+                },
+                {
+                    "command": "xcopilot.reviewChangedFiles",
+                    "group": "xcopilot-review@2"
+                },
+                {
+                    "command": "xcopilot.generateReviewSummary",
+                    "group": "xcopilot-review@3"
                 }
             ],
             "explorer/context": [
@@ -269,6 +297,11 @@
                     "command": "xcopilot.analyzeFile",
                     "when": "resourceExtname =~ /\\.(js|ts|py|java|cpp|c|cs|php|go|rs|rb|swift|kt)$/",
                     "group": "xcopilot@1"
+                },
+                {
+                    "command": "xcopilot.reviewCurrentFile", 
+                    "when": "resourceExtname =~ /\\.(js|ts|py|java|cpp|c|cs|php|go|rs|rb|swift|kt)$/",
+                    "group": "xcopilot-review@1"
                 }
             ]
         },
@@ -305,6 +338,35 @@
                     "minimum": 5,
                     "maximum": 50,
                     "description": "Máximo de linhas de contexto para enviar à IA"
+                },
+                "xcopilot.codeReview.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Habilita funcionalidades de code review automatizado"
+                },
+                "xcopilot.codeReview.autoReviewOnSave": {
+                    "type": "boolean", 
+                    "default": false,
+                    "description": "Executa review automaticamente ao salvar arquivos"
+                },
+                "xcopilot.codeReview.minScore": {
+                    "type": "number",
+                    "default": 70,
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Score mínimo para aprovação automática"
+                },
+                "xcopilot.codeReview.enabledChecks": {
+                    "type": "object",
+                    "default": {
+                        "codeSmells": true,
+                        "bestPractices": true,
+                        "testing": true,
+                        "documentation": true,
+                        "security": true,
+                        "performance": true
+                    },
+                    "description": "Tipos de verificações habilitadas no code review"
                 }
             }
         },
@@ -342,6 +404,16 @@
             {
                 "command": "xcopilot.toggleInlineCompletion",
                 "key": "ctrl+alt+i",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.reviewCurrentFile",
+                "key": "ctrl+k ctrl+v",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.reviewChangedFiles",
+                "key": "ctrl+k ctrl+shift+v", 
                 "when": "editorTextFocus"
             }
         ]
