@@ -159,6 +159,34 @@
             {
                 "command": "xcopilot.showCompletionStats",
                 "title": "xCopilot: Mostrar Estatísticas de Completion"
+            },
+            {
+                "command": "xcopilot.generateImplementation",
+                "title": "xCopilot: Gerar Implementação"
+            },
+            {
+                "command": "xcopilot.generateFromComment",
+                "title": "xCopilot: Gerar a partir de Comentário"
+            },
+            {
+                "command": "xcopilot.implementInterface",
+                "title": "xCopilot: Implementar Interface"
+            },
+            {
+                "command": "xcopilot.generateClass",
+                "title": "xCopilot: Gerar Classe"
+            },
+            {
+                "command": "xcopilot.generateTests",
+                "title": "xCopilot: Gerar Testes Unitários"
+            },
+            {
+                "command": "xcopilot.scaffoldAPI",
+                "title": "xCopilot: Scaffolding de API"
+            },
+            {
+                "command": "xcopilot.useCodeTemplate",
+                "title": "xCopilot: Usar Template de Código"
             }
         ],
         "viewsContainers": {
@@ -262,6 +290,36 @@
                 {
                     "command": "xcopilot.toggleChat",
                     "group": "xcopilot-chat@2"
+                },
+                {
+                    "command": "xcopilot.generateImplementation",
+                    "group": "xcopilot-generate@1"
+                },
+                {
+                    "command": "xcopilot.generateFromComment",
+                    "group": "xcopilot-generate@2"
+                },
+                {
+                    "command": "xcopilot.implementInterface",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-generate@3"
+                },
+                {
+                    "command": "xcopilot.generateClass",
+                    "group": "xcopilot-generate@4"
+                },
+                {
+                    "command": "xcopilot.generateTests",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-generate@5"
+                },
+                {
+                    "command": "xcopilot.scaffoldAPI",
+                    "group": "xcopilot-generate@6"
+                },
+                {
+                    "command": "xcopilot.useCodeTemplate",
+                    "group": "xcopilot-generate@7"
                 }
             ],
             "explorer/context": [
@@ -343,6 +401,26 @@
                 "command": "xcopilot.toggleInlineCompletion",
                 "key": "ctrl+alt+i",
                 "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.generateImplementation",
+                "key": "ctrl+k ctrl+g",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.generateFromComment",
+                "key": "ctrl+k ctrl+m",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.implementInterface",
+                "key": "ctrl+k ctrl+i",
+                "when": "editorTextFocus && editorHasSelection"
+            },
+            {
+                "command": "xcopilot.generateTests",
+                "key": "ctrl+k ctrl+t",
+                "when": "editorTextFocus && editorHasSelection"
             }
         ]
     },

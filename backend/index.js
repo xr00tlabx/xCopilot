@@ -134,6 +134,159 @@ app.post('/api/completion', async (req, res) => {
     }
 });
 
+// Enhanced code generation endpoint for multi-line code generation
+app.post('/api/generate', async (req, res) => {
+    const { input, type, language, context, variables } = req.body;
+    
+    if (!input || !type || !language) {
+        return res.status(400).json({ 
+            error: 'input, type, and language são obrigatórios.' 
+        });
+    }
+
+    try {
+        const startTime = Date.now();
+        
+        // Build specialized prompt based on generation type
+        const prompt = buildGenerationPrompt(input, type, language, context, variables);
+        
+        // Use enhanced completion function with longer token limit
+        const generatedCode = await gerarResposta(prompt);
+        
+        const duration = Date.now() - startTime;
+        
+        res.json({ 
+            code: generatedCode,
+            type,
+            language,
+            duration,
+            metadata: {
+                inputType: type,
+                contextProvided: !!context,
+                variablesUsed: !!variables
+            }
+        });
+        
+    } catch (err) {
+        if (err instanceof OpenAIError) {
+            return res.status(err.status || 500).json({ error: err.message, code: err.code });
+        }
+        res.status(500).json({ error: 'Erro inesperado', detail: err.message });
+    }
+});
+
+// Helper function to build generation prompts
+function buildGenerationPrompt(input, type, language, context, variables) {
+    const contextInfo = context ? `
+Contexto do arquivo:
+- Arquivo: ${context.fileName || 'desconhecido'}
+- Linguagem: ${language}
+- Imports: ${context.imports?.join(', ') || 'nenhum'}
+- Funções existentes: ${context.functions?.join(', ') || 'nenhum'}` : '';
+
+    const variableInfo = variables ? `
+Variáveis do template:
+${Object.entries(variables).map(([key, value]) => `- ${key}: ${value}`).join('\n')}` : '';
+
+    const prompts = {
+        comment: `
+Analise o seguinte comentário e gere a implementação completa em ${language}:
+
+Comentário:
+${input}
+${contextInfo}
+
+Gere APENAS o código de implementação, sem explicações. 
+Use boas práticas e inclua documentação apropriada.`,
+
+        interface: `
+Implemente a seguinte interface completa em ${language}:
+
+Interface:
+\`\`\`${language}
+${input}
+\`\`\`
+${contextInfo}
+
+Gere uma implementação completa com:
+- Todos os métodos implementados com lógica funcional
+- Validação de entrada apropriada
+- Tratamento de erros
+- Comentários explicativos
+- Boas práticas da linguagem
+
+Retorne APENAS o código:`,
+
+        class: `
+Gere uma classe completa em ${language} baseada na descrição:
+
+Descrição: ${input}
+${contextInfo}
+${variableInfo}
+
+A classe deve incluir:
+- Propriedades relevantes com tipos apropriados
+- Construtor com validação de parâmetros
+- Métodos públicos e privados necessários
+- Documentação JSDoc/comentários
+- Tratamento de erros e validação
+- Padrões de design apropriados
+
+Retorne APENAS o código da classe:`,
+
+        tests: `
+Gere testes unitários completos para o seguinte código ${language}:
+
+Código para testar:
+\`\`\`${language}
+${input}
+\`\`\`
+${contextInfo}
+
+Gere testes que cubram:
+- Casos de sucesso (happy path)
+- Casos de erro e exceções
+- Edge cases e limites
+- Validação de entrada
+- Mocking de dependências quando necessário
+- Asserções detalhadas
+
+Use framework de teste apropriado para ${language}.
+Retorne APENAS o código dos testes:`,
+
+        api: `
+Gere uma API ${language} completa baseada na descrição:
+
+Descrição: ${input}
+${contextInfo}
+${variableInfo}
+
+Gere:
+- Endpoints CRUD completos (GET, POST, PUT, DELETE)
+- Validação de entrada robusta
+- Tratamento de erros padronizado
+- Middleware de autenticação/autorização
+- Documentação de API (OpenAPI/Swagger)
+- Serialização/deserialização de dados
+- Logging apropriado
+
+Retorne APENAS o código:`,
+
+        template: `
+Gere código ${language} usando o template especificado:
+
+Template: ${input}
+${contextInfo}
+${variableInfo}
+
+Siga as melhores práticas para o padrão especificado.
+Inclua toda a estrutura necessária.
+Retorne APENAS o código:`
+    };
+
+    return prompts[type] || prompts.template;
+}
+
 
 // Indexar snippet
 app.post('/snippets', async (req, res) => {
