@@ -7482,13 +7482,13 @@ var GhostTextService = class _GhostTextService {
       }
       this.lastRequestTime = now;
       const line = document.lineAt(position);
-      const textBeforeCursor = line.text.substring(0, position.character);
+      const textBeforeCursor2 = line.text.substring(0, position.character);
       const textAfterCursor = line.text.substring(position.character);
-      if (textBeforeCursor.trim().length < 3 || position.character < line.text.length) {
+      if (textBeforeCursor2.trim().length < 3 || position.character < line.text.length) {
         this.setGhostTextContext(false);
         return null;
       }
-      if (this.isCommentOrString(textBeforeCursor)) {
+      if (this.isCommentOrString(textBeforeCursor2)) {
         this.setGhostTextContext(false);
         return null;
       }
@@ -7553,7 +7553,7 @@ var GhostTextService = class _GhostTextService {
         new vscode6.Range(startLine, 0, endLine, 0)
       );
       const line = document.lineAt(position);
-      const textBeforeCursor = line.text.substring(0, position.character);
+      const textBeforeCursor2 = line.text.substring(0, position.character);
       const textAfterCursor = line.text.substring(position.character);
       const result = await this.backendService.requestCodeCompletion({
         prompt: `
@@ -7579,14 +7579,14 @@ REGRAS PARA GHOST TEXT:
 Complete:`,
         context: contextCode,
         language: document.languageId,
-        textBefore: textBeforeCursor,
+        textBefore: textBeforeCursor2,
         textAfter: textAfterCursor
       });
       if (!result.completion) {
         return null;
       }
       let suggestion = result.completion.trim();
-      if (suggestion.length < 2 || suggestion === textBeforeCursor.trim()) {
+      if (suggestion.length < 2 || suggestion === textBeforeCursor2.trim()) {
         return null;
       }
       suggestion = suggestion.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
@@ -7596,8 +7596,49 @@ Complete:`,
       return suggestion;
     } catch (error) {
       Logger.error("Error generating ghost text suggestion:", error);
-      return null;
+      return this.generateFallbackSuggestion(textBeforeCursor, document.languageId);
     }
+  }
+  /**
+   * Gera sugestões de fallback baseadas em padrões comuns
+   */
+  generateFallbackSuggestion(textBefore, languageId) {
+    const trimmed = textBefore.trim();
+    if (languageId === "javascript" || languageId === "typescript") {
+      if (trimmed.includes("function") && trimmed.includes("(") && trimmed.includes(")") && trimmed.endsWith("{")) {
+        return "\n    return;\n}";
+      }
+      if (trimmed.startsWith("if (") && trimmed.endsWith("{")) {
+        return '\n    console.log("condition met");\n}';
+      }
+      if (trimmed.startsWith("for (") && trimmed.endsWith("{")) {
+        return "\n    console.log(i);\n}";
+      }
+      if (trimmed.includes("class") && trimmed.endsWith("{")) {
+        return "\n    constructor() {\n        \n    }\n}";
+      }
+      if (trimmed.includes("console.")) {
+        return 'log("debug");';
+      }
+    }
+    if (languageId === "python") {
+      if (trimmed.startsWith("def ") && trimmed.endsWith(":")) {
+        return "\n    pass";
+      }
+      if (trimmed.startsWith("if ") && trimmed.endsWith(":")) {
+        return '\n    print("condition met")';
+      }
+      if (trimmed.startsWith("for ") && trimmed.endsWith(":")) {
+        return "\n    print(item)";
+      }
+      if (trimmed.startsWith("class ") && trimmed.endsWith(":")) {
+        return "\n    def __init__(self):\n        pass";
+      }
+    }
+    if (trimmed.endsWith("=")) {
+      return " null;";
+    }
+    return null;
   }
   /**
    * Verifica se é comentário ou string
@@ -7829,15 +7870,15 @@ var InlineCompletionService = class _InlineCompletionService {
       }
       this.lastRequestTime = now;
       const line = document.lineAt(position);
-      const textBeforeCursor = line.text.substring(0, position.character);
+      const textBeforeCursor2 = line.text.substring(0, position.character);
       const textAfterCursor = line.text.substring(position.character);
-      if (textBeforeCursor.trim().length < 2) {
+      if (textBeforeCursor2.trim().length < 2) {
         return null;
       }
-      if (this.isInStringOrComment(textBeforeCursor)) {
+      if (this.isInStringOrComment(textBeforeCursor2)) {
         return null;
       }
-      const cacheKey = this.generateCacheKey(textBeforeCursor, textAfterCursor, document.languageId);
+      const cacheKey = this.generateCacheKey(textBeforeCursor2, textAfterCursor, document.languageId);
       const cachedCompletion = this.getCachedCompletion(cacheKey);
       if (cachedCompletion) {
         this.cacheHits++;
@@ -7853,7 +7894,7 @@ var InlineCompletionService = class _InlineCompletionService {
       const completion = await this.generateInlineCompletion(
         document,
         position,
-        textBeforeCursor,
+        textBeforeCursor2,
         textAfterCursor
       );
       if (!completion || token.isCancellationRequested) {

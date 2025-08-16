@@ -239,8 +239,58 @@ Complete:`,
 
         } catch (error) {
             Logger.error('Error generating ghost text suggestion:', error);
-            return null;
+            // Fallback to pattern-based suggestions for demo
+            return this.generateFallbackSuggestion(textBeforeCursor, document.languageId);
         }
+    }
+
+    /**
+     * Gera sugestões de fallback baseadas em padrões comuns
+     */
+    private generateFallbackSuggestion(textBefore: string, languageId: string): string | null {
+        const trimmed = textBefore.trim();
+        
+        // JavaScript/TypeScript patterns
+        if (languageId === 'javascript' || languageId === 'typescript') {
+            if (trimmed.includes('function') && trimmed.includes('(') && trimmed.includes(')') && trimmed.endsWith('{')) {
+                return '\n    return;\n}';
+            }
+            if (trimmed.startsWith('if (') && trimmed.endsWith('{')) {
+                return '\n    console.log("condition met");\n}';
+            }
+            if (trimmed.startsWith('for (') && trimmed.endsWith('{')) {
+                return '\n    console.log(i);\n}';
+            }
+            if (trimmed.includes('class') && trimmed.endsWith('{')) {
+                return '\n    constructor() {\n        \n    }\n}';
+            }
+            if (trimmed.includes('console.')) {
+                return 'log("debug");';
+            }
+        }
+        
+        // Python patterns
+        if (languageId === 'python') {
+            if (trimmed.startsWith('def ') && trimmed.endsWith(':')) {
+                return '\n    pass';
+            }
+            if (trimmed.startsWith('if ') && trimmed.endsWith(':')) {
+                return '\n    print("condition met")';
+            }
+            if (trimmed.startsWith('for ') && trimmed.endsWith(':')) {
+                return '\n    print(item)';
+            }
+            if (trimmed.startsWith('class ') && trimmed.endsWith(':')) {
+                return '\n    def __init__(self):\n        pass';
+            }
+        }
+        
+        // Generic patterns
+        if (trimmed.endsWith('=')) {
+            return ' null;';
+        }
+        
+        return null;
     }
 
     /**
