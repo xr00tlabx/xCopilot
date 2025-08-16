@@ -94,66 +94,15 @@ export interface PromptTemplate {
     supportedFileTypes: string[];
     variables: string[];
 }
-// Code Review Types
-export interface CodeReviewIssue {
-    type: 'code_smell' | 'best_practice' | 'security' | 'performance' | 'testing' | 'documentation';
-    severity: 'low' | 'medium' | 'high' | 'critical';
-    message: string;
-    suggestion: string;
-    file: string;
-    line?: number;
-    endLine?: number;
-    column?: number;
-    endColumn?: number;
-    autoFixAvailable?: boolean;
-}
 
-export interface CodeReviewResult {
-    overallScore: number; // 0-100
-    issues: CodeReviewIssue[];
-    summary: {
-        totalIssues: number;
-        codeQuality: number;
-        bestPractices: number;
-        testing: number;
-        documentation: number;
-        security: number;
-        performance: number;
-    };
-    recommendations?: string[];
-    changedFiles?: string[];
-    addedLines?: number;
-    removedLines?: number;
-}
-
-export interface ReviewConfig {
-    enabledChecks: {
-        codeSmells: boolean;
-        bestPractices: boolean;
-        testing: boolean;
-        documentation: boolean;
-        security: boolean;
-        performance: boolean;
-    };
-    thresholds: {
-        minScore: number;
-        maxComplexity?: number;
-        maxFunctionLength?: number;
-        requireTests?: boolean;
-        requireDocumentation?: boolean;
-    };
-    autoApprove?: boolean;
-    autoComment?: boolean;
-}
-
-// Workspace analysis / context-aware types
+// New interfaces for context-aware features
 export interface WorkspaceAnalysis {
-    projectStructure?: ProjectStructure;
-    dependencies?: DependencyInfo;
-    codePatterns?: CodePattern[];
-    architecture?: ArchitectureInfo;
-    fileTypes?: FileTypeStats;
-    lastAnalyzed?: Date;
+    projectStructure: ProjectStructure;
+    dependencies: DependencyInfo;
+    codePatterns: CodePattern[];
+    architecture: ArchitectureInfo;
+    fileTypes: FileTypeStats;
+    lastAnalyzed: Date;
 }
 
 export interface ProjectStructure {

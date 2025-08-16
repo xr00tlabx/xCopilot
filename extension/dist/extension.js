@@ -8050,1017 +8050,6 @@ Mantenha description e suggestion como strings simples.
 
 // src/services/GitIntegrationService.new.ts
 var vscode8 = __toESM(require("vscode"));
-var GitIntegrationService = class _GitIntegrationService {
-  constructor() {
-    this.isInitialized = false;
-    this.initializeGitExtension();
-  }
-  static getInstance() {
-    if (!_GitIntegrationService.instance) {
-      _GitIntegrationService.instance = new _GitIntegrationService();
-    }
-    return _GitIntegrationService.instance;
-  }
-  /**
-   * Inicializa a extensão do Git
-   */
-  async initializeGitExtension() {
-    try {
-      const gitExtension = vscode8.extensions.getExtension("vscode.git");
-      if (gitExtension) {
-        if (!gitExtension.isActive) {
-          await gitExtension.activate();
-        }
-        this.gitExtension = gitExtension.exports?.getAPI?.(1);
-        if (this.gitExtension) {
-          this.isInitialized = true;
-          Logger.info("Git extension initialized successfully");
-        } else {
-          Logger.warn("Git API not available - Git features will be disabled");
-        }
-      } else {
-        Logger.warn("Git extension not found - Git features will be disabled");
-      }
-    } catch (error) {
-      Logger.warn("Git extension not available - Git features will be disabled");
-      this.gitExtension = void 0;
-    }
-  }
-  /**
-   * Verifica se o Git está disponível
-   */
-  isGitAvailable() {
-    try {
-      return this.isInitialized && !!this.gitExtension && !!this.gitExtension.repositories;
-    } catch (error) {
-      Logger.warn("Error checking Git availability:", error);
-      return false;
-    }
-  }
-  /**
-   * Obtém informações do Git para o workspace atual
-   */
-  async getGitInfo() {
-    if (!this.isGitAvailable()) {
-      Logger.warn("Git not available for getGitInfo");
-      return null;
-    }
-    try {
-      const workspaceFolders = vscode8.workspace.workspaceFolders;
-      if (!workspaceFolders?.length) {
-        Logger.warn("No workspace folders found");
-        return null;
-      }
-      const repository = this.gitExtension.getRepository(workspaceFolders[0].uri);
-      if (!repository) {
-        Logger.warn("No Git repository found in workspace");
-        return null;
-      }
-      const gitInfo = {
-        currentBranch: repository.state.HEAD?.name || "unknown",
-        hasUncommittedChanges: repository.state.workingTreeChanges.length > 0 || repository.state.indexChanges.length > 0,
-        lastCommitMessage: repository.state.HEAD?.commit?.message || "",
-        changedFiles: [
-          ...repository.state.workingTreeChanges.map((c) => c.uri.fsPath),
-          ...repository.state.indexChanges.map((c) => c.uri.fsPath)
-        ],
-        diff: await this.getRepositoryDiff(repository)
-      };
-      Logger.debug("Git info retrieved successfully");
-      return gitInfo;
-    } catch (error) {
-      Logger.error("Error getting Git info:", error);
-      return null;
-    }
-  }
-  /**
-   * Obtém diff do repositório
-   */
-  async getRepositoryDiff(repository) {
-    try {
-      const changes = repository.state.workingTreeChanges.length + repository.state.indexChanges.length;
-      return changes > 0 ? `${changes} files changed` : void 0;
-    } catch (error) {
-      Logger.warn("Error getting repository diff:", error);
-      return void 0;
-    }
-  }
-  /**
-   * Obtém diff do arquivo atual
-   */
-  async getCurrentFileDiff() {
-    if (!this.isGitAvailable()) {
-      Logger.warn("Git not available for getCurrentFileDiff");
-      return null;
-    }
-    try {
-      const editor = vscode8.window.activeTextEditor;
-      if (!editor) {
-        Logger.warn("No active editor for diff analysis");
-        return null;
-      }
-      const workspaceFolders = vscode8.workspace.workspaceFolders;
-      if (!workspaceFolders?.length) {
-        return null;
-      }
-      const repository = this.gitExtension.getRepository(workspaceFolders[0].uri);
-      if (!repository) {
-        return null;
-      }
-      const fileName = editor.document.fileName;
-      const isModified = editor.document.isDirty || repository.state.workingTreeChanges.some(
-        (c) => c.uri.fsPath === fileName
-      );
-      return isModified ? `File modified: ${fileName}` : null;
-    } catch (error) {
-      Logger.error("Error getting file diff:", error);
-      return null;
-    }
-  }
-  /**
-   * Gera sugestão de mensagem de commit baseada nas mudanças
-   */
-  async generateCommitMessage(changedFiles, diff) {
-    const fileTypes = this.analyzeFileTypes(changedFiles);
-    const changeScope = this.analyzeChangeScope(changedFiles);
-    let type = "feat";
-    if (changedFiles.some((f3) => f3.includes("test") || f3.includes("spec"))) {
-      type = "test";
-    } else if (changedFiles.some((f3) => f3.includes("doc") || f3.includes("README"))) {
-      type = "docs";
-    } else if (changedFiles.some((f3) => f3.includes("fix") || f3.includes("bug"))) {
-      type = "fix";
-    } else if (changedFiles.some((f3) => f3.includes("style") || f3.includes("css"))) {
-      type = "style";
-    }
-    const scope = changeScope.length > 0 ? `(${changeScope.join(", ")})` : "";
-    const fileTypesList = fileTypes.length > 0 ? ` - ${fileTypes.join(", ")}` : "";
-    return `${type}${scope}: update ${changedFiles.length} file(s)${fileTypesList}`;
-  }
-  /**
-   * Analisa tipos de arquivos modificados
-   */
-  analyzeFileTypes(files) {
-    const types3 = /* @__PURE__ */ new Set();
-    files.forEach((file) => {
-      const ext = file.split(".").pop()?.toLowerCase();
-      if (ext) {
-        types3.add(ext);
-      }
-    });
-    return Array.from(types3).slice(0, 3);
-  }
-  /**
-   * Analisa escopo das mudanças
-   */
-  analyzeChangeScope(files) {
-    const scopes = /* @__PURE__ */ new Set();
-    files.forEach((file) => {
-      const parts = file.split("/");
-      if (parts.length > 1) {
-        scopes.add(parts[parts.length - 2]);
-      }
-    });
-    return Array.from(scopes).slice(0, 2);
-  }
-};
-
-// src/services/CodeReviewService.ts
-var CodeReviewService = class _CodeReviewService {
-  constructor() {
-    this.patternDetectionService = PatternDetectionService.getInstance();
-    this.gitService = GitIntegrationService.getInstance();
-    this.backendService = BackendService.getInstance();
-    this.configService = ConfigurationService.getInstance();
-    this.registerCommands();
-  }
-  static getInstance() {
-    if (!_CodeReviewService.instance) {
-      _CodeReviewService.instance = new _CodeReviewService();
-    }
-    return _CodeReviewService.instance;
-  }
-  /**
-   * Registra comandos relacionados ao code review
-   */
-  registerCommands() {
-    vscode9.commands.registerCommand("xcopilot.reviewCurrentFile", () => this.reviewCurrentFile());
-    vscode9.commands.registerCommand("xcopilot.reviewChangedFiles", () => this.reviewChangedFiles());
-    vscode9.commands.registerCommand("xcopilot.reviewWorkspace", () => this.reviewWorkspace());
-    vscode9.commands.registerCommand("xcopilot.generateReviewSummary", () => this.generateReviewSummary());
-  }
-  /**
-   * Realiza review do arquivo atual
-   */
-  async reviewCurrentFile() {
-    const editor = vscode9.window.activeTextEditor;
-    if (!editor) {
-      vscode9.window.showWarningMessage("Nenhum arquivo aberto para review");
-      return;
-    }
-    try {
-      await vscode9.window.withProgress({
-        location: vscode9.ProgressLocation.Notification,
-        title: "Analisando arquivo...",
-        cancellable: false
-      }, async () => {
-        const result = await this.analyzeFile(editor.document);
-        await this.showReviewResults(result);
-      });
-    } catch (error) {
-      Logger.error("Error reviewing current file:", error);
-      vscode9.window.showErrorMessage("Erro ao analisar arquivo: " + error.message);
-    }
-  }
-  /**
-   * Realiza review dos arquivos modificados
-   */
-  async reviewChangedFiles() {
-    if (!this.gitService.isGitAvailable()) {
-      vscode9.window.showWarningMessage("Git n\xE3o dispon\xEDvel no workspace atual");
-      return;
-    }
-    try {
-      await vscode9.window.withProgress({
-        location: vscode9.ProgressLocation.Notification,
-        title: "Analisando arquivos modificados...",
-        cancellable: false
-      }, async () => {
-        const gitInfo = await this.gitService.getGitInfo();
-        if (!gitInfo?.changedFiles.length) {
-          vscode9.window.showInformationMessage("Nenhum arquivo modificado encontrado");
-          return;
-        }
-        const results = [];
-        for (const filePath of gitInfo.changedFiles) {
-          const document = await this.openDocument(filePath);
-          if (document) {
-            const result = await this.analyzeFile(document);
-            results.push(result);
-          }
-        }
-        const combinedResult = this.combineReviewResults(results);
-        await this.showReviewResults(combinedResult);
-      });
-    } catch (error) {
-      Logger.error("Error reviewing changed files:", error);
-      vscode9.window.showErrorMessage("Erro ao analisar arquivos modificados: " + error.message);
-    }
-  }
-  /**
-   * Realiza review completo do workspace
-   */
-  async reviewWorkspace() {
-    const workspaceFolders = vscode9.workspace.workspaceFolders;
-    if (!workspaceFolders?.length) {
-      vscode9.window.showWarningMessage("Nenhum workspace aberto");
-      return;
-    }
-    const include = "**/*.{js,ts,jsx,tsx,py,java,cpp,c,cs,php,go,rs,rb,swift,kt}";
-    const exclude = "**/node_modules/**";
-    try {
-      await vscode9.window.withProgress({
-        location: vscode9.ProgressLocation.Notification,
-        title: "Analisando workspace...",
-        cancellable: false
-      }, async (progress) => {
-        const files = await vscode9.workspace.findFiles(include, exclude, 50);
-        const results = [];
-        for (let i2 = 0; i2 < files.length; i2++) {
-          const file = files[i2];
-          progress.report({
-            message: `Analisando ${file.fsPath}`,
-            increment: 100 / files.length
-          });
-          const document = await this.openDocument(file.fsPath);
-          if (document) {
-            const result = await this.analyzeFile(document);
-            results.push(result);
-          }
-        }
-        const combinedResult = this.combineReviewResults(results);
-        await this.showReviewResults(combinedResult);
-      });
-    } catch (error) {
-      Logger.error("Error reviewing workspace:", error);
-      vscode9.window.showErrorMessage("Erro ao analisar workspace: " + error.message);
-    }
-  }
-  /**
-   * Gera summary do review
-   */
-  async generateReviewSummary() {
-    try {
-      await vscode9.window.withProgress({
-        location: vscode9.ProgressLocation.Notification,
-        title: "Gerando summary de review...",
-        cancellable: false
-      }, async () => {
-        const gitInfo = await this.gitService.getGitInfo();
-        const summary = await this.generateAISummary(gitInfo);
-        await this.showSummary(summary);
-      });
-    } catch (error) {
-      Logger.error("Error generating review summary:", error);
-      vscode9.window.showErrorMessage("Erro ao gerar summary: " + error.message);
-    }
-  }
-  /**
-   * Analisa um arquivo específico
-   */
-  async analyzeFile(document) {
-    const issues = [];
-    const fileName = document.fileName;
-    const content = document.getText();
-    const language = document.languageId;
-    const codeQualityIssues = await this.analyzeCodeQuality(content, language, fileName);
-    issues.push(...codeQualityIssues);
-    const bestPracticeIssues = await this.analyzeBestPractices(content, language, fileName);
-    issues.push(...bestPracticeIssues);
-    const securityIssues = await this.analyzeSecurityIssues(content, language, fileName);
-    issues.push(...securityIssues);
-    const testingIssues = await this.analyzeTestCoverage(content, language, fileName);
-    issues.push(...testingIssues);
-    const documentationIssues = await this.analyzeDocumentation(content, language, fileName);
-    issues.push(...documentationIssues);
-    const performanceIssues = await this.analyzePerformance(content, language, fileName);
-    issues.push(...performanceIssues);
-    return this.calculateReviewScore(issues, [fileName]);
-  }
-  /**
-   * Analisa qualidade do código
-   */
-  async analyzeCodeQuality(content, language, fileName) {
-    const issues = [];
-    const lines = content.split("\n");
-    let functionStartLine = -1;
-    let functionLines = 0;
-    let braceCount = 0;
-    for (let i2 = 0; i2 < lines.length; i2++) {
-      const line = lines[i2].trim();
-      if (this.isFunctionStart(line, language)) {
-        functionStartLine = i2;
-        functionLines = 0;
-        braceCount = 0;
-      }
-      if (functionStartLine >= 0) {
-        functionLines++;
-        braceCount += (line.match(/\{/g) || []).length;
-        braceCount -= (line.match(/\}/g) || []).length;
-        if (braceCount === 0 && functionLines > 1) {
-          if (functionLines > 20) {
-            issues.push({
-              type: "code_smell",
-              severity: functionLines > 50 ? "high" : "medium",
-              message: `Fun\xE7\xE3o muito longa (${functionLines} linhas)`,
-              suggestion: "Considere quebrar em fun\xE7\xF5es menores para melhor legibilidade",
-              file: fileName,
-              line: functionStartLine + 1,
-              endLine: i2 + 1,
-              autoFixAvailable: false
-            });
-          }
-          functionStartLine = -1;
-        }
-      }
-      const complexityKeywords = ["if", "else", "switch", "case", "for", "while", "catch", "&&", "||"];
-      let complexity = 0;
-      for (const keyword of complexityKeywords) {
-        const regex = new RegExp(`\\b${keyword}\\b`, "g");
-        const matches = line.match(regex);
-        if (matches) {
-          complexity += matches.length;
-        }
-      }
-      if (complexity >= 5) {
-        issues.push({
-          type: "code_smell",
-          severity: complexity >= 10 ? "high" : "medium",
-          message: `Alta complexidade ciclom\xE1tica (${complexity} condi\xE7\xF5es)`,
-          suggestion: "Simplifique a l\xF3gica ou extraia condi\xE7\xF5es para m\xE9todos separados",
-          file: fileName,
-          line: i2 + 1,
-          autoFixAvailable: false
-        });
-      }
-      if (this.isCodeDuplication(lines, i2)) {
-        issues.push({
-          type: "code_smell",
-          severity: "medium",
-          message: "Poss\xEDvel duplica\xE7\xE3o de c\xF3digo detectada",
-          suggestion: "Extraia c\xF3digo comum para uma fun\xE7\xE3o ou m\xE9todo separado",
-          file: fileName,
-          line: i2 + 1,
-          autoFixAvailable: false
-        });
-      }
-    }
-    return issues;
-  }
-  /**
-   * Analisa best practices
-   */
-  async analyzeBestPractices(content, language, fileName) {
-    const issues = [];
-    const lines = content.split("\n");
-    for (let i2 = 0; i2 < lines.length; i2++) {
-      const line = lines[i2].trim();
-      const magicNumberRegex = /\b(\d{2,})\b/g;
-      let match;
-      while ((match = magicNumberRegex.exec(line)) !== null) {
-        const number = parseInt(match[1]);
-        if (number > 1 && number !== 100 && number !== 1e3) {
-          issues.push({
-            type: "best_practice",
-            severity: "low",
-            message: `Magic number detectado: ${number}`,
-            suggestion: "Considere usar uma constante nomeada",
-            file: fileName,
-            line: i2 + 1,
-            column: match.index,
-            autoFixAvailable: false
-          });
-        }
-      }
-      const varRegex = /\b(var|let|const)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=/g;
-      while ((match = varRegex.exec(line)) !== null) {
-        const varName = match[2];
-        if (varName.length <= 2 && !["i", "j", "k", "x", "y", "z"].includes(varName)) {
-          issues.push({
-            type: "best_practice",
-            severity: "low",
-            message: `Nome de vari\xE1vel muito curto: ${varName}`,
-            suggestion: "Use nomes mais descritivos para vari\xE1veis",
-            file: fileName,
-            line: i2 + 1,
-            autoFixAvailable: false
-          });
-        }
-      }
-    }
-    return issues;
-  }
-  /**
-   * Analisa problemas de segurança
-   */
-  async analyzeSecurityIssues(content, language, fileName) {
-    const issues = [];
-    const lines = content.split("\n");
-    for (let i2 = 0; i2 < lines.length; i2++) {
-      const line = lines[i2].trim();
-      if (line.includes("SELECT") && (line.includes("+") || line.includes("${") || line.includes("`"))) {
-        issues.push({
-          type: "security",
-          severity: "high",
-          message: "Poss\xEDvel vulnerabilidade de SQL Injection",
-          suggestion: "Use prepared statements ou parameterized queries",
-          file: fileName,
-          line: i2 + 1,
-          autoFixAvailable: false
-        });
-      }
-      const secretPatterns = [
-        /password\s*[:=]\s*["'].*["']/i,
-        /api[_-]?key\s*[:=]\s*["'].*["']/i,
-        /secret\s*[:=]\s*["'].*["']/i,
-        /token\s*[:=]\s*["'].*["']/i
-      ];
-      for (const pattern of secretPatterns) {
-        if (pattern.test(line)) {
-          issues.push({
-            type: "security",
-            severity: "critical",
-            message: "Poss\xEDvel credencial hardcoded detectada",
-            suggestion: "Use vari\xE1veis de ambiente ou servi\xE7os de secrets management",
-            file: fileName,
-            line: i2 + 1,
-            autoFixAvailable: false
-          });
-        }
-      }
-      if (line.includes("eval(")) {
-        issues.push({
-          type: "security",
-          severity: "high",
-          message: "Uso de eval() detectado",
-          suggestion: "Evite usar eval() por quest\xF5es de seguran\xE7a",
-          file: fileName,
-          line: i2 + 1,
-          autoFixAvailable: false
-        });
-      }
-    }
-    return issues;
-  }
-  /**
-   * Analisa cobertura de testes
-   */
-  async analyzeTestCoverage(content, language, fileName) {
-    const issues = [];
-    const isTestFile = /\.(test|spec)\.(js|ts|py|java)$/.test(fileName) || fileName.includes("__tests__") || fileName.includes("/tests/");
-    if (isTestFile) {
-      return issues;
-    }
-    const lines = content.split("\n");
-    let publicFunctions = 0;
-    let hasTests = false;
-    for (const line of lines) {
-      if (this.isPublicFunction(line, language)) {
-        publicFunctions++;
-      }
-    }
-    const baseName = fileName.replace(/\.(js|ts|py|java)$/, "");
-    const testFiles = [
-      `${baseName}.test.${language}`,
-      `${baseName}.spec.${language}`,
-      `${baseName.replace("/src/", "/tests/")}.test.${language}`,
-      `${baseName}/${fileName.split("/").pop()?.replace(/\.(js|ts|py|java)$/, "")}.test.${language}`
-    ];
-    if (publicFunctions > 0 && !hasTests) {
-      issues.push({
-        type: "testing",
-        severity: "medium",
-        message: `Arquivo com ${publicFunctions} fun\xE7\xE3o(\xF5es) p\xFAblica(s) sem testes`,
-        suggestion: "Adicione testes unit\xE1rios para cobrir as fun\xE7\xF5es p\xFAblicas",
-        file: fileName,
-        autoFixAvailable: false
-      });
-    }
-    return issues;
-  }
-  /**
-   * Analisa documentação
-   */
-  async analyzeDocumentation(content, language, fileName) {
-    const issues = [];
-    const lines = content.split("\n");
-    for (let i2 = 0; i2 < lines.length; i2++) {
-      const line = lines[i2].trim();
-      if (this.isPublicFunction(line, language)) {
-        const previousLine = i2 > 0 ? lines[i2 - 1].trim() : "";
-        const hasDoc = previousLine.includes("/**") || previousLine.includes('"""') || previousLine.includes("/*") || line.includes("//");
-        if (!hasDoc) {
-          issues.push({
-            type: "documentation",
-            severity: "low",
-            message: "Fun\xE7\xE3o p\xFAblica sem documenta\xE7\xE3o",
-            suggestion: "Adicione JSDoc/docstring explicando o prop\xF3sito da fun\xE7\xE3o",
-            file: fileName,
-            line: i2 + 1,
-            autoFixAvailable: false
-          });
-        }
-      }
-    }
-    return issues;
-  }
-  /**
-   * Analisa problemas de performance
-   */
-  async analyzePerformance(content, language, fileName) {
-    const issues = [];
-    const lines = content.split("\n");
-    for (let i2 = 0; i2 < lines.length; i2++) {
-      const line = lines[i2].trim();
-      if (line.includes("for") && i2 < lines.length - 10) {
-        let nestedLoops = 0;
-        for (let j = i2 + 1; j < Math.min(i2 + 10, lines.length); j++) {
-          if (lines[j].trim().includes("for") || lines[j].trim().includes("while")) {
-            nestedLoops++;
-          }
-        }
-        if (nestedLoops >= 2) {
-          issues.push({
-            type: "performance",
-            severity: "medium",
-            message: `Loops aninhados detectados (${nestedLoops + 1} n\xEDveis)`,
-            suggestion: "Considere otimizar a l\xF3gica ou usar estruturas de dados mais eficientes",
-            file: fileName,
-            line: i2 + 1,
-            autoFixAvailable: false
-          });
-        }
-      }
-      if (line.includes(".push(") && (line.includes("for") || i2 > 0 && lines[i2 - 1].includes("for"))) {
-        issues.push({
-          type: "performance",
-          severity: "low",
-          message: "Array.push() em loop pode ser ineficiente",
-          suggestion: "Considere usar spread operator ou Array.concat()",
-          file: fileName,
-          line: i2 + 1,
-          autoFixAvailable: false
-        });
-      }
-    }
-    return issues;
-  }
-  /**
-   * Calcula score do review
-   */
-  calculateReviewScore(issues, changedFiles) {
-    let score = 100;
-    let codeQuality = 100;
-    let bestPractices = 100;
-    let testing = 100;
-    let documentation = 100;
-    let security = 100;
-    let performance = 100;
-    const categoryCounts = {
-      code_smell: 0,
-      best_practice: 0,
-      testing: 0,
-      documentation: 0,
-      security: 0,
-      performance: 0
-    };
-    for (const issue of issues) {
-      categoryCounts[issue.type]++;
-      let penalty = 0;
-      switch (issue.severity) {
-        case "critical":
-          penalty = 20;
-          break;
-        case "high":
-          penalty = 10;
-          break;
-        case "medium":
-          penalty = 5;
-          break;
-        case "low":
-          penalty = 2;
-          break;
-      }
-      score -= penalty;
-      switch (issue.type) {
-        case "code_smell":
-          codeQuality -= penalty;
-          break;
-        case "best_practice":
-          bestPractices -= penalty;
-          break;
-        case "testing":
-          testing -= penalty;
-          break;
-        case "documentation":
-          documentation -= penalty;
-          break;
-        case "security":
-          security -= penalty * 1.5;
-          break;
-        case "performance":
-          performance -= penalty;
-          break;
-      }
-    }
-    score = Math.max(0, score);
-    codeQuality = Math.max(0, codeQuality);
-    bestPractices = Math.max(0, bestPractices);
-    testing = Math.max(0, testing);
-    documentation = Math.max(0, documentation);
-    security = Math.max(0, security);
-    performance = Math.max(0, performance);
-    const recommendations = [];
-    if (codeQuality < 80) {
-      recommendations.push("Refatore c\xF3digos complexos e elimine duplica\xE7\xF5es");
-    }
-    if (security < 90) {
-      recommendations.push("Corrija imediatamente os problemas de seguran\xE7a identificados");
-    }
-    if (testing < 70) {
-      recommendations.push("Adicione testes unit\xE1rios para melhor cobertura");
-    }
-    if (documentation < 60) {
-      recommendations.push("Melhore a documenta\xE7\xE3o das fun\xE7\xF5es p\xFAblicas");
-    }
-    return {
-      overallScore: Math.round(score),
-      issues,
-      summary: {
-        totalIssues: issues.length,
-        codeQuality: Math.round(codeQuality),
-        bestPractices: Math.round(bestPractices),
-        testing: Math.round(testing),
-        documentation: Math.round(documentation),
-        security: Math.round(security),
-        performance: Math.round(performance)
-      },
-      recommendations,
-      changedFiles,
-      addedLines: 0,
-      // Seria calculado via Git diff
-      removedLines: 0
-      // Seria calculado via Git diff
-    };
-  }
-  /**
-   * Combina resultados de múltiplos arquivos
-   */
-  combineReviewResults(results) {
-    if (results.length === 0) {
-      return {
-        overallScore: 100,
-        issues: [],
-        summary: {
-          totalIssues: 0,
-          codeQuality: 100,
-          bestPractices: 100,
-          testing: 100,
-          documentation: 100,
-          security: 100,
-          performance: 100
-        },
-        recommendations: [],
-        changedFiles: [],
-        addedLines: 0,
-        removedLines: 0
-      };
-    }
-    const allIssues = results.flatMap((r2) => r2.issues);
-    const allFiles = results.flatMap((r2) => r2.changedFiles);
-    const avgScore = results.reduce((sum, r2) => sum + r2.overallScore, 0) / results.length;
-    const avgCodeQuality = results.reduce((sum, r2) => sum + r2.summary.codeQuality, 0) / results.length;
-    const avgBestPractices = results.reduce((sum, r2) => sum + r2.summary.bestPractices, 0) / results.length;
-    const avgTesting = results.reduce((sum, r2) => sum + r2.summary.testing, 0) / results.length;
-    const avgDocumentation = results.reduce((sum, r2) => sum + r2.summary.documentation, 0) / results.length;
-    const avgSecurity = results.reduce((sum, r2) => sum + r2.summary.security, 0) / results.length;
-    const avgPerformance = results.reduce((sum, r2) => sum + r2.summary.performance, 0) / results.length;
-    const allRecommendations = [...new Set(results.flatMap((r2) => r2.recommendations))];
-    return {
-      overallScore: Math.round(avgScore),
-      issues: allIssues,
-      summary: {
-        totalIssues: allIssues.length,
-        codeQuality: Math.round(avgCodeQuality),
-        bestPractices: Math.round(avgBestPractices),
-        testing: Math.round(avgTesting),
-        documentation: Math.round(avgDocumentation),
-        security: Math.round(avgSecurity),
-        performance: Math.round(avgPerformance)
-      },
-      recommendations: allRecommendations,
-      changedFiles: [...new Set(allFiles)],
-      addedLines: results.reduce((sum, r2) => sum + r2.addedLines, 0),
-      removedLines: results.reduce((sum, r2) => sum + r2.removedLines, 0)
-    };
-  }
-  /**
-   * Exibe resultados do review
-   */
-  async showReviewResults(result) {
-    const severityCount = {
-      critical: result.issues.filter((i2) => i2.severity === "critical").length,
-      high: result.issues.filter((i2) => i2.severity === "high").length,
-      medium: result.issues.filter((i2) => i2.severity === "medium").length,
-      low: result.issues.filter((i2) => i2.severity === "low").length
-    };
-    const scoreColor = result.overallScore >= 90 ? "\u{1F7E2}" : result.overallScore >= 70 ? "\u{1F7E1}" : "\u{1F534}";
-    const message = `**xCopilot Code Review** ${scoreColor}
-
-**Score Geral: ${result.overallScore}/100**
-
-**Resumo:**
-- \u{1F50D} Qualidade: ${result.summary.codeQuality}/100
-- \u{1F4CB} Best Practices: ${result.summary.bestPractices}/100  
-- \u{1F9EA} Testes: ${result.summary.testing}/100
-- \u{1F4DA} Documenta\xE7\xE3o: ${result.summary.documentation}/100
-- \u{1F512} Seguran\xE7a: ${result.summary.security}/100
-- \u26A1 Performance: ${result.summary.performance}/100
-
-**Issues Encontradas: ${result.issues.length}**
-- \u274C Cr\xEDticas: ${severityCount.critical}
-- \u{1F534} Altas: ${severityCount.high}
-- \u{1F7E1} M\xE9dias: ${severityCount.medium}
-- \u{1F7E2} Baixas: ${severityCount.low}
-
-**Arquivos Analisados: ${result.changedFiles.length}**`;
-    const action = await vscode9.window.showInformationMessage(
-      message,
-      "Ver Detalhes",
-      "Exportar Report",
-      "Fechar"
-    );
-    if (action === "Ver Detalhes") {
-      await this.showDetailedResults(result);
-    } else if (action === "Exportar Report") {
-      await this.exportReviewReport(result);
-    }
-  }
-  /**
-   * Exibe resultados detalhados
-   */
-  async showDetailedResults(result) {
-    const document = await vscode9.workspace.openTextDocument({
-      content: this.formatDetailedReport(result),
-      language: "markdown"
-    });
-    await vscode9.window.showTextDocument(document);
-  }
-  /**
-   * Formata report detalhado
-   */
-  formatDetailedReport(result) {
-    let report = `# xCopilot Code Review Report
-
-`;
-    report += `**Score Geral: ${result.overallScore}/100**
-
-`;
-    report += `## \u{1F4CA} Resumo por Categoria
-
-`;
-    report += `| Categoria | Score | Status |
-`;
-    report += `|-----------|-------|--------|
-`;
-    report += `| Qualidade de C\xF3digo | ${result.summary.codeQuality}/100 | ${result.summary.codeQuality >= 80 ? "\u2705" : "\u274C"} |
-`;
-    report += `| Best Practices | ${result.summary.bestPractices}/100 | ${result.summary.bestPractices >= 80 ? "\u2705" : "\u274C"} |
-`;
-    report += `| Testes | ${result.summary.testing}/100 | ${result.summary.testing >= 70 ? "\u2705" : "\u274C"} |
-`;
-    report += `| Documenta\xE7\xE3o | ${result.summary.documentation}/100 | ${result.summary.documentation >= 60 ? "\u2705" : "\u274C"} |
-`;
-    report += `| Seguran\xE7a | ${result.summary.security}/100 | ${result.summary.security >= 90 ? "\u2705" : "\u274C"} |
-`;
-    report += `| Performance | ${result.summary.performance}/100 | ${result.summary.performance >= 80 ? "\u2705" : "\u274C"} |
-
-`;
-    if (result.recommendations.length > 0) {
-      report += `## \u{1F4A1} Recomenda\xE7\xF5es
-
-`;
-      for (const rec of result.recommendations) {
-        report += `- ${rec}
-`;
-      }
-      report += `
-`;
-    }
-    if (result.issues.length > 0) {
-      report += `## \u{1F41B} Issues Encontradas
-
-`;
-      const groupedIssues = result.issues.reduce((groups, issue) => {
-        const key = issue.type;
-        if (!groups[key])
-          groups[key] = [];
-        groups[key].push(issue);
-        return groups;
-      }, {});
-      for (const [type, issues] of Object.entries(groupedIssues)) {
-        const typeLabel = this.getTypeLabel(type);
-        report += `### ${typeLabel}
-
-`;
-        for (const issue of issues) {
-          const severityIcon = this.getSeverityIcon(issue.severity);
-          const location = issue.line ? `:${issue.line}` : "";
-          report += `${severityIcon} **${issue.file}${location}**
-`;
-          report += `- ${issue.message}
-`;
-          report += `- \u{1F4A1} ${issue.suggestion}
-
-`;
-        }
-      }
-    }
-    report += `## \u{1F4C1} Arquivos Analisados
-
-`;
-    for (const file of result.changedFiles) {
-      report += `- ${file}
-`;
-    }
-    return report;
-  }
-  /**
-   * Exporta report para arquivo
-   */
-  async exportReviewReport(result) {
-    const content = this.formatDetailedReport(result);
-    const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-    const fileName = `xcopilot-review-${timestamp}.md`;
-    try {
-      const workspaceFolder = vscode9.workspace.workspaceFolders?.[0];
-      if (workspaceFolder) {
-        const filePath = vscode9.Uri.joinPath(workspaceFolder.uri, fileName);
-        await vscode9.workspace.fs.writeFile(filePath, Buffer.from(content, "utf8"));
-        vscode9.window.showInformationMessage(`Report exportado: ${fileName}`);
-        const action = await vscode9.window.showInformationMessage(
-          "Report salvo com sucesso!",
-          "Abrir Arquivo"
-        );
-        if (action === "Abrir Arquivo") {
-          const document = await vscode9.workspace.openTextDocument(filePath);
-          await vscode9.window.showTextDocument(document);
-        }
-      }
-    } catch (error) {
-      Logger.error("Error exporting review report:", error);
-      vscode9.window.showErrorMessage("Erro ao exportar report: " + error.message);
-    }
-  }
-  /**
-   * Gera summary usando IA
-   */
-  async generateAISummary(gitInfo) {
-    try {
-      const prompt = `Analise as seguintes mudan\xE7as de c\xF3digo e gere um summary de code review:
-
-Branch: ${gitInfo?.currentBranch || "unknown"}
-Arquivos modificados: ${gitInfo?.changedFiles?.length || 0}
-Tem mudan\xE7as n\xE3o commitadas: ${gitInfo?.hasUncommittedChanges ? "Sim" : "N\xE3o"}
-
-Gere um summary destacando:
-- Principais mudan\xE7as identificadas
-- Poss\xEDveis impactos
-- Recomenda\xE7\xF5es de review
-- Score estimado (0-100)`;
-      const response = await this.backendService.sendRequest(prompt, {});
-      return response.response || response.resposta || "Erro ao gerar summary";
-    } catch (error) {
-      Logger.error("Error generating AI summary:", error);
-      return "Erro ao gerar summary com IA";
-    }
-  }
-  /**
-   * Exibe summary
-   */
-  async showSummary(summary) {
-    const document = await vscode9.workspace.openTextDocument({
-      content: `# xCopilot Review Summary
-
-${summary}`,
-      language: "markdown"
-    });
-    await vscode9.window.showTextDocument(document);
-  }
-  // Helper methods
-  async openDocument(filePath) {
-    try {
-      const uri = vscode9.Uri.file(filePath);
-      return await vscode9.workspace.openTextDocument(uri);
-    } catch (error) {
-      Logger.warn("Could not open document:", filePath, error);
-      return null;
-    }
-  }
-  isFunctionStart(line, language) {
-    const patterns = {
-      javascript: /^\s*(function\s+\w+|const\s+\w+\s*=\s*\(|class\s+\w+|\w+\s*\([^)]*\)\s*{)/,
-      typescript: /^\s*(function\s+\w+|const\s+\w+\s*=\s*\(|class\s+\w+|\w+\s*\([^)]*\)\s*{|public\s+\w+|private\s+\w+)/,
-      python: /^\s*(def\s+\w+|class\s+\w+)/,
-      java: /^\s*(public|private|protected).*\w+\s*\([^)]*\)\s*{/,
-      csharp: /^\s*(public|private|protected).*\w+\s*\([^)]*\)\s*{/
-    };
-    const pattern = patterns[language] || patterns.javascript;
-    return pattern.test(line);
-  }
-  isPublicFunction(line, language) {
-    const patterns = {
-      javascript: /^\s*(export\s+)?(function\s+\w+|const\s+\w+\s*=\s*\()/,
-      typescript: /^\s*(export\s+)?(function\s+\w+|const\s+\w+\s*=\s*\(|public\s+\w+)/,
-      python: /^\s*def\s+\w+/,
-      java: /^\s*public.*\w+\s*\([^)]*\)\s*{/,
-      csharp: /^\s*public.*\w+\s*\([^)]*\)\s*{/
-    };
-    const pattern = patterns[language] || patterns.javascript;
-    return pattern.test(line);
-  }
-  isCodeDuplication(lines, currentIndex) {
-    const currentLine = lines[currentIndex].trim();
-    if (currentLine.length < 10)
-      return false;
-    for (let i2 = Math.max(0, currentIndex - 20); i2 < Math.min(lines.length, currentIndex + 20); i2++) {
-      if (i2 !== currentIndex && lines[i2].trim() === currentLine) {
-        return true;
-      }
-    }
-    return false;
-  }
-  getTypeLabel(type) {
-    const labels = {
-      code_smell: "\u{1F9A8} Code Smells",
-      best_practice: "\u{1F4CB} Best Practices",
-      testing: "\u{1F9EA} Testing",
-      documentation: "\u{1F4DA} Documentation",
-      security: "\u{1F512} Security",
-      performance: "\u26A1 Performance"
-    };
-    return labels[type] || type;
-  }
-  getSeverityIcon(severity) {
-    const icons = {
-      critical: "\u274C",
-      high: "\u{1F534}",
-      medium: "\u{1F7E1}",
-      low: "\u{1F7E2}"
-    };
-    return icons[severity] || "\u26AA";
-  }
-};
 
 // src/services/CodeSuggestionsService.ts
 var vscode10 = __toESM(require("vscode"));
@@ -11261,6 +10250,9 @@ ${context}`;
   }
 };
 
+// src/services/RefactoringCodeLensProvider.ts
+var vscode17 = __toESM(require("vscode"));
+
 // src/services/RefactoringService.ts
 var vscode16 = __toESM(require("vscode"));
 var RefactoringService = class _RefactoringService {
@@ -12489,7 +11481,6 @@ ${extracted}
 };
 
 // src/services/RefactoringCodeLensProvider.ts
-var vscode17 = __toESM(require("vscode"));
 var RefactoringCodeLensProvider = class _RefactoringCodeLensProvider {
   constructor() {
     this._onDidChangeCodeLenses = new vscode17.EventEmitter();
@@ -14498,20 +13489,20 @@ var ExtensionManager = class {
       this.chatProvider = new ChatWebviewProvider();
       this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
       this.chatCommands = new ChatCommands(this.chatProvider);
-      this.codeSuggestionsService = CodeSuggestionsService.getInstance?.();
-      this.codeExplanationService = CodeExplanationService.getInstance?.();
-      this.codeReviewService = CodeReviewService.getInstance?.();
-      this.ghostTextService = GhostTextService.getInstance?.();
-      this.inlineCompletionService = InlineCompletionService.getInstance?.();
-      this.multilineGenerationService = MultilineGenerationService.getInstance?.();
-      this.refactoringService = RefactoringService.getInstance?.();
-      this.patternDetectionService = PatternDetectionService.getInstance?.();
-      this.refactoringCodeLensProvider = RefactoringCodeLensProvider.getInstance?.();
-      this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance?.();
+      this.conversationHistoryService = ConversationHistoryService.getInstance();
+      this.codeSuggestionsService = CodeSuggestionsService.getInstance();
+      this.codeExplanationService = CodeExplanationService.getInstance();
+      this.ghostTextService = GhostTextService.getInstance();
+      this.inlineCompletionService = InlineCompletionService.getInstance();
+      this.multilineGenerationService = MultilineGenerationService.getInstance();
+      this.refactoringService = RefactoringService.getInstance();
+      this.patternDetectionService = PatternDetectionService.getInstance();
+      this.refactoringCodeLensProvider = RefactoringCodeLensProvider.getInstance();
+      this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance();
       this.registerWebviewProvider(context);
-      this.chatCommands?.registerCommands?.(context);
-      this.refactoringService?.registerCommands?.(context);
-      this.patternDetectionService?.registerCommands?.(context);
+      this.chatCommands.registerCommands(context);
+      this.refactoringService.registerCommands(context);
+      this.patternDetectionService.registerCommands(context);
       this.registerCodeExplanationCommands(context);
       this.registerCodeProviders(context);
       this.refactoringCodeLensProvider?.register?.(context);
@@ -14551,42 +13542,92 @@ var ExtensionManager = class {
     }
   }
   registerCodeExplanationCommands(context) {
-    const disposables = [];
-    disposables.push(vscode20.commands.registerCommand("xcopilot.explainSelected", () => this.codeExplanationService?.explainSelectedCode()));
-    disposables.push(vscode20.commands.registerCommand("xcopilot.openChat", () => {
-      vscode20.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
-      vscode20.commands.executeCommand("setContext", "xcopilot.chatVisible", true);
-    }));
-    context.subscriptions.push(...disposables);
+    const commands11 = [
+      vscode20.commands.registerCommand("xcopilot.explainSelected", () => {
+        this.codeExplanationService.explainSelectedCode();
+      }),
+      vscode20.commands.registerCommand("xcopilot.explainFunction", () => {
+        this.codeExplanationService.explainCurrentFunction();
+      }),
+      vscode20.commands.registerCommand("xcopilot.explainFile", () => {
+        this.codeExplanationService.explainEntireFile();
+      }),
+      vscode20.commands.registerCommand("xcopilot.acceptGhostText", () => {
+        this.ghostTextService.acceptGhostText();
+      }),
+      vscode20.commands.registerCommand("xcopilot.openChat", () => {
+        vscode20.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+        vscode20.commands.executeCommand("setContext", "xcopilot.chatVisible", true);
+      }),
+      vscode20.commands.registerCommand("xcopilot.closeChat", () => {
+        vscode20.commands.executeCommand("workbench.action.closePanel");
+        vscode20.commands.executeCommand("setContext", "xcopilot.chatVisible", false);
+      }),
+      vscode20.commands.registerCommand("xcopilot.toggleChat", () => {
+        vscode20.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+      }),
+      vscode20.commands.registerCommand("xcopilot.openChatWithCode", () => {
+        const editor = vscode20.window.activeTextEditor;
+        if (editor && !editor.selection.isEmpty) {
+          const selectedCode = editor.document.getText(editor.selection);
+          vscode20.commands.executeCommand("xcopilot.openChat");
+          this.sidebarChatProvider.openWithSelectedCode(selectedCode);
+        } else {
+          vscode20.window.showWarningMessage("Selecione c\xF3digo para explicar no chat");
+        }
+      }),
+      vscode20.commands.registerCommand("xcopilot.toggleInlineCompletion", () => {
+        const currentState = this.inlineCompletionService.isServiceEnabled();
+        this.inlineCompletionService.setEnabled(!currentState);
+        vscode20.window.showInformationMessage(
+          `Inline Completion ${!currentState ? "habilitado" : "desabilitado"}`
+        );
+      }),
+      vscode20.commands.registerCommand("xcopilot.clearCompletionCache", () => {
+        this.inlineCompletionService.clearCache();
+        vscode20.window.showInformationMessage("Cache de completions limpo");
+      }),
+      vscode20.commands.registerCommand("xcopilot.showCompletionStats", () => {
+        const stats = this.inlineCompletionService.getStats();
+        const message = `Estat\xEDsticas de Completion:
+Requisi\xE7\xF5es: ${stats.requestCount}
+Cache Hits: ${stats.cacheHits}
+Taxa de Cache: ${stats.cacheHitRate.toFixed(1)}%
+Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats.utilization.toFixed(1)}%)`;
+        vscode20.window.showInformationMessage(message);
+      })
+    ];
+    context.subscriptions.push(...commands11);
+    Logger.info("\u2705 Code explanation commands registered");
   }
+  /**
+   * Configura monitoramento de mudanças na configuração
+   */
   setupConfigurationWatcher(context) {
-    const watcher = vscode20.workspace.onDidChangeConfiguration((e2) => {
-      if (e2.affectsConfiguration("xcopilot")) {
+    const configWatcher = vscode20.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("xcopilot")) {
+        Logger.info("\u{1F504} Configuration changed, updating services...");
         try {
-          this.inlineCompletionService?.updateFromConfig?.();
-          this.refactoringCodeLensProvider?.refresh?.();
-          this.codeSuggestionsService?.refresh?.();
+          this.inlineCompletionService?.updateFromConfig();
+          this.refactoringCodeLensProvider?.refresh();
           Logger.info("Services updated with new configuration");
         } catch (error) {
           Logger.error("Error updating services configuration:", error);
         }
       }
     });
-    context.subscriptions.push(watcher);
+    context.subscriptions.push(configWatcher);
+    Logger.info("\u2705 Configuration watcher setup completed");
   }
-  deactivate() {
-    try {
-      this.outputChannel.dispose();
-    } catch (err) {
-      Logger.error("Deactivate error", err);
-    }
-  }
+  /**
+   * Inicia análise do workspace
+   */
   startWorkspaceAnalysis() {
     setTimeout(async () => {
       try {
-        await this.workspaceAnalysisService?.analyzeWorkspaceOnStartup?.();
-      } catch (err) {
-        Logger.error("Workspace analysis failed", err);
+        await this.workspaceAnalysisService.analyzeWorkspaceOnStartup();
+      } catch (error) {
+        Logger.error("Error during workspace analysis startup:", error);
       }
     }, 3e3);
   }

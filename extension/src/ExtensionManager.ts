@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { ChatCommands } from './commands';
 import {
     CodeExplanationService,
-    CodeReviewService,
     CodeSuggestionsService,
     ConfigurationService,
     ConversationHistoryService,
@@ -11,29 +10,28 @@ import {
     MultilineGenerationService,
     PatternDetectionService,
     RefactoringCodeLensProvider,
-    RefactoringService,
-    WorkspaceAnalysisService
+    RefactoringService
 } from './services';
+import { WorkspaceAnalysisService } from './services/WorkspaceAnalysisService';
 import { Logger } from './utils';
 import { ChatWebviewProvider, SidebarChatProvider } from './views';
 
 // Single coherent implementation of ExtensionManager (defensive, minimal side-effects)
 export class ExtensionManager {
-    private chatProvider?: ChatWebviewProvider;
-    private sidebarChatProvider?: SidebarChatProvider;
-    private chatCommands?: ChatCommands;
+    private chatProvider!: ChatWebviewProvider;
+    private sidebarChatProvider!: SidebarChatProvider;
+    private chatCommands!: ChatCommands;
     private configService: ConfigurationService;
-    private conversationHistoryService?: ConversationHistoryService;
-    private codeSuggestionsService?: CodeSuggestionsService;
-    private codeExplanationService?: CodeExplanationService;
-    private codeReviewService?: CodeReviewService;
-    private ghostTextService?: GhostTextService;
-    private inlineCompletionService?: InlineCompletionService;
-    private multilineGenerationService?: MultilineGenerationService;
-    private refactoringService?: RefactoringService;
-    private patternDetectionService?: PatternDetectionService;
-    private refactoringCodeLensProvider?: RefactoringCodeLensProvider;
-    private workspaceAnalysisService?: WorkspaceAnalysisService;
+    private conversationHistoryService!: ConversationHistoryService;
+    private codeSuggestionsService!: CodeSuggestionsService;
+    private codeExplanationService!: CodeExplanationService;
+    private ghostTextService!: GhostTextService;
+    private inlineCompletionService!: InlineCompletionService;
+    private multilineGenerationService!: MultilineGenerationService;
+    private refactoringService!: RefactoringService;
+    private patternDetectionService!: PatternDetectionService;
+    private refactoringCodeLensProvider!: RefactoringCodeLensProvider;
+    private workspaceAnalysisService!: WorkspaceAnalysisService;
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
@@ -53,23 +51,25 @@ export class ExtensionManager {
             this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
             this.chatCommands = new ChatCommands(this.chatProvider);
 
-            // Optional service singletons (may be undefined in some builds)
-            this.codeSuggestionsService = CodeSuggestionsService.getInstance?.();
-            this.codeExplanationService = CodeExplanationService.getInstance?.();
-            this.codeReviewService = CodeReviewService.getInstance?.();
-            this.ghostTextService = GhostTextService.getInstance?.();
-            this.inlineCompletionService = InlineCompletionService.getInstance?.();
-            this.multilineGenerationService = MultilineGenerationService.getInstance?.();
-            this.refactoringService = RefactoringService.getInstance?.();
-            this.patternDetectionService = PatternDetectionService.getInstance?.();
-            this.refactoringCodeLensProvider = RefactoringCodeLensProvider.getInstance?.();
-            this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance?.();
+            // Inicializar todos os serviços IA
+            this.conversationHistoryService = ConversationHistoryService.getInstance();
+            this.codeSuggestionsService = CodeSuggestionsService.getInstance();
+            this.codeExplanationService = CodeExplanationService.getInstance();
+            this.ghostTextService = GhostTextService.getInstance();
+            this.inlineCompletionService = InlineCompletionService.getInstance();
+            this.multilineGenerationService = MultilineGenerationService.getInstance();
+            this.refactoringService = RefactoringService.getInstance();
+            this.patternDetectionService = PatternDetectionService.getInstance();
+            this.refactoringCodeLensProvider = RefactoringCodeLensProvider.getInstance();
+            this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance();
 
             // Register components
             this.registerWebviewProvider(context);
-            this.chatCommands?.registerCommands?.(context);
-            this.refactoringService?.registerCommands?.(context);
-            this.patternDetectionService?.registerCommands?.(context);
+
+            // Registrar comandos
+            this.chatCommands.registerCommands(context);
+            this.refactoringService.registerCommands(context);
+            this.patternDetectionService.registerCommands(context);
             this.registerCodeExplanationCommands(context);
             this.registerCodeProviders(context);
 
@@ -113,46 +113,101 @@ export class ExtensionManager {
     }
 
     private registerCodeExplanationCommands(context: vscode.ExtensionContext): void {
-        const disposables: vscode.Disposable[] = [];
-        disposables.push(vscode.commands.registerCommand('xcopilot.explainSelected', () => this.codeExplanationService?.explainSelectedCode()));
-        disposables.push(vscode.commands.registerCommand('xcopilot.openChat', () => {
-            vscode.commands.executeCommand('workbench.view.extension.xcopilot-sidebar');
-            vscode.commands.executeCommand('setContext', 'xcopilot.chatVisible', true);
-        }));
-        context.subscriptions.push(...disposables);
+        const commands = [
+            vscode.commands.registerCommand('xcopilot.explainSelected', () => {
+                this.codeExplanationService.explainSelectedCode();
+            }),
+            vscode.commands.registerCommand('xcopilot.explainFunction', () => {
+                this.codeExplanationService.explainCurrentFunction();
+            }),
+            vscode.commands.registerCommand('xcopilot.explainFile', () => {
+                this.codeExplanationService.explainEntireFile();
+            }),
+            vscode.commands.registerCommand('xcopilot.acceptGhostText', () => {
+                this.ghostTextService.acceptGhostText();
+            }),
+            vscode.commands.registerCommand('xcopilot.openChat', () => {
+                vscode.commands.executeCommand('workbench.view.extension.xcopilot-sidebar');
+                vscode.commands.executeCommand('setContext', 'xcopilot.chatVisible', true);
+            }),
+            vscode.commands.registerCommand('xcopilot.closeChat', () => {
+                vscode.commands.executeCommand('workbench.action.closePanel');
+                vscode.commands.executeCommand('setContext', 'xcopilot.chatVisible', false);
+            }),
+            vscode.commands.registerCommand('xcopilot.toggleChat', () => {
+                vscode.commands.executeCommand('workbench.view.extension.xcopilot-sidebar');
+            }),
+            vscode.commands.registerCommand('xcopilot.openChatWithCode', () => {
+                const editor = vscode.window.activeTextEditor;
+                if (editor && !editor.selection.isEmpty) {
+                    const selectedCode = editor.document.getText(editor.selection);
+                    vscode.commands.executeCommand('xcopilot.openChat');
+                    this.sidebarChatProvider.openWithSelectedCode(selectedCode);
+                } else {
+                    vscode.window.showWarningMessage('Selecione código para explicar no chat');
+                }
+            }),
+            vscode.commands.registerCommand('xcopilot.toggleInlineCompletion', () => {
+                const currentState = this.inlineCompletionService.isServiceEnabled();
+                this.inlineCompletionService.setEnabled(!currentState);
+                vscode.window.showInformationMessage(
+                    `Inline Completion ${!currentState ? 'habilitado' : 'desabilitado'}`
+                );
+            }),
+            vscode.commands.registerCommand('xcopilot.clearCompletionCache', () => {
+                this.inlineCompletionService.clearCache();
+                vscode.window.showInformationMessage('Cache de completions limpo');
+            }),
+            vscode.commands.registerCommand('xcopilot.showCompletionStats', () => {
+                const stats = this.inlineCompletionService.getStats();
+                const message = `Estatísticas de Completion:
+Requisições: ${stats.requestCount}
+Cache Hits: ${stats.cacheHits}
+Taxa de Cache: ${stats.cacheHitRate.toFixed(1)}%
+Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats.utilization.toFixed(1)}%)`;
+                vscode.window.showInformationMessage(message);
+            })
+        ];
+
+        context.subscriptions.push(...commands);
+        Logger.info('✅ Code explanation commands registered');
     }
 
+    /**
+     * Configura monitoramento de mudanças na configuração
+     */
     private setupConfigurationWatcher(context: vscode.ExtensionContext): void {
-        const watcher = vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration('xcopilot')) {
+        // Monitorar mudanças na configuração da extensão
+        const configWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
+            if (event.affectsConfiguration('xcopilot')) {
+                Logger.info('🔄 Configuration changed, updating services...');
+
+        // Atualizar configurações dos serviços
                 try {
-                    this.inlineCompletionService?.updateFromConfig?.();
-                    this.refactoringCodeLensProvider?.refresh?.();
-                    this.codeSuggestionsService?.refresh?.();
+                    this.inlineCompletionService?.updateFromConfig();
+                    this.refactoringCodeLensProvider?.refresh();
                     Logger.info('Services updated with new configuration');
                 } catch (error) {
                     Logger.error('Error updating services configuration:', error);
                 }
             }
         });
-        context.subscriptions.push(watcher);
+
+        context.subscriptions.push(configWatcher);
+        Logger.info('✅ Configuration watcher setup completed');
     }
 
-    deactivate(): void {
-        try {
-            this.outputChannel.dispose();
-        } catch (err) {
-            Logger.error('Deactivate error', err);
-        }
-    }
-
+    /**
+     * Inicia análise do workspace
+     */
     private startWorkspaceAnalysis(): void {
+        // Executar análise em background após um delay
         setTimeout(async () => {
             try {
-                await this.workspaceAnalysisService?.analyzeWorkspaceOnStartup?.();
-            } catch (err) {
-                Logger.error('Workspace analysis failed', err);
+                await this.workspaceAnalysisService.analyzeWorkspaceOnStartup();
+            } catch (error) {
+                Logger.error('Error during workspace analysis startup:', error);
             }
-        }, 3000);
+        }, 3000); // 3 segundos de delay para não interferir na inicialização
     }
 }
