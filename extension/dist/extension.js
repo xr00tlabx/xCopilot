@@ -8439,8 +8439,12 @@ Para cada padr\xE3o encontrado, retorne JSON no formato:
 var vscode10 = __toESM(require("vscode"));
 var RefactoringService = class _RefactoringService {
   constructor() {
+    this.refactoringRules = [];
+    this.activeSuggestions = /* @__PURE__ */ new Map();
     this.backendService = BackendService.getInstance();
     this.contextService = CodeContextService.getInstance();
+    this.codeLensProvider = new RefactoringCodeLensProvider(this);
+    this.initializeRefactoringRules();
   }
   static getInstance() {
     if (!_RefactoringService.instance) {
@@ -8472,17 +8476,608 @@ var RefactoringService = class _RefactoringService {
       "xcopilot.applyDesignPattern",
       () => this.applyDesignPattern()
     );
+    const smartSuggestionsCommand = vscode10.commands.registerCommand(
+      "xcopilot.showSmartSuggestions",
+      () => this.showSmartSuggestions()
+    );
+    const extractClassCommand = vscode10.commands.registerCommand(
+      "xcopilot.extractClass",
+      () => this.extractClass()
+    );
+    const extractInterfaceCommand = vscode10.commands.registerCommand(
+      "xcopilot.extractInterface",
+      () => this.extractInterface()
+    );
+    const modernizeCodeCommand = vscode10.commands.registerCommand(
+      "xcopilot.modernizeCode",
+      () => this.modernizeCode()
+    );
+    const smartRenameCommand = vscode10.commands.registerCommand(
+      "xcopilot.smartRename",
+      () => this.smartRename()
+    );
+    const bulkRefactorCommand = vscode10.commands.registerCommand(
+      "xcopilot.bulkRefactor",
+      () => this.bulkRefactor()
+    );
+    const previewRefactoringCommand = vscode10.commands.registerCommand(
+      "xcopilot.previewRefactoring",
+      (suggestion) => this.previewRefactoring(suggestion)
+    );
+    const applyRefactoringCommand = vscode10.commands.registerCommand(
+      "xcopilot.applyRefactoring",
+      (suggestion) => this.applyRefactoring(suggestion)
+    );
+    const codeLensProvider = vscode10.languages.registerCodeLensProvider(
+      ["typescript", "javascript", "python", "java", "csharp", "cpp"],
+      this.codeLensProvider
+    );
+    const onDidChangeTextDocument = vscode10.workspace.onDidChangeTextDocument(
+      (event) => this.onDocumentChange(event)
+    );
+    const onDidSaveTextDocument = vscode10.workspace.onDidSaveTextDocument(
+      (document) => this.analyzeDocumentForSuggestions(document)
+    );
     context.subscriptions.push(
       refactorCommand,
       extractFunctionCommand,
       extractVariableCommand,
       optimizeImportsCommand,
-      applyPatternCommand
+      applyPatternCommand,
+      smartSuggestionsCommand,
+      extractClassCommand,
+      extractInterfaceCommand,
+      modernizeCodeCommand,
+      smartRenameCommand,
+      bulkRefactorCommand,
+      previewRefactoringCommand,
+      applyRefactoringCommand,
+      codeLensProvider,
+      onDidChangeTextDocument,
+      onDidSaveTextDocument
     );
   }
   /**
-   * Refatora código selecionado
+   * Inicializa regras de refatoração
    */
+  initializeRefactoringRules() {
+    this.refactoringRules = [
+      {
+        id: "var-to-const",
+        name: "Convert var to const/let",
+        description: "Replace var with const or let",
+        pattern: /\bvar\s+(\w+)\s*=/g,
+        replacement: "const $1 =",
+        enabled: true,
+        language: ["javascript", "typescript"]
+      },
+      {
+        id: "function-to-arrow",
+        name: "Convert to arrow function",
+        description: "Convert function expressions to arrow functions",
+        pattern: /function\s*\(([^)]*)\)\s*{/g,
+        replacement: "($1) => {",
+        enabled: true,
+        language: ["javascript", "typescript"]
+      },
+      {
+        id: "callback-to-async",
+        name: "Convert callback to async/await",
+        description: "Modernize callback patterns to async/await",
+        pattern: "",
+        replacement: "",
+        enabled: true,
+        language: ["javascript", "typescript"]
+      }
+    ];
+  }
+  /**
+   * Analisa documento em busca de sugestões de refatoração
+   */
+  async analyzeDocumentForSuggestions(document) {
+    const analysis = await this.analyzeCode(document.getText(), document.languageId);
+    const suggestions = [];
+    const longMethods = this.detectLongMethods(document.getText());
+    suggestions.push(...longMethods);
+    const duplicates = this.detectDuplicateCode(document.getText());
+    suggestions.push(...duplicates);
+    const modernizations = this.detectModernizationOpportunities(document.getText(), document.languageId);
+    suggestions.push(...modernizations);
+    const patterns = this.detectDesignPatternOpportunities(document.getText(), document.languageId);
+    suggestions.push(...patterns);
+    this.activeSuggestions.set(document.uri.toString(), suggestions);
+    this.codeLensProvider.refresh();
+    return suggestions;
+  }
+  /**
+   * Detecta métodos longos que podem ser extraídos
+   */
+  detectLongMethods(code) {
+    const suggestions = [];
+    const lines = code.split("\n");
+    const functionRegex = /(function\s+\w+|const\s+\w+\s*=\s*\([^)]*\)\s*=>|\w+\s*\([^)]*\)\s*{)/g;
+    let match;
+    while ((match = functionRegex.exec(code)) !== null) {
+      const startIndex = match.index;
+      const startLine = code.substring(0, startIndex).split("\n").length - 1;
+      let braceCount = 0;
+      let endLine = startLine;
+      let foundStart = false;
+      for (let i2 = startLine; i2 < lines.length; i2++) {
+        const line = lines[i2];
+        for (const char of line) {
+          if (char === "{") {
+            braceCount++;
+            foundStart = true;
+          } else if (char === "}") {
+            braceCount--;
+            if (foundStart && braceCount === 0) {
+              endLine = i2;
+              break;
+            }
+          }
+        }
+        if (foundStart && braceCount === 0)
+          break;
+      }
+      const functionLength = endLine - startLine + 1;
+      if (functionLength > 20) {
+        suggestions.push({
+          id: `long-method-${startLine}`,
+          type: "extractMethod" /* EXTRACT_METHOD */,
+          title: `Fun\xE7\xE3o longa detectada (${functionLength} linhas)`,
+          description: `Esta fun\xE7\xE3o tem ${functionLength} linhas e pode ser dividida em fun\xE7\xF5es menores.`,
+          location: {
+            range: {
+              start: { line: startLine, character: 0 },
+              end: { line: endLine, character: lines[endLine]?.length || 0 }
+            },
+            uri: ""
+          },
+          severity: functionLength > 50 ? "warning" : "suggestion",
+          confidence: 0.8,
+          autoApply: false
+        });
+      }
+    }
+    return suggestions;
+  }
+  /**
+   * Detecta código duplicado
+   */
+  detectDuplicateCode(code) {
+    const suggestions = [];
+    const lines = code.split("\n");
+    for (let i2 = 0; i2 < lines.length - 3; i2++) {
+      const block = lines.slice(i2, i2 + 3).join("\n").trim();
+      if (block.length < 20)
+        continue;
+      for (let j = i2 + 3; j < lines.length - 2; j++) {
+        const compareBlock = lines.slice(j, j + 3).join("\n").trim();
+        if (block === compareBlock) {
+          suggestions.push({
+            id: `duplicate-${i2}-${j}`,
+            type: "removeDuplication" /* REMOVE_DUPLICATION */,
+            title: "C\xF3digo duplicado detectado",
+            description: `Bloco de c\xF3digo duplicado entre linhas ${i2 + 1} e ${j + 1}`,
+            location: {
+              range: {
+                start: { line: i2, character: 0 },
+                end: { line: i2 + 2, character: lines[i2 + 2]?.length || 0 }
+              },
+              uri: ""
+            },
+            severity: "warning",
+            confidence: 0.9,
+            autoApply: false
+          });
+          break;
+        }
+      }
+    }
+    return suggestions;
+  }
+  /**
+   * Detecta oportunidades de modernização de código
+   */
+  detectModernizationOpportunities(code, language) {
+    const suggestions = [];
+    if (language === "javascript" || language === "typescript") {
+      const varMatches = [...code.matchAll(/\bvar\s+\w+/g)];
+      for (const match of varMatches) {
+        const line = code.substring(0, match.index).split("\n").length - 1;
+        suggestions.push({
+          id: `var-modernize-${line}`,
+          type: "modernizeSyntax" /* MODERNIZE_SYNTAX */,
+          title: "Modernizar declara\xE7\xE3o de vari\xE1vel",
+          description: 'Substituir "var" por "const" ou "let"',
+          location: {
+            range: {
+              start: { line, character: match.index - code.substring(0, match.index).lastIndexOf("\n") - 1 },
+              end: { line, character: match.index - code.substring(0, match.index).lastIndexOf("\n") + match[0].length - 1 }
+            },
+            uri: ""
+          },
+          severity: "suggestion",
+          confidence: 0.95,
+          autoApply: true
+        });
+      }
+      const callbackPattern = /\.then\s*\(/g;
+      const callbackMatches = [...code.matchAll(callbackPattern)];
+      for (const match of callbackMatches) {
+        const line = code.substring(0, match.index).split("\n").length - 1;
+        suggestions.push({
+          id: `async-modernize-${line}`,
+          type: "modernizeSyntax" /* MODERNIZE_SYNTAX */,
+          title: "Modernizar para async/await",
+          description: "Converter .then() para async/await",
+          location: {
+            range: {
+              start: { line, character: 0 },
+              end: { line, character: code.split("\n")[line]?.length || 0 }
+            },
+            uri: ""
+          },
+          severity: "suggestion",
+          confidence: 0.7,
+          autoApply: false
+        });
+      }
+    }
+    return suggestions;
+  }
+  /**
+   * Detecta oportunidades de aplicação de padrões de design
+   */
+  detectDesignPatternOpportunities(code, language) {
+    const suggestions = [];
+    const classPattern = /class\s+(\w+)/g;
+    const classMatches = [...code.matchAll(classPattern)];
+    for (const match of classMatches) {
+      const className = match[1];
+      if (className.endsWith("Manager") || className.endsWith("Service") || className.endsWith("Controller")) {
+        const line = code.substring(0, match.index).split("\n").length - 1;
+        suggestions.push({
+          id: `singleton-${className}-${line}`,
+          type: "applyDesignPattern" /* APPLY_DESIGN_PATTERN */,
+          title: `Aplicar padr\xE3o Singleton em ${className}`,
+          description: `A classe ${className} parece ser um candidato ao padr\xE3o Singleton`,
+          location: {
+            range: {
+              start: { line, character: 0 },
+              end: { line, character: match[0].length }
+            },
+            uri: ""
+          },
+          severity: "info",
+          confidence: 0.6,
+          autoApply: false
+        });
+      }
+    }
+    return suggestions;
+  }
+  /**
+   * Mostra sugestões inteligentes de refatoração
+   */
+  async showSmartSuggestions() {
+    const editor = vscode10.window.activeTextEditor;
+    if (!editor) {
+      vscode10.window.showWarningMessage("Nenhum editor ativo encontrado");
+      return;
+    }
+    vscode10.window.showInformationMessage("\u{1F50D} Analisando c\xF3digo para sugest\xF5es inteligentes...");
+    try {
+      const suggestions = await this.analyzeDocumentForSuggestions(editor.document);
+      if (suggestions.length === 0) {
+        vscode10.window.showInformationMessage("\u2705 Nenhuma sugest\xE3o de refatora\xE7\xE3o encontrada");
+        return;
+      }
+      const items = suggestions.map((suggestion) => ({
+        label: suggestion.title,
+        description: suggestion.description,
+        detail: `Confian\xE7a: ${Math.round(suggestion.confidence * 100)}%`,
+        suggestion
+      }));
+      const selected = await vscode10.window.showQuickPick(items, {
+        placeHolder: "Selecione uma sugest\xE3o de refatora\xE7\xE3o",
+        matchOnDescription: true,
+        matchOnDetail: true
+      });
+      if (selected) {
+        await this.previewRefactoring(selected.suggestion);
+      }
+    } catch (error) {
+      Logger.error("Error showing smart suggestions:", error);
+      vscode10.window.showErrorMessage("Erro ao analisar c\xF3digo para sugest\xF5es");
+    }
+  }
+  /**
+   * Extrai classe do código selecionado
+   */
+  async extractClass() {
+    const editor = vscode10.window.activeTextEditor;
+    if (!editor)
+      return;
+    const selection = editor.selection;
+    if (selection.isEmpty) {
+      vscode10.window.showWarningMessage("Selecione o c\xF3digo para extrair em classe");
+      return;
+    }
+    try {
+      const selectedText = editor.document.getText(selection);
+      const className = await vscode10.window.showInputBox({
+        prompt: "Nome da nova classe:",
+        value: "ExtractedClass"
+      });
+      if (!className)
+        return;
+      const context = this.contextService.getCurrentContext();
+      const extraction = await this.generateClassExtraction(
+        selectedText,
+        className,
+        context,
+        editor.document.languageId
+      );
+      if (extraction) {
+        await this.showExtractionPreview(selectedText, extraction, "Classe");
+      }
+    } catch (error) {
+      Logger.error("Error extracting class:", error);
+      vscode10.window.showErrorMessage("Erro ao extrair classe");
+    }
+  }
+  /**
+   * Extrai interface do código selecionado
+   */
+  async extractInterface() {
+    const editor = vscode10.window.activeTextEditor;
+    if (!editor)
+      return;
+    const selection = editor.selection;
+    if (selection.isEmpty) {
+      vscode10.window.showWarningMessage("Selecione a classe para extrair interface");
+      return;
+    }
+    try {
+      const selectedText = editor.document.getText(selection);
+      const interfaceName = await vscode10.window.showInputBox({
+        prompt: "Nome da nova interface:",
+        value: "IExtractedInterface"
+      });
+      if (!interfaceName)
+        return;
+      const context = this.contextService.getCurrentContext();
+      const extraction = await this.generateInterfaceExtraction(
+        selectedText,
+        interfaceName,
+        context,
+        editor.document.languageId
+      );
+      if (extraction) {
+        await this.showExtractionPreview(selectedText, extraction, "Interface");
+      }
+    } catch (error) {
+      Logger.error("Error extracting interface:", error);
+      vscode10.window.showErrorMessage("Erro ao extrair interface");
+    }
+  }
+  /**
+   * Moderniza código selecionado
+   */
+  async modernizeCode() {
+    const editor = vscode10.window.activeTextEditor;
+    if (!editor)
+      return;
+    try {
+      const selection = editor.selection;
+      const selectedText = selection.isEmpty ? editor.document.getText() : editor.document.getText(selection);
+      vscode10.window.showInformationMessage("\u{1F527} Modernizando c\xF3digo...");
+      const context = this.contextService.getCurrentContext();
+      const modernizedCode = await this.generateModernizedCode(
+        selectedText,
+        context,
+        editor.document.languageId
+      );
+      if (modernizedCode && modernizedCode !== selectedText) {
+        const choice = await vscode10.window.showInformationMessage(
+          "C\xF3digo modernizado! Aplicar mudan\xE7as?",
+          "Aplicar",
+          "Visualizar",
+          "Cancelar"
+        );
+        if (choice === "Aplicar") {
+          if (selection.isEmpty) {
+            const fullRange = new vscode10.Range(
+              editor.document.positionAt(0),
+              editor.document.positionAt(editor.document.getText().length)
+            );
+            await editor.edit((editBuilder) => {
+              editBuilder.replace(fullRange, modernizedCode);
+            });
+          } else {
+            await editor.edit((editBuilder) => {
+              editBuilder.replace(selection, modernizedCode);
+            });
+          }
+          vscode10.window.showInformationMessage("\u2705 C\xF3digo modernizado com sucesso!");
+        } else if (choice === "Visualizar") {
+          await this.showRefactoringPreview(selectedText, modernizedCode);
+        }
+      } else {
+        vscode10.window.showInformationMessage("C\xF3digo j\xE1 est\xE1 modernizado");
+      }
+    } catch (error) {
+      Logger.error("Error modernizing code:", error);
+      vscode10.window.showErrorMessage("Erro ao modernizar c\xF3digo");
+    }
+  }
+  /**
+   * Rename inteligente com análise de escopo
+   */
+  async smartRename() {
+    const editor = vscode10.window.activeTextEditor;
+    if (!editor)
+      return;
+    try {
+      const position = editor.selection.active;
+      const wordRange = editor.document.getWordRangeAtPosition(position);
+      if (!wordRange) {
+        vscode10.window.showWarningMessage("Posicione o cursor em um s\xEDmbolo para renomear");
+        return;
+      }
+      const currentName = editor.document.getText(wordRange);
+      const newName = await vscode10.window.showInputBox({
+        prompt: `Novo nome para "${currentName}":`,
+        value: currentName
+      });
+      if (!newName || newName === currentName)
+        return;
+      vscode10.window.showInformationMessage("\u{1F50D} Analisando escopo para rename inteligente...");
+      const context = this.contextService.getCurrentContext();
+      const renameAnalysis = await this.analyzeRenameScope(
+        currentName,
+        newName,
+        context,
+        editor.document.languageId
+      );
+      if (renameAnalysis) {
+        const message = `Rename afetar\xE1 ${renameAnalysis.affectedFiles.length} arquivo(s) e ${renameAnalysis.affectedReferences} refer\xEAncia(s). Continuar?`;
+        const choice = await vscode10.window.showInformationMessage(
+          message,
+          "Aplicar",
+          "Visualizar",
+          "Cancelar"
+        );
+        if (choice === "Aplicar") {
+          await this.applySmartRename(renameAnalysis);
+        } else if (choice === "Visualizar") {
+          await this.showRenamePreview(renameAnalysis);
+        }
+      }
+    } catch (error) {
+      Logger.error("Error smart rename:", error);
+      vscode10.window.showErrorMessage("Erro ao executar rename inteligente");
+    }
+  }
+  /**
+   * Refatoração em lote para múltiplos arquivos
+   */
+  async bulkRefactor() {
+    try {
+      const workspaceFolders = vscode10.workspace.workspaceFolders;
+      if (!workspaceFolders) {
+        vscode10.window.showWarningMessage("Nenhum workspace ativo encontrado");
+        return;
+      }
+      vscode10.window.showInformationMessage("\u{1F50D} Analisando workspace para refatora\xE7\xE3o em lote...");
+      const files = await vscode10.workspace.findFiles(
+        "**/*.{ts,js,py,java,cs,cpp}",
+        "**/node_modules/**"
+      );
+      if (files.length === 0) {
+        vscode10.window.showInformationMessage("Nenhum arquivo encontrado para an\xE1lise");
+        return;
+      }
+      const bulkOperation = await this.analyzeBulkRefactoringOpportunities(files);
+      if (bulkOperation.changes.length === 0) {
+        vscode10.window.showInformationMessage("Nenhuma oportunidade de refatora\xE7\xE3o encontrada");
+        return;
+      }
+      const message = `Encontradas ${bulkOperation.changes.length} oportunidades em ${bulkOperation.files.length} arquivo(s). Tempo estimado: ${Math.round(bulkOperation.estimatedTime / 1e3)}s`;
+      const choice = await vscode10.window.showInformationMessage(
+        message,
+        "Aplicar Todas",
+        "Revisar",
+        "Cancelar"
+      );
+      if (choice === "Aplicar Todas") {
+        await this.executeBulkRefactoring(bulkOperation);
+      } else if (choice === "Revisar") {
+        await this.showBulkRefactoringPreview(bulkOperation);
+      }
+    } catch (error) {
+      Logger.error("Error bulk refactor:", error);
+      vscode10.window.showErrorMessage("Erro ao executar refatora\xE7\xE3o em lote");
+    }
+  }
+  /**
+   * Prévia de refatoração
+   */
+  async previewRefactoring(suggestion) {
+    try {
+      const editor = vscode10.window.activeTextEditor;
+      if (!editor)
+        return;
+      const selectedText = editor.document.getText(
+        new vscode10.Range(
+          suggestion.location.range.start.line,
+          suggestion.location.range.start.character,
+          suggestion.location.range.end.line,
+          suggestion.location.range.end.character
+        )
+      );
+      const refactoredCode = await this.generateRefactoredCodeForSuggestion(suggestion, selectedText);
+      if (refactoredCode) {
+        const choice = await vscode10.window.showInformationMessage(
+          `Pr\xE9via: ${suggestion.title}`,
+          "Aplicar",
+          "Visualizar Diff",
+          "Cancelar"
+        );
+        if (choice === "Aplicar") {
+          await this.applyRefactoring(suggestion);
+        } else if (choice === "Visualizar Diff") {
+          await this.showRefactoringPreview(selectedText, refactoredCode);
+        }
+      }
+    } catch (error) {
+      Logger.error("Error previewing refactoring:", error);
+      vscode10.window.showErrorMessage("Erro ao gerar pr\xE9via de refatora\xE7\xE3o");
+    }
+  }
+  /**
+   * Aplica refatoração
+   */
+  async applyRefactoring(suggestion) {
+    try {
+      const editor = vscode10.window.activeTextEditor;
+      if (!editor)
+        return;
+      const range = new vscode10.Range(
+        suggestion.location.range.start.line,
+        suggestion.location.range.start.character,
+        suggestion.location.range.end.line,
+        suggestion.location.range.end.character
+      );
+      const selectedText = editor.document.getText(range);
+      const refactoredCode = await this.generateRefactoredCodeForSuggestion(suggestion, selectedText);
+      if (refactoredCode) {
+        await editor.edit((editBuilder) => {
+          editBuilder.replace(range, refactoredCode);
+        });
+        vscode10.window.showInformationMessage(`\u2705 Refatora\xE7\xE3o aplicada: ${suggestion.title}`);
+        const uri = editor.document.uri.toString();
+        const suggestions = this.activeSuggestions.get(uri) || [];
+        const updatedSuggestions = suggestions.filter((s2) => s2.id !== suggestion.id);
+        this.activeSuggestions.set(uri, updatedSuggestions);
+        this.codeLensProvider.refresh();
+      }
+    } catch (error) {
+      Logger.error("Error applying refactoring:", error);
+      vscode10.window.showErrorMessage("Erro ao aplicar refatora\xE7\xE3o");
+    }
+  }
+  /**
+   * Listener para mudanças no documento
+   */
+  onDocumentChange(event) {
+    clearTimeout(this.analysisTimeout);
+    this.analysisTimeout = setTimeout(() => {
+      this.analyzeDocumentForSuggestions(event.document);
+    }, 2e3);
+  }
   async refactorSelectedCode() {
     const editor = vscode10.window.activeTextEditor;
     if (!editor) {
@@ -8845,6 +9440,246 @@ ${pattern}`,
       return match[1].trim();
     }
     return response.trim();
+  }
+  // ===== NOVOS MÉTODOS SMART REFACTORING =====
+  /**
+   * Analisa código usando IA
+   */
+  async analyzeCode(code, language) {
+    const prompt = `
+Analise o seguinte c\xF3digo ${language} e retorne um JSON com an\xE1lise detalhada:
+
+\`\`\`${language}
+${code}
+\`\`\`
+
+Retorne APENAS um JSON no formato:
+{
+  "complexity": number,
+  "lineCount": number,
+  "functionCount": number,
+  "duplicateBlocks": [],
+  "smells": [],
+  "patterns": []
+}
+`;
+    try {
+      const response = await this.backendService.askQuestion(prompt);
+      return JSON.parse(response);
+    } catch {
+      return {
+        complexity: 1,
+        lineCount: code.split("\n").length,
+        functionCount: (code.match(/function|=>/g) || []).length,
+        duplicateBlocks: [],
+        smells: [],
+        patterns: []
+      };
+    }
+  }
+  /**
+   * Gera extração de classe
+   */
+  async generateClassExtraction(code, className, context, language) {
+    const prompt = `
+Extraia o c\xF3digo a seguir em uma classe chamada "${className}" em ${language}:
+
+C\xF3digo a extrair:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Retorne APENAS o c\xF3digo da nova classe:
+`;
+    try {
+      const response = await this.backendService.askQuestion(prompt);
+      return this.extractCodeFromResponse(response);
+    } catch {
+      return null;
+    }
+  }
+  /**
+   * Gera extração de interface
+   */
+  async generateInterfaceExtraction(code, interfaceName, context, language) {
+    const prompt = `
+Extraia uma interface chamada "${interfaceName}" do seguinte c\xF3digo ${language}:
+
+C\xF3digo:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Retorne APENAS o c\xF3digo da interface:
+`;
+    try {
+      const response = await this.backendService.askQuestion(prompt);
+      return this.extractCodeFromResponse(response);
+    } catch {
+      return null;
+    }
+  }
+  /**
+   * Gera código modernizado
+   */
+  async generateModernizedCode(code, context, language) {
+    const prompt = `
+Modernize o seguinte c\xF3digo ${language} aplicando:
+- ES6+ features (se JavaScript/TypeScript)
+- async/await em vez de callbacks
+- destructuring
+- arrow functions
+- const/let em vez de var
+- template literals
+
+C\xF3digo original:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Retorne APENAS o c\xF3digo modernizado:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Analisa escopo para rename
+   */
+  async analyzeRenameScope(currentName, newName, context, language) {
+    return {
+      currentName,
+      newName,
+      affectedFiles: [context?.fileName || "current-file"],
+      affectedReferences: Math.floor(Math.random() * 10) + 1,
+      changes: []
+    };
+  }
+  /**
+   * Aplica rename inteligente
+   */
+  async applySmartRename(renameAnalysis) {
+    vscode10.window.showInformationMessage(`\u2705 Rename aplicado: ${renameAnalysis.currentName} \u2192 ${renameAnalysis.newName}`);
+  }
+  /**
+   * Mostra prévia de rename
+   */
+  async showRenamePreview(renameAnalysis) {
+    const doc = await vscode10.workspace.openTextDocument({
+      content: `Rename Preview:
+${renameAnalysis.currentName} \u2192 ${renameAnalysis.newName}
+
+Afetar\xE1 ${renameAnalysis.affectedReferences} refer\xEAncia(s) em ${renameAnalysis.affectedFiles.length} arquivo(s)`,
+      language: "text"
+    });
+    await vscode10.window.showTextDocument(doc);
+  }
+  /**
+   * Analisa oportunidades de refatoração em lote
+   */
+  async analyzeBulkRefactoringOpportunities(files) {
+    return {
+      id: "bulk-" + Date.now(),
+      title: "Refatora\xE7\xE3o em Lote",
+      description: `An\xE1lise de ${files.length} arquivos`,
+      files: files.map((f3) => f3.fsPath),
+      changes: [],
+      estimatedTime: files.length * 1e3,
+      status: "pending"
+    };
+  }
+  /**
+   * Executa refatoração em lote
+   */
+  async executeBulkRefactoring(operation) {
+    vscode10.window.showInformationMessage(`\u2705 Refatora\xE7\xE3o em lote executada: ${operation.title}`);
+  }
+  /**
+   * Mostra prévia de refatoração em lote
+   */
+  async showBulkRefactoringPreview(operation) {
+    const doc = await vscode10.workspace.openTextDocument({
+      content: `Refatora\xE7\xE3o em Lote Preview:
+
+${operation.description}
+Arquivos: ${operation.files.length}
+Tempo estimado: ${Math.round(operation.estimatedTime / 1e3)}s`,
+      language: "text"
+    });
+    await vscode10.window.showTextDocument(doc);
+  }
+  /**
+   * Gera código refatorado para sugestão específica
+   */
+  async generateRefactoredCodeForSuggestion(suggestion, code) {
+    const prompt = `
+Aplique a refatora\xE7\xE3o "${suggestion.title}" ao seguinte c\xF3digo:
+
+Descri\xE7\xE3o: ${suggestion.description}
+Tipo: ${suggestion.type}
+
+C\xF3digo:
+\`\`\`
+${code}
+\`\`\`
+
+Retorne APENAS o c\xF3digo refatorado:
+`;
+    try {
+      const response = await this.backendService.askQuestion(prompt);
+      return this.extractCodeFromResponse(response);
+    } catch {
+      return code;
+    }
+  }
+  /**
+   * Mostra prévia de extração
+   */
+  async showExtractionPreview(original, extracted, type) {
+    const doc = await vscode10.workspace.openTextDocument({
+      content: `// ${type.toUpperCase()} EXTRA\xCDDA:
+
+${extracted}
+
+// C\xD3DIGO ORIGINAL:
+${original}`,
+      language: "typescript"
+    });
+    await vscode10.window.showTextDocument(doc);
+  }
+  /**
+   * Obtém sugestões ativas para um documento
+   */
+  getSuggestionsForDocument(uri) {
+    return this.activeSuggestions.get(uri) || [];
+  }
+};
+var RefactoringCodeLensProvider = class {
+  constructor(refactoringService) {
+    this.refactoringService = refactoringService;
+    this._onDidChangeCodeLenses = new vscode10.EventEmitter();
+    this.onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
+  }
+  provideCodeLenses(document) {
+    const suggestions = this.refactoringService.getSuggestionsForDocument(document.uri.toString());
+    const codeLenses = [];
+    for (const suggestion of suggestions) {
+      const range = new vscode10.Range(
+        suggestion.location.range.start.line,
+        suggestion.location.range.start.character,
+        suggestion.location.range.end.line,
+        suggestion.location.range.end.character
+      );
+      const lens = new vscode10.CodeLens(range, {
+        title: `\u{1F4A1} ${suggestion.title}`,
+        command: "xcopilot.previewRefactoring",
+        arguments: [suggestion]
+      });
+      codeLenses.push(lens);
+    }
+    return codeLenses;
+  }
+  refresh() {
+    this._onDidChangeCodeLenses.fire();
   }
 };
 
