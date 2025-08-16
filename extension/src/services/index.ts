@@ -7,7 +7,9 @@ export { ConversationHistoryService } from './ConversationHistoryService';
 export { GhostTextService } from './GhostTextService';
 export { GitIntegrationService } from './GitIntegrationService';
 export { InlineCompletionService } from './InlineCompletionService';
+export { MultilineGenerationService } from './MultilineGenerationService';
 export { PatternDetectionService } from './PatternDetectionService';
 export { PromptTemplateService } from './PromptTemplateService';
 export { RefactoringService } from './RefactoringService';
+export { WorkspaceAnalysisService } from './WorkspaceAnalysisService';
 

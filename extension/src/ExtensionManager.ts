@@ -6,8 +6,10 @@ import {
     ConfigurationService,
     GhostTextService,
     InlineCompletionService,
+    MultilineGenerationService,
     PatternDetectionService,
-    RefactoringService
+    RefactoringService,
+    WorkspaceAnalysisService
 } from './services';
 import { Logger } from './utils';
 import { ChatWebviewProvider, SidebarChatProvider } from './views';
@@ -24,8 +26,10 @@ export class ExtensionManager {
     private codeExplanationService!: CodeExplanationService;
     private ghostTextService!: GhostTextService;
     private inlineCompletionService!: InlineCompletionService;
+    private multilineGenerationService!: MultilineGenerationService;
     private refactoringService!: RefactoringService;
     private patternDetectionService!: PatternDetectionService;
+    private workspaceAnalysisService!: WorkspaceAnalysisService;
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
@@ -54,8 +58,10 @@ export class ExtensionManager {
             this.codeExplanationService = CodeExplanationService.getInstance();
             this.ghostTextService = GhostTextService.getInstance();
             this.inlineCompletionService = InlineCompletionService.getInstance();
+            this.multilineGenerationService = MultilineGenerationService.getInstance();
             this.refactoringService = RefactoringService.getInstance();
             this.patternDetectionService = PatternDetectionService.getInstance();
+            this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance();
 
             // Registrar o provider da webview
             this.registerWebviewProvider(context);
@@ -72,6 +78,9 @@ export class ExtensionManager {
 
             // Configurar monitoramento de configuração
             this.setupConfigurationWatcher(context);
+
+            // Iniciar análise do workspace
+            this.startWorkspaceAnalysis();
 
             // Adicionar output channel aos subscriptions
             context.subscriptions.push(this.outputChannel);
@@ -200,5 +209,19 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
 
         context.subscriptions.push(...commands);
         Logger.info('✅ Code explanation commands registered');
+    }
+
+    /**
+     * Inicia análise do workspace
+     */
+    private startWorkspaceAnalysis(): void {
+        // Executar análise em background após um delay
+        setTimeout(async () => {
+            try {
+                await this.workspaceAnalysisService.analyzeWorkspaceOnStartup();
+            } catch (error) {
+                Logger.error('Error during workspace analysis startup:', error);
+            }
+        }, 3000); // 3 segundos de delay para não interferir na inicialização
     }
 }

@@ -31,7 +31,7 @@ app.get('/config', (_req, res) => {
 });
 
 // Endpoint para gerar resposta via OpenAI
-const { gerarResposta, gerarCompletion, OpenAIError } = require('./openai');
+const { gerarResposta, gerarCompletion, gerarMultilineCode, OpenAIError } = require('./openai');
 const { indexSnippet, searchSnippets } = require('./elasticsearch');
 app.post('/openai', async (req, res) => {
     const { prompt } = req.body;
@@ -126,6 +126,42 @@ app.post('/api/completion', async (req, res) => {
             cached: false
         });
         
+    } catch (err) {
+        if (err instanceof OpenAIError) {
+            return res.status(err.status || 500).json({ error: err.message, code: err.code });
+        }
+        res.status(500).json({ error: 'Erro inesperado', detail: err.message });
+    }
+});
+
+// Multi-line code generation endpoint  
+app.post('/api/generate-function', async (req, res) => {
+    const { prompt, type, language, context } = req.body;
+    
+    if (!prompt || !type) {
+        return res.status(400).json({ error: 'Prompt e type são obrigatórios.' });
+    }
+
+    try {
+        const startTime = Date.now();
+        
+        // Use specialized generation function for multi-line code
+        const code = await gerarMultilineCode({
+            prompt,
+            type,
+            language: language || 'javascript',
+            context: context || '',
+            maxTokens: 300, // More tokens for multi-line generation
+            temperature: 0.4 // Slightly higher creativity for complex implementations
+        });
+        
+        const duration = Date.now() - startTime;
+        
+        res.json({ 
+            code,
+            duration,
+            type
+        });
     } catch (err) {
         if (err instanceof OpenAIError) {
             return res.status(err.status || 500).json({ error: err.message, code: err.code });

@@ -124,4 +124,49 @@ export class BackendService {
             throw error;
         }
     }
+
+    /**
+     * Solicita geração de código multi-linha
+     */
+    async requestMultilineGeneration(options: {
+        prompt: string;
+        type: string;
+        language: string;
+        context?: string;
+    }): Promise<{ code: string; duration: number; type: string }> {
+        const backendUrl = this.configService.getBackendUrl();
+        const generationEndpoint = backendUrl.replace('/openai', '/api/generate-function');
+        
+        Logger.debug(`Requesting multiline generation from: ${generationEndpoint}`);
+
+        try {
+            const response = await fetch(generationEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(options)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                Logger.error(`Generation API error: ${response.status} - ${errorText}`);
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+
+            const data = await response.json() as any;
+            Logger.debug(`Code generated in ${data.duration}ms`);
+
+            return {
+                code: data.code || '',
+                duration: data.duration || 0,
+                type: data.type || options.type
+            };
+
+        } catch (error: any) {
+            Logger.error('Multiline generation request error:', error);
+            throw error;
+        }
+    }
 }
