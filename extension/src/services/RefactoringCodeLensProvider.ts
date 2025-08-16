@@ -103,7 +103,7 @@ export class RefactoringCodeLensProvider implements vscode.CodeLensProvider {
                 suggestions.push({
                     range: new vscode.Range(lineNumber, 0, lineNumber, line.length),
                     type: 'extract-method',
-                    description: 'Extrair método - Código duplicado',
+                    description: 'Extract method - Duplicate code',
                     command: 'xcopilot.extractDuplicatedCode',
                     args: [document.uri, new vscode.Range(lineNumber, 0, lineNumber, line.length)]
                 });
