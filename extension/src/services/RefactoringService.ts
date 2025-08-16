@@ -57,12 +57,55 @@ export class RefactoringService {
             () => this.applyDesignPattern()
         );
 
+        // Novos comandos para Smart Refactoring Engine
+        const extractMethodCommand = vscode.commands.registerCommand(
+            'xcopilot.extractMethod',
+            (uri?: vscode.Uri, range?: vscode.Range) => this.extractMethod(uri, range)
+        );
+
+        const extractClassCommand = vscode.commands.registerCommand(
+            'xcopilot.extractClass',
+            (uri?: vscode.Uri, range?: vscode.Range) => this.extractClass(uri, range)
+        );
+
+        const extractDuplicatedCodeCommand = vscode.commands.registerCommand(
+            'xcopilot.extractDuplicatedCode',
+            (uri?: vscode.Uri, range?: vscode.Range) => this.extractDuplicatedCode(uri, range)
+        );
+
+        const convertToAsyncAwaitCommand = vscode.commands.registerCommand(
+            'xcopilot.convertToAsyncAwait',
+            (lineNumber?: number) => this.convertToAsyncAwait(lineNumber)
+        );
+
+        const convertToArrowFunctionCommand = vscode.commands.registerCommand(
+            'xcopilot.convertToArrowFunction',
+            (lineNumber?: number) => this.convertToArrowFunction(lineNumber)
+        );
+
+        const applyDestructuringCommand = vscode.commands.registerCommand(
+            'xcopilot.applyDestructuring',
+            (lineNumber?: number) => this.applyDestructuring(lineNumber)
+        );
+
+        const moveMethodCommand = vscode.commands.registerCommand(
+            'xcopilot.moveMethod',
+            () => this.moveMethod()
+        );
+
         context.subscriptions.push(
             refactorCommand,
             extractFunctionCommand,
             extractVariableCommand,
             optimizeImportsCommand,
-            applyPatternCommand
+            applyPatternCommand,
+            extractMethodCommand,
+            extractClassCommand,
+            extractDuplicatedCodeCommand,
+            convertToAsyncAwaitCommand,
+            convertToArrowFunctionCommand,
+            applyDestructuringCommand,
+            moveMethodCommand
         );
     }
 
@@ -313,8 +356,244 @@ export class RefactoringService {
     }
 
     /**
-     * Gera código refatorado
+     * Extrai método com suporte a CodeLens
      */
+    private async extractMethod(uri?: vscode.Uri, range?: vscode.Range): Promise<void> {
+        let editor = vscode.window.activeTextEditor;
+        let selection = range;
+
+        // Se URI foi fornecida, abrir o documento
+        if (uri) {
+            const document = await vscode.workspace.openTextDocument(uri);
+            editor = await vscode.window.showTextDocument(document);
+        }
+
+        if (!editor) return;
+
+        // Se range foi fornecido, usar como seleção
+        if (range) {
+            editor.selection = new vscode.Selection(range.start, range.end);
+            selection = range;
+        } else {
+            selection = editor.selection;
+        }
+
+        if (!selection || selection.isEmpty) {
+            vscode.window.showWarningMessage('Selecione o código para extrair em método');
+            return;
+        }
+
+        await this.extractFunction(); // Reutilizar lógica existente
+    }
+
+    /**
+     * Extrai classe de função com muitos parâmetros
+     */
+    private async extractClass(uri?: vscode.Uri, range?: vscode.Range): Promise<void> {
+        let editor = vscode.window.activeTextEditor;
+
+        if (uri) {
+            const document = await vscode.workspace.openTextDocument(uri);
+            editor = await vscode.window.showTextDocument(document);
+        }
+
+        if (!editor) return;
+
+        try {
+            const selectedText = range ? 
+                editor.document.getText(range) : 
+                editor.document.getText(editor.selection);
+
+            const className = await vscode.window.showInputBox({
+                prompt: 'Nome da nova classe:',
+                value: 'ExtractedClass'
+            });
+
+            if (!className) return;
+
+            const context = this.contextService.getCurrentContext();
+            const classCode = await this.generateExtractedClass(
+                selectedText,
+                className,
+                context,
+                editor.document.languageId
+            );
+
+            if (classCode) {
+                await this.showExtractClassPreview(selectedText, classCode, className);
+            }
+
+        } catch (error) {
+            Logger.error('Error extracting class:', error);
+            vscode.window.showErrorMessage('Erro ao extrair classe');
+        }
+    }
+
+    /**
+     * Extrai código duplicado
+     */
+    private async extractDuplicatedCode(uri?: vscode.Uri, range?: vscode.Range): Promise<void> {
+        let editor = vscode.window.activeTextEditor;
+
+        if (uri) {
+            const document = await vscode.workspace.openTextDocument(uri);
+            editor = await vscode.window.showTextDocument(document);
+        }
+
+        if (!editor) return;
+
+        try {
+            const targetLine = range ? range.start.line : editor.selection.start.line;
+            const duplicates = await this.findDuplicatedCode(editor.document, targetLine);
+
+            if (duplicates.length < 2) {
+                vscode.window.showInformationMessage('Código duplicado não encontrado suficientemente');
+                return;
+            }
+
+            const functionName = await vscode.window.showInputBox({
+                prompt: 'Nome da função para o código extraído:',
+                value: 'extractedFunction'
+            });
+
+            if (!functionName) return;
+
+            await this.extractDuplicatesIntoFunction(editor, duplicates, functionName);
+
+        } catch (error) {
+            Logger.error('Error extracting duplicated code:', error);
+            vscode.window.showErrorMessage('Erro ao extrair código duplicado');
+        }
+    }
+
+    /**
+     * Converte callback para async/await
+     */
+    private async convertToAsyncAwait(lineNumber?: number): Promise<void> {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return;
+
+        try {
+            const line = lineNumber !== undefined ? 
+                editor.document.lineAt(lineNumber) : 
+                editor.document.lineAt(editor.selection.start.line);
+
+            const convertedCode = await this.generateAsyncAwaitCode(
+                line.text,
+                this.contextService.getCurrentContext(),
+                editor.document.languageId
+            );
+
+            if (convertedCode && convertedCode !== line.text) {
+                await editor.edit(editBuilder => {
+                    editBuilder.replace(line.range, convertedCode);
+                });
+                vscode.window.showInformationMessage('✅ Convertido para async/await!');
+            }
+
+        } catch (error) {
+            Logger.error('Error converting to async/await:', error);
+            vscode.window.showErrorMessage('Erro ao converter para async/await');
+        }
+    }
+
+    /**
+     * Converte para arrow function
+     */
+    private async convertToArrowFunction(lineNumber?: number): Promise<void> {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return;
+
+        try {
+            const line = lineNumber !== undefined ? 
+                editor.document.lineAt(lineNumber) : 
+                editor.document.lineAt(editor.selection.start.line);
+
+            const convertedCode = await this.generateArrowFunction(
+                line.text,
+                this.contextService.getCurrentContext(),
+                editor.document.languageId
+            );
+
+            if (convertedCode && convertedCode !== line.text) {
+                await editor.edit(editBuilder => {
+                    editBuilder.replace(line.range, convertedCode);
+                });
+                vscode.window.showInformationMessage('✅ Convertido para arrow function!');
+            }
+
+        } catch (error) {
+            Logger.error('Error converting to arrow function:', error);
+            vscode.window.showErrorMessage('Erro ao converter para arrow function');
+        }
+    }
+
+    /**
+     * Aplica destructuring
+     */
+    private async applyDestructuring(lineNumber?: number): Promise<void> {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return;
+
+        try {
+            const line = lineNumber !== undefined ? 
+                editor.document.lineAt(lineNumber) : 
+                editor.document.lineAt(editor.selection.start.line);
+
+            const destructuredCode = await this.generateDestructuredCode(
+                line.text,
+                this.contextService.getCurrentContext(),
+                editor.document.languageId
+            );
+
+            if (destructuredCode && destructuredCode !== line.text) {
+                await editor.edit(editBuilder => {
+                    editBuilder.replace(line.range, destructuredCode);
+                });
+                vscode.window.showInformationMessage('✅ Destructuring aplicado!');
+            }
+
+        } catch (error) {
+            Logger.error('Error applying destructuring:', error);
+            vscode.window.showErrorMessage('Erro ao aplicar destructuring');
+        }
+    }
+
+    /**
+     * Move método entre classes
+     */
+    private async moveMethod(): Promise<void> {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) return;
+
+        try {
+            const selection = editor.selection;
+            if (selection.isEmpty) {
+                vscode.window.showWarningMessage('Selecione o método para mover');
+                return;
+            }
+
+            const availableClasses = await this.findAvailableClasses(editor.document);
+            
+            if (availableClasses.length === 0) {
+                vscode.window.showWarningMessage('Nenhuma classe de destino encontrada');
+                return;
+            }
+
+            const targetClass = await vscode.window.showQuickPick(availableClasses, {
+                placeHolder: 'Selecione a classe de destino'
+            });
+
+            if (!targetClass) return;
+
+            const selectedMethod = editor.document.getText(selection);
+            await this.performMethodMove(editor, selection, selectedMethod, targetClass);
+
+        } catch (error) {
+            Logger.error('Error moving method:', error);
+            vscode.window.showErrorMessage('Erro ao mover método');
+        }
+    }
     private async generateRefactoredCode(
         code: string,
         context: any,
@@ -509,5 +788,279 @@ Retorne APENAS o código refatorado com o padrão aplicado:
         }
 
         return response.trim();
+    }
+
+    /**
+     * Gera classe extraída
+     */
+    private async generateExtractedClass(
+        code: string,
+        className: string,
+        context: any,
+        language: string
+    ): Promise<string> {
+        const prompt = `
+Extraia o seguinte código ${language} em uma classe chamada "${className}":
+
+Código a extrair:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Crie uma classe bem estruturada com:
+- Propriedades privadas apropriadas
+- Construtor com parâmetros necessários
+- Métodos públicos bem organizados
+- Aplicação de princípios SOLID
+
+Retorne APENAS o código da classe:
+`;
+
+        const response = await this.backendService.askQuestion(prompt);
+        return this.extractCodeFromResponse(response);
+    }
+
+    /**
+     * Encontra código duplicado
+     */
+    private async findDuplicatedCode(document: vscode.TextDocument, targetLine: number): Promise<vscode.Range[]> {
+        const lines = document.getText().split('\n');
+        const targetCode = lines[targetLine].trim();
+        const duplicates: vscode.Range[] = [];
+
+        if (targetCode.length < 20) return duplicates;
+
+        for (let i = 0; i < lines.length; i++) {
+            if (i !== targetLine && lines[i].trim() === targetCode) {
+                duplicates.push(new vscode.Range(i, 0, i, lines[i].length));
+            }
+        }
+
+        return duplicates;
+    }
+
+    /**
+     * Extrai duplicatas em função
+     */
+    private async extractDuplicatesIntoFunction(
+        editor: vscode.TextEditor,
+        duplicates: vscode.Range[],
+        functionName: string
+    ): Promise<void> {
+        const firstLine = editor.document.getText(duplicates[0]);
+        const context = this.contextService.getCurrentContext();
+        
+        const extraction = await this.generateFunctionExtraction(
+            firstLine,
+            functionName,
+            context,
+            editor.document.languageId
+        );
+
+        if (!extraction) return;
+
+        await editor.edit(editBuilder => {
+            // Substituir todas as duplicatas pela chamada da função
+            for (const duplicate of duplicates) {
+                editBuilder.replace(duplicate, extraction.functionCall);
+            }
+
+            // Inserir definição da função
+            const insertPosition = this.findBestInsertionPoint(editor.document);
+            editBuilder.insert(insertPosition, `\n${extraction.functionDefinition}\n`);
+        });
+
+        vscode.window.showInformationMessage(`✅ ${duplicates.length} duplicatas extraídas para "${functionName}"!`);
+    }
+
+    /**
+     * Gera código async/await
+     */
+    private async generateAsyncAwaitCode(
+        code: string,
+        context: any,
+        language: string
+    ): Promise<string> {
+        const prompt = `
+Converta o seguinte código ${language} de callbacks/promises para async/await:
+
+Código original:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Aplique as melhores práticas:
+- Use async/await ao invés de .then()/.catch()
+- Adicione try/catch para tratamento de erros
+- Mantenha a funcionalidade original
+
+Retorne APENAS o código convertido:
+`;
+
+        const response = await this.backendService.askQuestion(prompt);
+        return this.extractCodeFromResponse(response);
+    }
+
+    /**
+     * Gera arrow function
+     */
+    private async generateArrowFunction(
+        code: string,
+        context: any,
+        language: string
+    ): Promise<string> {
+        const prompt = `
+Converta a seguinte função ${language} para arrow function:
+
+Código original:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Mantenha:
+- Funcionalidade original
+- Parâmetros e tipos
+- Escopo correto
+
+Retorne APENAS o código convertido:
+`;
+
+        const response = await this.backendService.askQuestion(prompt);
+        return this.extractCodeFromResponse(response);
+    }
+
+    /**
+     * Gera código com destructuring
+     */
+    private async generateDestructuredCode(
+        code: string,
+        context: any,
+        language: string
+    ): Promise<string> {
+        const prompt = `
+Aplique destructuring ao seguinte código ${language}:
+
+Código original:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Substitua acessos repetidos a propriedades por destructuring:
+- Object destructuring para propriedades
+- Array destructuring quando apropriado
+- Mantenha funcionalidade original
+
+Retorne APENAS o código com destructuring aplicado:
+`;
+
+        const response = await this.backendService.askQuestion(prompt);
+        return this.extractCodeFromResponse(response);
+    }
+
+    /**
+     * Encontra classes disponíveis no documento
+     */
+    private async findAvailableClasses(document: vscode.TextDocument): Promise<string[]> {
+        const content = document.getText();
+        const classRegex = /class\s+(\w+)/g;
+        const classes: string[] = [];
+        
+        let match;
+        while ((match = classRegex.exec(content)) !== null) {
+            classes.push(match[1]);
+        }
+
+        return classes;
+    }
+
+    /**
+     * Executa a movimentação de método
+     */
+    private async performMethodMove(
+        editor: vscode.TextEditor,
+        methodRange: vscode.Selection,
+        methodCode: string,
+        targetClass: string
+    ): Promise<void> {
+        const choice = await vscode.window.showInformationMessage(
+            `Mover método para a classe "${targetClass}"?`,
+            'Mover',
+            'Cancelar'
+        );
+
+        if (choice !== 'Mover') return;
+
+        // Remover método da posição original
+        await editor.edit(editBuilder => {
+            editBuilder.delete(methodRange);
+        });
+
+        // Encontrar posição da classe de destino e inserir método
+        const classPosition = this.findClassPosition(editor.document, targetClass);
+        if (classPosition) {
+            await editor.edit(editBuilder => {
+                editBuilder.insert(classPosition, `\n    ${methodCode}\n`);
+            });
+        }
+
+        vscode.window.showInformationMessage(`✅ Método movido para "${targetClass}"!`);
+    }
+
+    /**
+     * Encontra posição de uma classe
+     */
+    private findClassPosition(document: vscode.TextDocument, className: string): vscode.Position | null {
+        const content = document.getText();
+        const classRegex = new RegExp(`class\\s+${className}\\s*{`, 'g');
+        const match = classRegex.exec(content);
+        
+        if (!match) return null;
+
+        // Encontrar a última chave antes do fechamento da classe
+        const classStart = match.index + match[0].length;
+        let braceCount = 1;
+        let insertPosition = classStart;
+
+        for (let i = classStart; i < content.length; i++) {
+            if (content[i] === '{') braceCount++;
+            if (content[i] === '}') {
+                braceCount--;
+                if (braceCount === 0) {
+                    insertPosition = i;
+                    break;
+                }
+            }
+        }
+
+        return document.positionAt(insertPosition);
+    }
+
+    /**
+     * Mostra preview da classe extraída
+     */
+    private async showExtractClassPreview(original: string, extracted: string, className: string): Promise<void> {
+        const choice = await vscode.window.showInformationMessage(
+            `Classe "${className}" gerada! Deseja visualizar?`,
+            'Aplicar',
+            'Visualizar',
+            'Cancelar'
+        );
+
+        if (choice === 'Visualizar') {
+            const doc = await vscode.workspace.openTextDocument({
+                content: `// CLASSE EXTRAÍDA: ${className}\n\n${extracted}`,
+                language: 'typescript'
+            });
+            await vscode.window.showTextDocument(doc);
+        } else if (choice === 'Aplicar') {
+            const editor = vscode.window.activeTextEditor;
+            if (editor) {
+                const insertPosition = this.findBestInsertionPoint(editor.document);
+                await editor.edit(editBuilder => {
+                    editBuilder.insert(insertPosition, `\n${extracted}\n`);
+                });
+                vscode.window.showInformationMessage(`✅ Classe "${className}" criada!`);
+            }
+        }
     }
 }

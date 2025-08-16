@@ -173,6 +173,18 @@ export class PatternDetectionService {
                 });
             }
 
+            // Detectar funções com muitos parâmetros
+            if (this.hasTooManyParameters(line)) {
+                patterns.push({
+                    type: 'excessive-parameters',
+                    description: 'Função com muitos parâmetros detectada',
+                    location: new vscode.Range(lineNumber, 0, lineNumber, line.length),
+                    severity: 'warning',
+                    suggestion: 'Considere usar um objeto ou extrair para classe',
+                    autoFixAvailable: true
+                });
+            }
+
             // Detectar complexidade ciclomática alta
             if (this.isHighComplexity(line)) {
                 patterns.push({
@@ -376,7 +388,7 @@ Para cada padrão encontrado, retorne JSON no formato:
             }
         }
 
-        return lineCount > 50; // Função com mais de 50 linhas
+        return lineCount > 20; // Função com mais de 20 linhas
     }
 
     /**
@@ -395,6 +407,27 @@ Para cada padrão encontrado, retorne JSON no formato:
         }
 
         return complexityScore >= 4; // Mais de 4 condições em uma linha
+    }
+
+    /**
+     * Detecta funções com muitos parâmetros
+     */
+    private hasTooManyParameters(line: string): boolean {
+        // Regex para capturar definições de função
+        const functionRegex = /(function\s+\w+\s*\(([^)]*)\)|(\w+)\s*\(([^)]*)\)\s*\{|(\w+)\s*:\s*\(([^)]*)\)\s*=>|(\w+)\s*=\s*\(([^)]*)\)\s*=>)/;
+        const match = line.match(functionRegex);
+        
+        if (!match) return false;
+
+        // Extrair parâmetros da função
+        const params = match[2] || match[4] || match[6] || match[8] || '';
+        
+        if (!params.trim()) return false;
+
+        // Contar parâmetros (separados por vírgula, ignorando espaços)
+        const parameterCount = params.split(',').filter(p => p.trim().length > 0).length;
+        
+        return parameterCount > 5; // Mais de 5 parâmetros
     }
 
     /**

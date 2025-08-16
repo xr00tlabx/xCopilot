@@ -7,7 +7,8 @@ import {
     GhostTextService,
     InlineCompletionService,
     PatternDetectionService,
-    RefactoringService
+    RefactoringService,
+    RefactoringCodeLensProvider
 } from './services';
 import { Logger } from './utils';
 import { ChatWebviewProvider, SidebarChatProvider } from './views';
@@ -26,6 +27,7 @@ export class ExtensionManager {
     private inlineCompletionService!: InlineCompletionService;
     private refactoringService!: RefactoringService;
     private patternDetectionService!: PatternDetectionService;
+    private refactoringCodeLensProvider!: RefactoringCodeLensProvider;
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
@@ -56,6 +58,7 @@ export class ExtensionManager {
             this.inlineCompletionService = InlineCompletionService.getInstance();
             this.refactoringService = RefactoringService.getInstance();
             this.patternDetectionService = PatternDetectionService.getInstance();
+            this.refactoringCodeLensProvider = RefactoringCodeLensProvider.getInstance();
 
             // Registrar o provider da webview
             this.registerWebviewProvider(context);
@@ -67,8 +70,10 @@ export class ExtensionManager {
             this.registerCodeExplanationCommands(context);
 
             // Registrar providers de código
-            // Registrar providers de código
             this.registerCodeProviders(context);
+
+            // Registrar CodeLens provider
+            this.refactoringCodeLensProvider.register(context);
 
             // Configurar monitoramento de configuração
             this.setupConfigurationWatcher(context);
@@ -200,5 +205,21 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
 
         context.subscriptions.push(...commands);
         Logger.info('✅ Code explanation commands registered');
+    }
+
+    /**
+     * Configura o monitoramento de mudanças de configuração
+     */
+    private setupConfigurationWatcher(context: vscode.ExtensionContext): void {
+        const configWatcher = vscode.workspace.onDidChangeConfiguration(event => {
+            if (event.affectsConfiguration('xcopilot')) {
+                Logger.info('🔄 Configuration changed, reloading services...');
+                // Recarregar configurações dos serviços se necessário
+                this.refactoringCodeLensProvider.refresh();
+            }
+        });
+
+        context.subscriptions.push(configWatcher);
+        Logger.info('✅ Configuration watcher setup complete');
     }
 }

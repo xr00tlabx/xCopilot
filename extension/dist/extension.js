@@ -5102,7 +5102,7 @@ __export(extension_exports, {
 module.exports = __toCommonJS(extension_exports);
 
 // src/ExtensionManager.ts
-var vscode12 = __toESM(require("vscode"));
+var vscode13 = __toESM(require("vscode"));
 
 // src/commands/ChatCommands.ts
 var vscode = __toESM(require("vscode"));
@@ -8143,6 +8143,16 @@ var PatternDetectionService = class _PatternDetectionService {
           autoFixAvailable: true
         });
       }
+      if (this.hasTooManyParameters(line)) {
+        patterns.push({
+          type: "excessive-parameters",
+          description: "Fun\xE7\xE3o com muitos par\xE2metros detectada",
+          location: new vscode9.Range(lineNumber, 0, lineNumber, line.length),
+          severity: "warning",
+          suggestion: "Considere usar um objeto ou extrair para classe",
+          autoFixAvailable: true
+        });
+      }
       if (this.isHighComplexity(line)) {
         patterns.push({
           type: "high-complexity",
@@ -8319,7 +8329,7 @@ Para cada padr\xE3o encontrado, retorne JSON no formato:
           break;
       }
     }
-    return lineCount > 50;
+    return lineCount > 20;
   }
   /**
    * Detecta alta complexidade ciclomática
@@ -8335,6 +8345,20 @@ Para cada padr\xE3o encontrado, retorne JSON no formato:
       }
     }
     return complexityScore >= 4;
+  }
+  /**
+   * Detecta funções com muitos parâmetros
+   */
+  hasTooManyParameters(line) {
+    const functionRegex = /(function\s+\w+\s*\(([^)]*)\)|(\w+)\s*\(([^)]*)\)\s*\{|(\w+)\s*:\s*\(([^)]*)\)\s*=>|(\w+)\s*=\s*\(([^)]*)\)\s*=>)/;
+    const match = line.match(functionRegex);
+    if (!match)
+      return false;
+    const params = match[2] || match[4] || match[6] || match[8] || "";
+    if (!params.trim())
+      return false;
+    const parameterCount = params.split(",").filter((p) => p.trim().length > 0).length;
+    return parameterCount > 5;
   }
   /**
    * Encontra magic numbers
@@ -8472,12 +8496,47 @@ var RefactoringService = class _RefactoringService {
       "xcopilot.applyDesignPattern",
       () => this.applyDesignPattern()
     );
+    const extractMethodCommand = vscode10.commands.registerCommand(
+      "xcopilot.extractMethod",
+      (uri, range) => this.extractMethod(uri, range)
+    );
+    const extractClassCommand = vscode10.commands.registerCommand(
+      "xcopilot.extractClass",
+      (uri, range) => this.extractClass(uri, range)
+    );
+    const extractDuplicatedCodeCommand = vscode10.commands.registerCommand(
+      "xcopilot.extractDuplicatedCode",
+      (uri, range) => this.extractDuplicatedCode(uri, range)
+    );
+    const convertToAsyncAwaitCommand = vscode10.commands.registerCommand(
+      "xcopilot.convertToAsyncAwait",
+      (lineNumber) => this.convertToAsyncAwait(lineNumber)
+    );
+    const convertToArrowFunctionCommand = vscode10.commands.registerCommand(
+      "xcopilot.convertToArrowFunction",
+      (lineNumber) => this.convertToArrowFunction(lineNumber)
+    );
+    const applyDestructuringCommand = vscode10.commands.registerCommand(
+      "xcopilot.applyDestructuring",
+      (lineNumber) => this.applyDestructuring(lineNumber)
+    );
+    const moveMethodCommand = vscode10.commands.registerCommand(
+      "xcopilot.moveMethod",
+      () => this.moveMethod()
+    );
     context.subscriptions.push(
       refactorCommand,
       extractFunctionCommand,
       extractVariableCommand,
       optimizeImportsCommand,
-      applyPatternCommand
+      applyPatternCommand,
+      extractMethodCommand,
+      extractClassCommand,
+      extractDuplicatedCodeCommand,
+      convertToAsyncAwaitCommand,
+      convertToArrowFunctionCommand,
+      applyDestructuringCommand,
+      moveMethodCommand
     );
   }
   /**
@@ -8686,8 +8745,198 @@ ${extraction.functionDefinition}
     }
   }
   /**
-   * Gera código refatorado
+   * Extrai método com suporte a CodeLens
    */
+  async extractMethod(uri, range) {
+    let editor = vscode10.window.activeTextEditor;
+    let selection = range;
+    if (uri) {
+      const document = await vscode10.workspace.openTextDocument(uri);
+      editor = await vscode10.window.showTextDocument(document);
+    }
+    if (!editor)
+      return;
+    if (range) {
+      editor.selection = new vscode10.Selection(range.start, range.end);
+      selection = range;
+    } else {
+      selection = editor.selection;
+    }
+    if (!selection || selection.isEmpty) {
+      vscode10.window.showWarningMessage("Selecione o c\xF3digo para extrair em m\xE9todo");
+      return;
+    }
+    await this.extractFunction();
+  }
+  /**
+   * Extrai classe de função com muitos parâmetros
+   */
+  async extractClass(uri, range) {
+    let editor = vscode10.window.activeTextEditor;
+    if (uri) {
+      const document = await vscode10.workspace.openTextDocument(uri);
+      editor = await vscode10.window.showTextDocument(document);
+    }
+    if (!editor)
+      return;
+    try {
+      const selectedText = range ? editor.document.getText(range) : editor.document.getText(editor.selection);
+      const className = await vscode10.window.showInputBox({
+        prompt: "Nome da nova classe:",
+        value: "ExtractedClass"
+      });
+      if (!className)
+        return;
+      const context = this.contextService.getCurrentContext();
+      const classCode = await this.generateExtractedClass(
+        selectedText,
+        className,
+        context,
+        editor.document.languageId
+      );
+      if (classCode) {
+        await this.showExtractClassPreview(selectedText, classCode, className);
+      }
+    } catch (error) {
+      Logger.error("Error extracting class:", error);
+      vscode10.window.showErrorMessage("Erro ao extrair classe");
+    }
+  }
+  /**
+   * Extrai código duplicado
+   */
+  async extractDuplicatedCode(uri, range) {
+    let editor = vscode10.window.activeTextEditor;
+    if (uri) {
+      const document = await vscode10.workspace.openTextDocument(uri);
+      editor = await vscode10.window.showTextDocument(document);
+    }
+    if (!editor)
+      return;
+    try {
+      const targetLine = range ? range.start.line : editor.selection.start.line;
+      const duplicates = await this.findDuplicatedCode(editor.document, targetLine);
+      if (duplicates.length < 2) {
+        vscode10.window.showInformationMessage("C\xF3digo duplicado n\xE3o encontrado suficientemente");
+        return;
+      }
+      const functionName = await vscode10.window.showInputBox({
+        prompt: "Nome da fun\xE7\xE3o para o c\xF3digo extra\xEDdo:",
+        value: "extractedFunction"
+      });
+      if (!functionName)
+        return;
+      await this.extractDuplicatesIntoFunction(editor, duplicates, functionName);
+    } catch (error) {
+      Logger.error("Error extracting duplicated code:", error);
+      vscode10.window.showErrorMessage("Erro ao extrair c\xF3digo duplicado");
+    }
+  }
+  /**
+   * Converte callback para async/await
+   */
+  async convertToAsyncAwait(lineNumber) {
+    const editor = vscode10.window.activeTextEditor;
+    if (!editor)
+      return;
+    try {
+      const line = lineNumber !== void 0 ? editor.document.lineAt(lineNumber) : editor.document.lineAt(editor.selection.start.line);
+      const convertedCode = await this.generateAsyncAwaitCode(
+        line.text,
+        this.contextService.getCurrentContext(),
+        editor.document.languageId
+      );
+      if (convertedCode && convertedCode !== line.text) {
+        await editor.edit((editBuilder) => {
+          editBuilder.replace(line.range, convertedCode);
+        });
+        vscode10.window.showInformationMessage("\u2705 Convertido para async/await!");
+      }
+    } catch (error) {
+      Logger.error("Error converting to async/await:", error);
+      vscode10.window.showErrorMessage("Erro ao converter para async/await");
+    }
+  }
+  /**
+   * Converte para arrow function
+   */
+  async convertToArrowFunction(lineNumber) {
+    const editor = vscode10.window.activeTextEditor;
+    if (!editor)
+      return;
+    try {
+      const line = lineNumber !== void 0 ? editor.document.lineAt(lineNumber) : editor.document.lineAt(editor.selection.start.line);
+      const convertedCode = await this.generateArrowFunction(
+        line.text,
+        this.contextService.getCurrentContext(),
+        editor.document.languageId
+      );
+      if (convertedCode && convertedCode !== line.text) {
+        await editor.edit((editBuilder) => {
+          editBuilder.replace(line.range, convertedCode);
+        });
+        vscode10.window.showInformationMessage("\u2705 Convertido para arrow function!");
+      }
+    } catch (error) {
+      Logger.error("Error converting to arrow function:", error);
+      vscode10.window.showErrorMessage("Erro ao converter para arrow function");
+    }
+  }
+  /**
+   * Aplica destructuring
+   */
+  async applyDestructuring(lineNumber) {
+    const editor = vscode10.window.activeTextEditor;
+    if (!editor)
+      return;
+    try {
+      const line = lineNumber !== void 0 ? editor.document.lineAt(lineNumber) : editor.document.lineAt(editor.selection.start.line);
+      const destructuredCode = await this.generateDestructuredCode(
+        line.text,
+        this.contextService.getCurrentContext(),
+        editor.document.languageId
+      );
+      if (destructuredCode && destructuredCode !== line.text) {
+        await editor.edit((editBuilder) => {
+          editBuilder.replace(line.range, destructuredCode);
+        });
+        vscode10.window.showInformationMessage("\u2705 Destructuring aplicado!");
+      }
+    } catch (error) {
+      Logger.error("Error applying destructuring:", error);
+      vscode10.window.showErrorMessage("Erro ao aplicar destructuring");
+    }
+  }
+  /**
+   * Move método entre classes
+   */
+  async moveMethod() {
+    const editor = vscode10.window.activeTextEditor;
+    if (!editor)
+      return;
+    try {
+      const selection = editor.selection;
+      if (selection.isEmpty) {
+        vscode10.window.showWarningMessage("Selecione o m\xE9todo para mover");
+        return;
+      }
+      const availableClasses = await this.findAvailableClasses(editor.document);
+      if (availableClasses.length === 0) {
+        vscode10.window.showWarningMessage("Nenhuma classe de destino encontrada");
+        return;
+      }
+      const targetClass = await vscode10.window.showQuickPick(availableClasses, {
+        placeHolder: "Selecione a classe de destino"
+      });
+      if (!targetClass)
+        return;
+      const selectedMethod = editor.document.getText(selection);
+      await this.performMethodMove(editor, selection, selectedMethod, targetClass);
+    } catch (error) {
+      Logger.error("Error moving method:", error);
+      vscode10.window.showErrorMessage("Erro ao mover m\xE9todo");
+    }
+  }
   async generateRefactoredCode(code, context, language) {
     const prompt = `
 Refatore o seguinte c\xF3digo ${language} para melhorar:
@@ -8845,6 +9094,462 @@ ${pattern}`,
       return match[1].trim();
     }
     return response.trim();
+  }
+  /**
+   * Gera classe extraída
+   */
+  async generateExtractedClass(code, className, context, language) {
+    const prompt = `
+Extraia o seguinte c\xF3digo ${language} em uma classe chamada "${className}":
+
+C\xF3digo a extrair:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Crie uma classe bem estruturada com:
+- Propriedades privadas apropriadas
+- Construtor com par\xE2metros necess\xE1rios
+- M\xE9todos p\xFAblicos bem organizados
+- Aplica\xE7\xE3o de princ\xEDpios SOLID
+
+Retorne APENAS o c\xF3digo da classe:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Encontra código duplicado
+   */
+  async findDuplicatedCode(document, targetLine) {
+    const lines = document.getText().split("\n");
+    const targetCode = lines[targetLine].trim();
+    const duplicates = [];
+    if (targetCode.length < 20)
+      return duplicates;
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      if (i2 !== targetLine && lines[i2].trim() === targetCode) {
+        duplicates.push(new vscode10.Range(i2, 0, i2, lines[i2].length));
+      }
+    }
+    return duplicates;
+  }
+  /**
+   * Extrai duplicatas em função
+   */
+  async extractDuplicatesIntoFunction(editor, duplicates, functionName) {
+    const firstLine = editor.document.getText(duplicates[0]);
+    const context = this.contextService.getCurrentContext();
+    const extraction = await this.generateFunctionExtraction(
+      firstLine,
+      functionName,
+      context,
+      editor.document.languageId
+    );
+    if (!extraction)
+      return;
+    await editor.edit((editBuilder) => {
+      for (const duplicate of duplicates) {
+        editBuilder.replace(duplicate, extraction.functionCall);
+      }
+      const insertPosition = this.findBestInsertionPoint(editor.document);
+      editBuilder.insert(insertPosition, `
+${extraction.functionDefinition}
+`);
+    });
+    vscode10.window.showInformationMessage(`\u2705 ${duplicates.length} duplicatas extra\xEDdas para "${functionName}"!`);
+  }
+  /**
+   * Gera código async/await
+   */
+  async generateAsyncAwaitCode(code, context, language) {
+    const prompt = `
+Converta o seguinte c\xF3digo ${language} de callbacks/promises para async/await:
+
+C\xF3digo original:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Aplique as melhores pr\xE1ticas:
+- Use async/await ao inv\xE9s de .then()/.catch()
+- Adicione try/catch para tratamento de erros
+- Mantenha a funcionalidade original
+
+Retorne APENAS o c\xF3digo convertido:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Gera arrow function
+   */
+  async generateArrowFunction(code, context, language) {
+    const prompt = `
+Converta a seguinte fun\xE7\xE3o ${language} para arrow function:
+
+C\xF3digo original:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Mantenha:
+- Funcionalidade original
+- Par\xE2metros e tipos
+- Escopo correto
+
+Retorne APENAS o c\xF3digo convertido:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Gera código com destructuring
+   */
+  async generateDestructuredCode(code, context, language) {
+    const prompt = `
+Aplique destructuring ao seguinte c\xF3digo ${language}:
+
+C\xF3digo original:
+\`\`\`${language}
+${code}
+\`\`\`
+
+Substitua acessos repetidos a propriedades por destructuring:
+- Object destructuring para propriedades
+- Array destructuring quando apropriado
+- Mantenha funcionalidade original
+
+Retorne APENAS o c\xF3digo com destructuring aplicado:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Encontra classes disponíveis no documento
+   */
+  async findAvailableClasses(document) {
+    const content = document.getText();
+    const classRegex = /class\s+(\w+)/g;
+    const classes = [];
+    let match;
+    while ((match = classRegex.exec(content)) !== null) {
+      classes.push(match[1]);
+    }
+    return classes;
+  }
+  /**
+   * Executa a movimentação de método
+   */
+  async performMethodMove(editor, methodRange, methodCode, targetClass) {
+    const choice = await vscode10.window.showInformationMessage(
+      `Mover m\xE9todo para a classe "${targetClass}"?`,
+      "Mover",
+      "Cancelar"
+    );
+    if (choice !== "Mover")
+      return;
+    await editor.edit((editBuilder) => {
+      editBuilder.delete(methodRange);
+    });
+    const classPosition = this.findClassPosition(editor.document, targetClass);
+    if (classPosition) {
+      await editor.edit((editBuilder) => {
+        editBuilder.insert(classPosition, `
+    ${methodCode}
+`);
+      });
+    }
+    vscode10.window.showInformationMessage(`\u2705 M\xE9todo movido para "${targetClass}"!`);
+  }
+  /**
+   * Encontra posição de uma classe
+   */
+  findClassPosition(document, className) {
+    const content = document.getText();
+    const classRegex = new RegExp(`class\\s+${className}\\s*{`, "g");
+    const match = classRegex.exec(content);
+    if (!match)
+      return null;
+    const classStart = match.index + match[0].length;
+    let braceCount = 1;
+    let insertPosition = classStart;
+    for (let i2 = classStart; i2 < content.length; i2++) {
+      if (content[i2] === "{")
+        braceCount++;
+      if (content[i2] === "}") {
+        braceCount--;
+        if (braceCount === 0) {
+          insertPosition = i2;
+          break;
+        }
+      }
+    }
+    return document.positionAt(insertPosition);
+  }
+  /**
+   * Mostra preview da classe extraída
+   */
+  async showExtractClassPreview(original, extracted, className) {
+    const choice = await vscode10.window.showInformationMessage(
+      `Classe "${className}" gerada! Deseja visualizar?`,
+      "Aplicar",
+      "Visualizar",
+      "Cancelar"
+    );
+    if (choice === "Visualizar") {
+      const doc = await vscode10.workspace.openTextDocument({
+        content: `// CLASSE EXTRA\xCDDA: ${className}
+
+${extracted}`,
+        language: "typescript"
+      });
+      await vscode10.window.showTextDocument(doc);
+    } else if (choice === "Aplicar") {
+      const editor = vscode10.window.activeTextEditor;
+      if (editor) {
+        const insertPosition = this.findBestInsertionPoint(editor.document);
+        await editor.edit((editBuilder) => {
+          editBuilder.insert(insertPosition, `
+${extracted}
+`);
+        });
+        vscode10.window.showInformationMessage(`\u2705 Classe "${className}" criada!`);
+      }
+    }
+  }
+};
+
+// src/services/RefactoringCodeLensProvider.ts
+var vscode11 = __toESM(require("vscode"));
+var RefactoringCodeLensProvider = class _RefactoringCodeLensProvider {
+  constructor() {
+    this._onDidChangeCodeLenses = new vscode11.EventEmitter();
+    this.onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
+    this.patternDetectionService = PatternDetectionService.getInstance();
+    this.refactoringService = RefactoringService.getInstance();
+  }
+  static getInstance() {
+    if (!_RefactoringCodeLensProvider.instance) {
+      _RefactoringCodeLensProvider.instance = new _RefactoringCodeLensProvider();
+    }
+    return _RefactoringCodeLensProvider.instance;
+  }
+  /**
+   * Fornece CodeLens para o documento
+   */
+  async provideCodeLenses(document, token) {
+    const codeLenses = [];
+    try {
+      const suggestions = await this.detectRefactoringSuggestions(document);
+      for (const suggestion of suggestions) {
+        const codeLens = new vscode11.CodeLens(suggestion.range, {
+          title: `\u{1F4A1} ${suggestion.description}`,
+          command: suggestion.command,
+          arguments: suggestion.args || []
+        });
+        codeLenses.push(codeLens);
+      }
+    } catch (error) {
+      console.error("Error providing code lenses:", error);
+    }
+    return codeLenses;
+  }
+  /**
+   * Detecta sugestões de refatoração para o documento
+   */
+  async detectRefactoringSuggestions(document) {
+    const suggestions = [];
+    const content = document.getText();
+    const lines = content.split("\n");
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2];
+      const lineNumber = i2;
+      if (this.isLongFunction(lines, i2)) {
+        const functionRange = this.getFunctionRange(lines, i2);
+        suggestions.push({
+          range: new vscode11.Range(lineNumber, 0, lineNumber, line.length),
+          type: "extract-method",
+          description: "Extrair fun\xE7\xE3o - Fun\xE7\xE3o muito longa",
+          command: "xcopilot.extractMethod",
+          args: [document.uri, functionRange]
+        });
+      }
+      if (this.hasTooManyParameters(line)) {
+        suggestions.push({
+          range: new vscode11.Range(lineNumber, 0, lineNumber, line.length),
+          type: "extract-class",
+          description: "Extrair para classe - Muitos par\xE2metros",
+          command: "xcopilot.extractClass",
+          args: [document.uri, new vscode11.Range(lineNumber, 0, lineNumber, line.length)]
+        });
+      }
+      if (this.isCodeDuplication(lines, i2)) {
+        suggestions.push({
+          range: new vscode11.Range(lineNumber, 0, lineNumber, line.length),
+          type: "extract-method",
+          description: "Extrair m\xE9todo - C\xF3digo duplicado",
+          command: "xcopilot.extractDuplicatedCode",
+          args: [document.uri, new vscode11.Range(lineNumber, 0, lineNumber, line.length)]
+        });
+      }
+      const modernizationSuggestions = this.detectModernizationOpportunities(line, lineNumber);
+      suggestions.push(...modernizationSuggestions);
+    }
+    return suggestions;
+  }
+  /**
+   * Detecta oportunidades de modernização de código
+   */
+  detectModernizationOpportunities(line, lineNumber) {
+    const suggestions = [];
+    if (this.canConvertToAsyncAwait(line)) {
+      suggestions.push({
+        range: new vscode11.Range(lineNumber, 0, lineNumber, line.length),
+        type: "modernize-async",
+        description: "Converter para async/await",
+        command: "xcopilot.convertToAsyncAwait",
+        args: [lineNumber]
+      });
+    }
+    if (this.canConvertToArrowFunction(line)) {
+      suggestions.push({
+        range: new vscode11.Range(lineNumber, 0, lineNumber, line.length),
+        type: "modernize-arrow",
+        description: "Converter para arrow function",
+        command: "xcopilot.convertToArrowFunction",
+        args: [lineNumber]
+      });
+    }
+    if (this.canUseDestructuring(line)) {
+      suggestions.push({
+        range: new vscode11.Range(lineNumber, 0, lineNumber, line.length),
+        type: "modernize-destructuring",
+        description: "Usar destructuring",
+        command: "xcopilot.applyDestructuring",
+        args: [lineNumber]
+      });
+    }
+    return suggestions;
+  }
+  /**
+   * Verifica se pode converter callback para async/await
+   */
+  canConvertToAsyncAwait(line) {
+    const callbackPatterns = [
+      /\.then\s*\(/,
+      /\.catch\s*\(/,
+      /callback\s*\(/,
+      /function\s*\(\s*err\s*,/
+    ];
+    return callbackPatterns.some((pattern) => pattern.test(line));
+  }
+  /**
+   * Verifica se pode converter para arrow function
+   */
+  canConvertToArrowFunction(line) {
+    return /function\s*\([^)]*\)\s*\{/.test(line) && !line.includes("function ");
+  }
+  /**
+   * Verifica se pode usar destructuring
+   */
+  canUseDestructuring(line) {
+    const objectAccessPattern = /(\w+)\.(\w+).*\1\.(\w+)/;
+    return objectAccessPattern.test(line);
+  }
+  // Métodos auxiliares reutilizados do PatternDetectionService
+  isLongFunction(lines, currentIndex) {
+    const line = lines[currentIndex];
+    const functionRegex = /(function|def|void|int|string|bool|var|let|const)\s+\w+\s*\(/;
+    if (!functionRegex.test(line))
+      return false;
+    let braceCount = 0;
+    let lineCount = 0;
+    let started = false;
+    for (let i2 = currentIndex; i2 < lines.length; i2++) {
+      const currentLine = lines[i2];
+      if (currentLine.includes("{")) {
+        braceCount += (currentLine.match(/\{/g) || []).length;
+        started = true;
+      }
+      if (currentLine.includes("}")) {
+        braceCount -= (currentLine.match(/\}/g) || []).length;
+      }
+      if (started) {
+        lineCount++;
+        if (braceCount === 0)
+          break;
+      }
+    }
+    return lineCount > 20;
+  }
+  hasTooManyParameters(line) {
+    const functionRegex = /(function\s+\w+\s*\(([^)]*)\)|(\w+)\s*\(([^)]*)\)\s*\{|(\w+)\s*:\s*\(([^)]*)\)\s*=>|(\w+)\s*=\s*\(([^)]*)\)\s*=>)/;
+    const match = line.match(functionRegex);
+    if (!match)
+      return false;
+    const params = match[2] || match[4] || match[6] || match[8] || "";
+    if (!params.trim())
+      return false;
+    const parameterCount = params.split(",").filter((p) => p.trim().length > 0).length;
+    return parameterCount > 5;
+  }
+  isCodeDuplication(lines, currentIndex) {
+    const currentLine = lines[currentIndex].trim();
+    if (currentLine.length < 20)
+      return false;
+    let duplicateCount = 0;
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      if (i2 !== currentIndex && lines[i2].trim() === currentLine) {
+        duplicateCount++;
+      }
+    }
+    return duplicateCount >= 2;
+  }
+  getFunctionRange(lines, startIndex) {
+    let braceCount = 0;
+    let endIndex = startIndex;
+    let started = false;
+    for (let i2 = startIndex; i2 < lines.length; i2++) {
+      const currentLine = lines[i2];
+      if (currentLine.includes("{")) {
+        braceCount += (currentLine.match(/\{/g) || []).length;
+        started = true;
+      }
+      if (currentLine.includes("}")) {
+        braceCount -= (currentLine.match(/\}/g) || []).length;
+      }
+      if (started && braceCount === 0) {
+        endIndex = i2;
+        break;
+      }
+    }
+    return new vscode11.Range(startIndex, 0, endIndex, lines[endIndex]?.length || 0);
+  }
+  /**
+   * Atualiza as CodeLenses
+   */
+  refresh() {
+    this._onDidChangeCodeLenses.fire();
+  }
+  /**
+   * Registra o provider
+   */
+  register(context) {
+    const supportedLanguages = [
+      "typescript",
+      "javascript",
+      "python",
+      "java",
+      "csharp"
+    ];
+    for (const language of supportedLanguages) {
+      const disposable = vscode11.languages.registerCodeLensProvider(
+        { language },
+        this
+      );
+      context.subscriptions.push(disposable);
+    }
   }
 };
 
@@ -9536,7 +10241,7 @@ var ChatWebviewProvider = class {
 };
 
 // src/views/SidebarChatProvider.ts
-var vscode11 = __toESM(require("vscode"));
+var vscode12 = __toESM(require("vscode"));
 var SidebarChatProvider = class {
   constructor(context, chatProvider) {
     this.context = context;
@@ -9553,8 +10258,8 @@ var SidebarChatProvider = class {
     this.webview.options = {
       enableScripts: true,
       localResourceRoots: [
-        vscode11.Uri.joinPath(this.context.extensionUri, "media"),
-        vscode11.Uri.joinPath(this.context.extensionUri, "dist")
+        vscode12.Uri.joinPath(this.context.extensionUri, "media"),
+        vscode12.Uri.joinPath(this.context.extensionUri, "dist")
       ]
     };
     this.webview.html = this.getWebviewContent(this.webview);
@@ -10143,7 +10848,7 @@ ${code}
 // src/ExtensionManager.ts
 var ExtensionManager = class {
   constructor() {
-    this.outputChannel = vscode12.window.createOutputChannel("xCopilot");
+    this.outputChannel = vscode13.window.createOutputChannel("xCopilot");
     Logger.init(this.outputChannel);
     this.configService = ConfigurationService.getInstance();
   }
@@ -10162,18 +10867,20 @@ var ExtensionManager = class {
       this.inlineCompletionService = InlineCompletionService.getInstance();
       this.refactoringService = RefactoringService.getInstance();
       this.patternDetectionService = PatternDetectionService.getInstance();
+      this.refactoringCodeLensProvider = RefactoringCodeLensProvider.getInstance();
       this.registerWebviewProvider(context);
       this.chatCommands.registerCommands(context);
       this.refactoringService.registerCommands(context);
       this.patternDetectionService.registerCommands(context);
       this.registerCodeExplanationCommands(context);
       this.registerCodeProviders(context);
+      this.refactoringCodeLensProvider.register(context);
       this.setupConfigurationWatcher(context);
       context.subscriptions.push(this.outputChannel);
       Logger.info("\u2705 Extension activation completed successfully");
     } catch (error) {
       Logger.error("\u274C CRITICAL ERROR during extension activation:", error);
-      vscode12.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+      vscode13.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
   }
   /**
@@ -10181,7 +10888,7 @@ var ExtensionManager = class {
    */
   registerWebviewProvider(context) {
     Logger.info("\u{1F4DD} Registering WebviewViewProvider for xcopilotPanel...");
-    const mainDisposable = vscode12.window.registerWebviewViewProvider(
+    const mainDisposable = vscode13.window.registerWebviewViewProvider(
       "xcopilotPanel",
       this.chatProvider,
       {
@@ -10190,7 +10897,7 @@ var ExtensionManager = class {
         }
       }
     );
-    const sidebarDisposable = vscode12.window.registerWebviewViewProvider(
+    const sidebarDisposable = vscode13.window.registerWebviewViewProvider(
       "xcopilotChat",
       this.sidebarChatProvider,
       {
@@ -10224,62 +10931,75 @@ var ExtensionManager = class {
    */
   registerCodeExplanationCommands(context) {
     const commands5 = [
-      vscode12.commands.registerCommand("xcopilot.explainSelected", () => {
+      vscode13.commands.registerCommand("xcopilot.explainSelected", () => {
         this.codeExplanationService.explainSelectedCode();
       }),
-      vscode12.commands.registerCommand("xcopilot.explainFunction", () => {
+      vscode13.commands.registerCommand("xcopilot.explainFunction", () => {
         this.codeExplanationService.explainCurrentFunction();
       }),
-      vscode12.commands.registerCommand("xcopilot.explainFile", () => {
+      vscode13.commands.registerCommand("xcopilot.explainFile", () => {
         this.codeExplanationService.explainEntireFile();
       }),
-      vscode12.commands.registerCommand("xcopilot.acceptGhostText", () => {
+      vscode13.commands.registerCommand("xcopilot.acceptGhostText", () => {
         this.ghostTextService.acceptGhostText();
       }),
-      vscode12.commands.registerCommand("xcopilot.openChat", () => {
-        vscode12.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
-        vscode12.commands.executeCommand("setContext", "xcopilot.chatVisible", true);
+      vscode13.commands.registerCommand("xcopilot.openChat", () => {
+        vscode13.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+        vscode13.commands.executeCommand("setContext", "xcopilot.chatVisible", true);
       }),
-      vscode12.commands.registerCommand("xcopilot.closeChat", () => {
-        vscode12.commands.executeCommand("workbench.action.closePanel");
-        vscode12.commands.executeCommand("setContext", "xcopilot.chatVisible", false);
+      vscode13.commands.registerCommand("xcopilot.closeChat", () => {
+        vscode13.commands.executeCommand("workbench.action.closePanel");
+        vscode13.commands.executeCommand("setContext", "xcopilot.chatVisible", false);
       }),
-      vscode12.commands.registerCommand("xcopilot.toggleChat", () => {
-        vscode12.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+      vscode13.commands.registerCommand("xcopilot.toggleChat", () => {
+        vscode13.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
       }),
-      vscode12.commands.registerCommand("xcopilot.openChatWithCode", () => {
-        const editor = vscode12.window.activeTextEditor;
+      vscode13.commands.registerCommand("xcopilot.openChatWithCode", () => {
+        const editor = vscode13.window.activeTextEditor;
         if (editor && !editor.selection.isEmpty) {
           const selectedCode = editor.document.getText(editor.selection);
-          vscode12.commands.executeCommand("xcopilot.openChat");
+          vscode13.commands.executeCommand("xcopilot.openChat");
           this.sidebarChatProvider.openWithSelectedCode(selectedCode);
         } else {
-          vscode12.window.showWarningMessage("Selecione c\xF3digo para explicar no chat");
+          vscode13.window.showWarningMessage("Selecione c\xF3digo para explicar no chat");
         }
       }),
-      vscode12.commands.registerCommand("xcopilot.toggleInlineCompletion", () => {
+      vscode13.commands.registerCommand("xcopilot.toggleInlineCompletion", () => {
         const currentState = this.inlineCompletionService.isServiceEnabled();
         this.inlineCompletionService.setEnabled(!currentState);
-        vscode12.window.showInformationMessage(
+        vscode13.window.showInformationMessage(
           `Inline Completion ${!currentState ? "habilitado" : "desabilitado"}`
         );
       }),
-      vscode12.commands.registerCommand("xcopilot.clearCompletionCache", () => {
+      vscode13.commands.registerCommand("xcopilot.clearCompletionCache", () => {
         this.inlineCompletionService.clearCache();
-        vscode12.window.showInformationMessage("Cache de completions limpo");
+        vscode13.window.showInformationMessage("Cache de completions limpo");
       }),
-      vscode12.commands.registerCommand("xcopilot.showCompletionStats", () => {
+      vscode13.commands.registerCommand("xcopilot.showCompletionStats", () => {
         const stats = this.inlineCompletionService.getStats();
         const message = `Estat\xEDsticas de Completion:
 Requisi\xE7\xF5es: ${stats.requestCount}
 Cache Hits: ${stats.cacheHits}
 Taxa de Cache: ${stats.cacheHitRate.toFixed(1)}%
 Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats.utilization.toFixed(1)}%)`;
-        vscode12.window.showInformationMessage(message);
+        vscode13.window.showInformationMessage(message);
       })
     ];
     context.subscriptions.push(...commands5);
     Logger.info("\u2705 Code explanation commands registered");
+  }
+  /**
+   * Configura o monitoramento de mudanças de configuração
+   */
+  setupConfigurationWatcher(context) {
+    const configWatcher = vscode13.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("xcopilot")) {
+        Logger.info("\u{1F504} Configuration changed, reloading services...");
+        this.refactoringCodeLensProvider.refresh();
+      }
+    });
+    context.subscriptions.push(configWatcher);
+    Logger.info("\u2705 Configuration watcher setup complete");
   }
 };
 
