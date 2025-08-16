@@ -14,7 +14,7 @@ const path = require('path');
 // 🔐 Configurações do Bot (use variáveis de ambiente em produção)
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '7635832623:AAHSEq2p5OFDPKLl_kztVh4kCVQQ_pGv8UI';
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID || -1002781291666;
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID || 7335391186;
 
 class TelegramNotifier {
     constructor() {

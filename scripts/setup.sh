@@ -20,13 +20,13 @@ fi
 
 # 📦 Instalar dependências do backend
 echo "📦 Instalando dependências do backend..."
-cd backend
+cd backend || exit
 npm install
 cd ..
 
 # 📦 Instalar dependências da extensão
 echo "📦 Instalando dependências da extensão..."
-cd extension
+cd extension || exit
 npm install
 cd ..
 
