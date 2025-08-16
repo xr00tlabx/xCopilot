@@ -11,3 +11,9 @@ export { PatternDetectionService } from './PatternDetectionService';
 export { PromptTemplateService } from './PromptTemplateService';
 export { RefactoringService } from './RefactoringService';
 
+// Multi-line Code Generation Services
+export { CommentAnalysisService } from './CommentAnalysisService';
+export { CodeGenerationService } from './CodeGenerationService';
+export { ASTAnalysisService } from './ASTAnalysisService';
+export { MultilineCodeGenerationService } from './MultilineCodeGenerationService';
+

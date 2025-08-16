@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ChatCommands } from './commands';
+import { ChatCommands, CodeGenerationCommands } from './commands';
 import {
     CodeExplanationService,
     CodeSuggestionsService,
@@ -7,7 +7,8 @@ import {
     GhostTextService,
     InlineCompletionService,
     PatternDetectionService,
-    RefactoringService
+    RefactoringService,
+    MultilineCodeGenerationService
 } from './services';
 import { Logger } from './utils';
 import { ChatWebviewProvider, SidebarChatProvider } from './views';
@@ -19,6 +20,7 @@ export class ExtensionManager {
     private chatProvider!: ChatWebviewProvider;
     private sidebarChatProvider!: SidebarChatProvider;
     private chatCommands!: ChatCommands;
+    private codeGenerationCommands!: CodeGenerationCommands;
     private configService: ConfigurationService;
     private codeSuggestionsService!: CodeSuggestionsService;
     private codeExplanationService!: CodeExplanationService;
@@ -26,6 +28,7 @@ export class ExtensionManager {
     private inlineCompletionService!: InlineCompletionService;
     private refactoringService!: RefactoringService;
     private patternDetectionService!: PatternDetectionService;
+    private multilineCodeGenerationService!: MultilineCodeGenerationService;
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
@@ -48,6 +51,7 @@ export class ExtensionManager {
             this.chatProvider = new ChatWebviewProvider(context);
             this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
             this.chatCommands = new ChatCommands(this.chatProvider);
+            this.codeGenerationCommands = new CodeGenerationCommands();
 
             // Inicializar todos os serviços IA
             this.codeSuggestionsService = CodeSuggestionsService.getInstance();
@@ -56,12 +60,14 @@ export class ExtensionManager {
             this.inlineCompletionService = InlineCompletionService.getInstance();
             this.refactoringService = RefactoringService.getInstance();
             this.patternDetectionService = PatternDetectionService.getInstance();
+            this.multilineCodeGenerationService = MultilineCodeGenerationService.getInstance();
 
             // Registrar o provider da webview
             this.registerWebviewProvider(context);
 
             // Registrar comandos
             this.chatCommands.registerCommands(context);
+            this.codeGenerationCommands.registerCommands(context);
             this.refactoringService.registerCommands(context);
             this.patternDetectionService.registerCommands(context);
             this.registerCodeExplanationCommands(context);
@@ -200,5 +206,29 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
 
         context.subscriptions.push(...commands);
         Logger.info('✅ Code explanation commands registered');
+    }
+
+    /**
+     * Configura monitoramento de mudanças na configuração
+     */
+    private setupConfigurationWatcher(context: vscode.ExtensionContext): void {
+        const configWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
+            if (event.affectsConfiguration('xcopilot')) {
+                Logger.info('⚙️ Configuration changed, reloading services...');
+                this.configService.reload();
+            }
+        });
+
+        context.subscriptions.push(configWatcher);
+        Logger.info('✅ Configuration watcher setup complete');
+    }
+
+    /**
+     * Desativa a extensão
+     */
+    deactivate(): void {
+        Logger.info('🔄 xCopilot extension is being deactivated...');
+        // Cleanup será feito automaticamente pelos subscriptions
+        Logger.info('✅ Extension deactivated successfully');
     }
 }

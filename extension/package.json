@@ -159,6 +159,30 @@
             {
                 "command": "xcopilot.showCompletionStats",
                 "title": "xCopilot: Mostrar Estatísticas de Completion"
+            },
+            {
+                "command": "xcopilot.generateFromComments",
+                "title": "xCopilot: Gerar Código de Comentários"
+            },
+            {
+                "command": "xcopilot.implementInterfaces",
+                "title": "xCopilot: Implementar Interfaces Vazias"
+            },
+            {
+                "command": "xcopilot.generateFunction",
+                "title": "xCopilot: Gerar Função Completa"
+            },
+            {
+                "command": "xcopilot.generatePattern",
+                "title": "xCopilot: Gerar Código de Padrão"
+            },
+            {
+                "command": "xcopilot.analyzePatterns",
+                "title": "xCopilot: Analisar Padrões do Código"
+            },
+            {
+                "command": "xcopilot.scanTodoComments",
+                "title": "xCopilot: Escanear Comentários TODO/FIXME"
             }
         ],
         "viewsContainers": {
@@ -262,6 +286,22 @@
                 {
                     "command": "xcopilot.toggleChat",
                     "group": "xcopilot-chat@2"
+                },
+                {
+                    "command": "xcopilot.generateFromComments",
+                    "group": "xcopilot-generate@1"
+                },
+                {
+                    "command": "xcopilot.implementInterfaces",
+                    "group": "xcopilot-generate@2"
+                },
+                {
+                    "command": "xcopilot.generateFunction",
+                    "group": "xcopilot-generate@3"
+                },
+                {
+                    "command": "xcopilot.generatePattern",
+                    "group": "xcopilot-generate@4"
                 }
             ],
             "explorer/context": [
@@ -342,6 +382,26 @@
             {
                 "command": "xcopilot.toggleInlineCompletion",
                 "key": "ctrl+alt+i",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.generateFromComments",
+                "key": "ctrl+k ctrl+g",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.implementInterfaces",
+                "key": "ctrl+k ctrl+i",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.generateFunction",
+                "key": "ctrl+k ctrl+n",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.generatePattern",
+                "key": "ctrl+k ctrl+p",
                 "when": "editorTextFocus"
             }
         ]

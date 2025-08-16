@@ -5102,7 +5102,7 @@ __export(extension_exports, {
 module.exports = __toCommonJS(extension_exports);
 
 // src/ExtensionManager.ts
-var vscode12 = __toESM(require("vscode"));
+var vscode15 = __toESM(require("vscode"));
 
 // src/commands/ChatCommands.ts
 var vscode = __toESM(require("vscode"));
@@ -5200,6 +5200,1636 @@ var ChatCommands = class {
       Logger.error("Error opening chat:", error);
       vscode.window.showErrorMessage("Erro ao abrir o chat do xCopilot");
     }
+  }
+};
+
+// src/commands/CodeGenerationCommands.ts
+var vscode4 = __toESM(require("vscode"));
+
+// src/services/MultilineCodeGenerationService.ts
+var vscode3 = __toESM(require("vscode"));
+
+// src/services/CommentAnalysisService.ts
+var vscode2 = __toESM(require("vscode"));
+var CommentAnalysisService = class _CommentAnalysisService {
+  static getInstance() {
+    if (!_CommentAnalysisService.instance) {
+      _CommentAnalysisService.instance = new _CommentAnalysisService();
+    }
+    return _CommentAnalysisService.instance;
+  }
+  /**
+   * Analisa comentários em um documento
+   */
+  analyzeDocument(document) {
+    const analyses = [];
+    const text = document.getText();
+    const lines = text.split("\n");
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2];
+      const analysis = this.analyzeLine(line, i2);
+      if (analysis) {
+        analyses.push(analysis);
+      }
+    }
+    return analyses;
+  }
+  /**
+   * Analisa uma linha específica em busca de comentários
+   */
+  analyzeLine(line, lineNumber) {
+    const trimmedLine = line.trim();
+    const todoMatch = trimmedLine.match(/\/\/\s*TODO:?\s*(.+)/i) || trimmedLine.match(/#\s*TODO:?\s*(.+)/i);
+    if (todoMatch) {
+      return this.createCommentAnalysis("TODO", todoMatch[1], lineNumber);
+    }
+    const fixmeMatch = trimmedLine.match(/\/\/\s*FIXME:?\s*(.+)/i) || trimmedLine.match(/#\s*FIXME:?\s*(.+)/i);
+    if (fixmeMatch) {
+      return this.createCommentAnalysis("FIXME", fixmeMatch[1], lineNumber);
+    }
+    if (trimmedLine.includes("/**") || trimmedLine.includes("*")) {
+      const jsdocMatch = trimmedLine.match(/\*\s*(.+)/);
+      if (jsdocMatch) {
+        return this.createCommentAnalysis("JSDoc", jsdocMatch[1], lineNumber);
+      }
+    }
+    return null;
+  }
+  /**
+   * Extrai intenção e requisitos de um comentário
+   */
+  createCommentAnalysis(type, content, line) {
+    const intention = this.extractIntention(content);
+    const requirements = this.extractRequirements(content);
+    const parameters = this.extractParameters(content);
+    const returnType = this.extractReturnType(content);
+    return {
+      type,
+      content,
+      line,
+      intention,
+      requirements,
+      parameters,
+      returnType
+    };
+  }
+  /**
+   * Extrai a intenção do desenvolvedor do comentário
+   */
+  extractIntention(content) {
+    const cleaned = content.replace(/^(implement|create|add|fix|update|refactor)\s*/i, "").replace(/\s*(function|method|class|interface)\s*/i, "").trim();
+    return cleaned || content;
+  }
+  /**
+   * Extrai requisitos específicos do comentário
+   */
+  extractRequirements(content) {
+    const requirements = [];
+    const listMatches = content.match(/(?:should|must|needs?to|requires?)\s+(.+)/gi);
+    if (listMatches) {
+      listMatches.forEach((match) => {
+        const requirement = match.replace(/^(?:should|must|needs?to|requires?)\s+/i, "").trim();
+        requirements.push(requirement);
+      });
+    }
+    const paramMatches = content.match(/(?:with|using|takes?|accepts?)\s+(.+?)(?:\s+and|\s*$)/gi);
+    if (paramMatches) {
+      paramMatches.forEach((match) => {
+        const requirement = match.replace(/^(?:with|using|takes?|accepts?)\s+/i, "").replace(/\s+and\s*$/, "").trim();
+        requirements.push(requirement);
+      });
+    }
+    return requirements;
+  }
+  /**
+   * Extrai parâmetros mencionados no comentário
+   */
+  extractParameters(content) {
+    const parameters = [];
+    const paramListMatch = content.match(/\(([^)]+)\)/);
+    if (paramListMatch) {
+      const params = paramListMatch[1].split(",").map((p) => p.trim());
+      parameters.push(...params);
+    }
+    const paramMentions = content.match(/(?:parameter|param|argument|arg)\s+(\w+)/gi);
+    if (paramMentions) {
+      paramMentions.forEach((match) => {
+        const param = match.replace(/^(?:parameter|param|argument|arg)\s+/i, "").trim();
+        parameters.push(param);
+      });
+    }
+    return parameters;
+  }
+  /**
+   * Extrai tipo de retorno mencionado no comentário
+   */
+  extractReturnType(content) {
+    const returnMatches = content.match(/(?:returns?|return type)\s+(\w+)/i);
+    if (returnMatches) {
+      return returnMatches[1];
+    }
+    const typeMatches = content.match(/\b(string|number|boolean|object|array|Promise|void)\b/i);
+    if (typeMatches) {
+      return typeMatches[1];
+    }
+    return void 0;
+  }
+  /**
+   * Encontra todos os comentários TODO/FIXME no workspace
+   */
+  async findAllComments(pattern = "**/*.{js,ts,py,java}") {
+    const allComments = [];
+    try {
+      const files = await vscode2.workspace.findFiles(pattern);
+      for (const file of files) {
+        const document = await vscode2.workspace.openTextDocument(file);
+        const comments = this.analyzeDocument(document);
+        allComments.push(...comments);
+      }
+    } catch (error) {
+      console.error("Error finding comments:", error);
+    }
+    return allComments;
+  }
+  /**
+   * Verifica se uma linha contém um comentário de implementação
+   */
+  isImplementationComment(line) {
+    const implementationKeywords = [
+      "TODO",
+      "FIXME",
+      "implement",
+      "create",
+      "add",
+      "generate",
+      "build",
+      "make",
+      "write"
+    ];
+    const lowerLine = line.toLowerCase();
+    return implementationKeywords.some(
+      (keyword) => lowerLine.includes(keyword.toLowerCase())
+    );
+  }
+  /**
+   * Detecta o tipo de implementação necessária baseado no comentário
+   */
+  detectImplementationType(analysis) {
+    const content = analysis.content.toLowerCase();
+    if (content.includes("function") || content.includes("method")) {
+      return "function";
+    }
+    if (content.includes("class")) {
+      return "class";
+    }
+    if (content.includes("interface")) {
+      return "interface";
+    }
+    if (content.includes("variable") || content.includes("constant")) {
+      return "variable";
+    }
+    if (analysis.parameters && analysis.parameters.length > 0) {
+      return "function";
+    }
+    return "unknown";
+  }
+};
+
+// src/services/CodeGenerationService.ts
+var CodeGenerationService = class _CodeGenerationService {
+  constructor() {
+    this.templates = /* @__PURE__ */ new Map();
+  }
+  static getInstance() {
+    if (!_CodeGenerationService.instance) {
+      _CodeGenerationService.instance = new _CodeGenerationService();
+      _CodeGenerationService.instance.initializeTemplates();
+    }
+    return _CodeGenerationService.instance;
+  }
+  /**
+   * Inicializa templates padrão
+   */
+  initializeTemplates() {
+    this.addTemplate({
+      id: "ts-function",
+      name: "TypeScript Function",
+      description: "Gera uma fun\xE7\xE3o TypeScript com tipos",
+      pattern: "Function",
+      language: "typescript",
+      template: `/**
+ * {{description}}
+ * {{#each params}}
+ * @param {{{type}}} {{name}} - {{description}}
+ * {{/each}}
+ * @returns {{{returnType}}} {{returnDescription}}
+ */
+{{#if isAsync}}async {{/if}}function {{name}}({{#each params}}{{name}}{{#if type}}: {{type}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}){{#if returnType}}: {{returnType}}{{/if}} {
+    {{#if isAsync}}
+    // TODO: Implement async logic
+    {{else}}
+    // TODO: Implement function logic
+    {{/if}}
+    {{#if returnType}}
+    {{#unless (eq returnType 'void')}}
+    return {{defaultReturn}};
+    {{/unless}}
+    {{/if}}
+}`,
+      variables: ["name", "description", "params", "returnType", "isAsync", "returnDescription", "defaultReturn"]
+    });
+    this.addTemplate({
+      id: "ts-class",
+      name: "TypeScript Class",
+      description: "Gera uma classe TypeScript completa",
+      pattern: "Class",
+      language: "typescript",
+      template: `/**
+ * {{description}}
+ */
+export class {{name}}{{#if extends}} extends {{extends}}{{/if}}{{#if implements}} implements {{implements}}{{/if}} {
+    {{#each properties}}
+    {{#if isPrivate}}private {{/if}}{{#if isProtected}}protected {{/if}}{{#if isReadonly}}readonly {{/if}}{{name}}{{#if isOptional}}?{{/if}}{{#if type}}: {{type}}{{/if}};
+    {{/each}}
+
+    constructor({{#each constructorParams}}{{name}}{{#if type}}: {{type}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}) {
+        {{#if extends}}
+        super({{#each superParams}}{{name}}{{#unless @last}}, {{/unless}}{{/each}});
+        {{/if}}
+        {{#each constructorParams}}
+        this.{{name}} = {{name}};
+        {{/each}}
+    }
+
+    {{#each methods}}
+    /**
+     * {{description}}
+     */
+    {{#if isPrivate}}private {{/if}}{{#if isProtected}}protected {{/if}}{{#if isAsync}}async {{/if}}{{name}}({{#each params}}{{name}}{{#if type}}: {{type}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}){{#if returnType}}: {{returnType}}{{/if}} {
+        // TODO: Implement {{name}} logic
+        {{#if returnType}}
+        {{#unless (eq returnType 'void')}}
+        return {{defaultReturn}};
+        {{/unless}}
+        {{/if}}
+    }
+
+    {{/each}}
+}`,
+      variables: ["name", "description", "extends", "implements", "properties", "constructorParams", "methods"]
+    });
+    this.addTemplate({
+      id: "ts-interface",
+      name: "TypeScript Interface",
+      description: "Implementa uma interface TypeScript",
+      pattern: "Interface",
+      language: "typescript",
+      template: `/**
+ * Implementation of {{interfaceName}}
+ */
+export class {{className}} implements {{interfaceName}} {
+    {{#each properties}}
+    {{name}}{{#if isOptional}}?{{/if}}: {{type}};
+    {{/each}}
+
+    {{#each methods}}
+    {{#if isAsync}}async {{/if}}{{name}}({{#each params}}{{name}}: {{type}}{{#unless @last}}, {{/unless}}{{/each}}): {{returnType}} {
+        // TODO: Implement {{name}}
+        {{#if returnType}}
+        {{#unless (eq returnType 'void')}}
+        throw new Error('Method {{name}} not implemented');
+        {{/unless}}
+        {{/if}}
+    }
+
+    {{/each}}
+}`,
+      variables: ["className", "interfaceName", "properties", "methods"]
+    });
+    this.addTemplate({
+      id: "ts-crud-service",
+      name: "CRUD Service",
+      description: "Gera um servi\xE7o CRUD completo",
+      pattern: "CRUD",
+      language: "typescript",
+      template: `/**
+ * CRUD Service for {{entityName}}
+ */
+export class {{entityName}}Service {
+    private repository: {{entityName}}Repository;
+
+    constructor(repository: {{entityName}}Repository) {
+        this.repository = repository;
+    }
+
+    /**
+     * Create a new {{entityName}}
+     */
+    async create(data: Create{{entityName}}Dto): Promise<{{entityName}}> {
+        const entity = new {{entityName}}(data);
+        return await this.repository.save(entity);
+    }
+
+    /**
+     * Find {{entityName}} by ID
+     */
+    async findById(id: string): Promise<{{entityName}} | null> {
+        return await this.repository.findById(id);
+    }
+
+    /**
+     * Find all {{entityName}}s
+     */
+    async findAll(options?: FindOptions): Promise<{{entityName}}[]> {
+        return await this.repository.findAll(options);
+    }
+
+    /**
+     * Update {{entityName}}
+     */
+    async update(id: string, data: Update{{entityName}}Dto): Promise<{{entityName}} | null> {
+        const entity = await this.repository.findById(id);
+        if (!entity) {
+            return null;
+        }
+        
+        Object.assign(entity, data);
+        return await this.repository.save(entity);
+    }
+
+    /**
+     * Delete {{entityName}}
+     */
+    async delete(id: string): Promise<boolean> {
+        return await this.repository.delete(id);
+    }
+}`,
+      variables: ["entityName"]
+    });
+    this.addTemplate({
+      id: "ts-repository",
+      name: "Repository Pattern",
+      description: "Gera um reposit\xF3rio com padr\xE3o Repository",
+      pattern: "Repository",
+      language: "typescript",
+      template: `/**
+ * Repository for {{entityName}}
+ */
+export interface {{entityName}}Repository {
+    save(entity: {{entityName}}): Promise<{{entityName}}>;
+    findById(id: string): Promise<{{entityName}} | null>;
+    findAll(options?: FindOptions): Promise<{{entityName}}[]>;
+    delete(id: string): Promise<boolean>;
+}
+
+/**
+ * In-memory implementation of {{entityName}}Repository
+ */
+export class InMemory{{entityName}}Repository implements {{entityName}}Repository {
+    private entities: Map<string, {{entityName}}> = new Map();
+
+    async save(entity: {{entityName}}): Promise<{{entityName}}> {
+        this.entities.set(entity.id, entity);
+        return entity;
+    }
+
+    async findById(id: string): Promise<{{entityName}} | null> {
+        return this.entities.get(id) || null;
+    }
+
+    async findAll(options?: FindOptions): Promise<{{entityName}}[]> {
+        return Array.from(this.entities.values());
+    }
+
+    async delete(id: string): Promise<boolean> {
+        return this.entities.delete(id);
+    }
+}`,
+      variables: ["entityName"]
+    });
+    this.addTemplate({
+      id: "py-function",
+      name: "Python Function",
+      description: "Gera uma fun\xE7\xE3o Python com type hints",
+      pattern: "Function",
+      language: "python",
+      template: `def {{name}}({{#each params}}{{name}}{{#if type}}: {{type}}{{/if}}{{#if defaultValue}} = {{defaultValue}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}){{#if returnType}} -> {{returnType}}{{/if}}:
+    """
+    {{description}}
+    
+    {{#each params}}
+    Args:
+        {{name}} ({{type}}): {{description}}
+    {{/each}}
+    
+    Returns:
+        {{returnType}}: {{returnDescription}}
+    """
+    # TODO: Implement function logic
+    {{#if returnType}}
+    {{#unless (eq returnType 'None')}}
+    pass  # Replace with actual implementation
+    {{/unless}}
+    {{/if}}`,
+      variables: ["name", "description", "params", "returnType", "returnDescription"]
+    });
+    this.addTemplate({
+      id: "py-class",
+      name: "Python Class",
+      description: "Gera uma classe Python completa",
+      pattern: "Class",
+      language: "python",
+      template: `class {{name}}{{#if extends}}({{extends}}){{/if}}:
+    """{{description}}"""
+    
+    def __init__(self{{#each constructorParams}}, {{name}}{{#if type}}: {{type}}{{/if}}{{/each}}):
+        """Initialize {{name}}"""
+        {{#if extends}}
+        super().__init__({{#each superParams}}{{name}}{{#unless @last}}, {{/unless}}{{/each}})
+        {{/if}}
+        {{#each constructorParams}}
+        self.{{name}} = {{name}}
+        {{/each}}
+    
+    {{#each methods}}
+    def {{name}}(self{{#each params}}, {{name}}{{#if type}}: {{type}}{{/if}}{{/each}}){{#if returnType}} -> {{returnType}}{{/if}}:
+        """{{description}}"""
+        # TODO: Implement {{name}} logic
+        {{#if returnType}}
+        {{#unless (eq returnType 'None')}}
+        pass  # Replace with actual implementation
+        {{/unless}}
+        {{/if}}
+    
+    {{/each}}`,
+      variables: ["name", "description", "extends", "constructorParams", "methods"]
+    });
+    this.addTemplate({
+      id: "java-class",
+      name: "Java Class",
+      description: "Gera uma classe Java completa",
+      pattern: "Class",
+      language: "java",
+      template: `/**
+ * {{description}}
+ */
+public class {{name}}{{#if extends}} extends {{extends}}{{/if}}{{#if implements}} implements {{implements}}{{/if}} {
+    
+    {{#each fields}}
+    private {{type}} {{name}};
+    {{/each}}
+    
+    /**
+     * Constructor for {{name}}
+     */
+    public {{name}}({{#each constructorParams}}{{type}} {{name}}{{#unless @last}}, {{/unless}}{{/each}}) {
+        {{#if extends}}
+        super({{#each superParams}}{{name}}{{#unless @last}}, {{/unless}}{{/each}});
+        {{/if}}
+        {{#each constructorParams}}
+        this.{{name}} = {{name}};
+        {{/each}}
+    }
+    
+    {{#each methods}}
+    /**
+     * {{description}}
+     */
+    public {{returnType}} {{name}}({{#each params}}{{type}} {{name}}{{#unless @last}}, {{/unless}}{{/each}}) {
+        // TODO: Implement {{name}} logic
+        {{#if returnType}}
+        {{#unless (eq returnType 'void')}}
+        return null; // Replace with actual implementation
+        {{/unless}}
+        {{/if}}
+    }
+    
+    {{/each}}
+    
+    {{#each fields}}
+    // Getter and Setter for {{name}}
+    public {{type}} get{{capitalize name}}() {
+        return this.{{name}};
+    }
+    
+    public void set{{capitalize name}}({{type}} {{name}}) {
+        this.{{name}} = {{name}};
+    }
+    
+    {{/each}}
+}`,
+      variables: ["name", "description", "extends", "implements", "fields", "constructorParams", "methods"]
+    });
+  }
+  /**
+   * Adiciona um template
+   */
+  addTemplate(template) {
+    this.templates.set(template.id, template);
+  }
+  /**
+   * Obtém um template por ID
+   */
+  getTemplate(id) {
+    return this.templates.get(id);
+  }
+  /**
+   * Lista templates por linguagem
+   */
+  getTemplatesByLanguage(language) {
+    return Array.from(this.templates.values()).filter((t2) => t2.language === language);
+  }
+  /**
+   * Lista templates por padrão
+   */
+  getTemplatesByPattern(pattern) {
+    return Array.from(this.templates.values()).filter((t2) => t2.pattern === pattern);
+  }
+  /**
+   * Gera código baseado em um comentário analisado
+   */
+  async generateFromComment(analysis, language) {
+    try {
+      const implementationType = this.detectImplementationType(analysis);
+      const template = this.selectBestTemplate(implementationType, language);
+      if (!template) {
+        return {
+          success: false,
+          code: "",
+          description: "Template not found",
+          language,
+          error: `No template found for ${implementationType} in ${language}`
+        };
+      }
+      const variables = this.extractVariablesFromComment(analysis);
+      const code = this.renderTemplate(template, variables);
+      return {
+        success: true,
+        code,
+        description: `Generated ${implementationType} from comment: ${analysis.intention}`,
+        language,
+        insertPosition: {
+          line: analysis.line + 1,
+          character: 0
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: "",
+        description: "Generation failed",
+        language,
+        error: error instanceof Error ? error.message : "Unknown error"
+      };
+    }
+  }
+  /**
+   * Gera código baseado em uma solicitação específica
+   */
+  async generateCode(request) {
+    try {
+      const template = request.template || this.selectBestTemplate(request.type, request.language);
+      if (!template) {
+        return {
+          success: false,
+          code: "",
+          description: "Template not found",
+          language: request.language,
+          error: `No template found for ${request.type} in ${request.language}`
+        };
+      }
+      const variables = this.extractVariablesFromRequest(request);
+      const code = this.renderTemplate(template, variables);
+      return {
+        success: true,
+        code,
+        description: `Generated ${request.type} code`,
+        language: request.language
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: "",
+        description: "Generation failed",
+        language: request.language,
+        error: error instanceof Error ? error.message : "Unknown error"
+      };
+    }
+  }
+  /**
+   * Detecta o tipo de implementação baseado no comentário
+   */
+  detectImplementationType(analysis) {
+    const content = analysis.content.toLowerCase();
+    if (content.includes("function") || content.includes("method")) {
+      return "Function";
+    }
+    if (content.includes("class")) {
+      return "Class";
+    }
+    if (content.includes("interface")) {
+      return "Interface";
+    }
+    if (content.includes("crud") || content.includes("service")) {
+      return "CRUD";
+    }
+    if (content.includes("repository")) {
+      return "Repository";
+    }
+    if (analysis.parameters && analysis.parameters.length > 0) {
+      return "Function";
+    }
+    return "Function";
+  }
+  /**
+   * Seleciona o melhor template baseado no tipo e linguagem
+   */
+  selectBestTemplate(type, language) {
+    const templates = this.getTemplatesByLanguage(language);
+    let template = templates.find((t2) => t2.pattern === type);
+    if (!template) {
+      const typeKey = `${language.substring(0, 2)}-${type.toLowerCase()}`;
+      template = this.templates.get(typeKey);
+    }
+    if (!template) {
+      template = templates.find((t2) => t2.pattern === "Function");
+    }
+    return template;
+  }
+  /**
+   * Extrai variáveis de um comentário analisado
+   */
+  extractVariablesFromComment(analysis) {
+    const variables = {
+      name: this.extractFunctionName(analysis.content),
+      description: analysis.intention,
+      params: this.convertParametersToTemplateFormat(analysis.parameters || []),
+      returnType: analysis.returnType || "void",
+      isAsync: analysis.content.toLowerCase().includes("async"),
+      returnDescription: `Result of ${analysis.intention}`,
+      defaultReturn: this.getDefaultReturn(analysis.returnType)
+    };
+    return variables;
+  }
+  /**
+   * Extrai variáveis de uma solicitação de geração
+   */
+  extractVariablesFromRequest(request) {
+    const variables = {
+      name: "GeneratedCode",
+      description: request.specification || "Generated code",
+      params: [],
+      returnType: "void",
+      isAsync: false
+    };
+    if (request.context.selectedText) {
+      const name = this.extractFunctionName(request.context.selectedText);
+      if (name) {
+        variables.name = name;
+      }
+    }
+    return variables;
+  }
+  /**
+   * Extrai nome de função de um texto
+   */
+  extractFunctionName(text) {
+    const patterns = [
+      /function\s+(\w+)/i,
+      /def\s+(\w+)/i,
+      /(\w+)\s*\(/,
+      /create\s+(\w+)/i,
+      /implement\s+(\w+)/i,
+      /\b(\w+)\s+function/i
+    ];
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    return "generatedFunction";
+  }
+  /**
+   * Converte parâmetros para formato de template
+   */
+  convertParametersToTemplateFormat(parameters) {
+    return parameters.map((param) => {
+      const parts = param.split(":").map((p) => p.trim());
+      return {
+        name: parts[0],
+        type: parts[1] || "any",
+        description: `Parameter ${parts[0]}`
+      };
+    });
+  }
+  /**
+   * Obtém valor de retorno padrão baseado no tipo
+   */
+  getDefaultReturn(returnType) {
+    if (!returnType || returnType === "void") {
+      return "";
+    }
+    const defaults = {
+      "string": "''",
+      "number": "0",
+      "boolean": "false",
+      "array": "[]",
+      "object": "{}",
+      "Promise": "Promise.resolve()",
+      "null": "null",
+      "undefined": "undefined"
+    };
+    return defaults[returnType] || "null";
+  }
+  /**
+   * Renderiza um template com variáveis (implementação simples)
+   */
+  renderTemplate(template, variables) {
+    let result = template.template;
+    Object.keys(variables).forEach((key) => {
+      const value = variables[key];
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g");
+      if (typeof value === "string") {
+        result = result.replace(regex, value);
+      } else if (Array.isArray(value)) {
+        const arrayString = value.map(
+          (item) => typeof item === "object" ? JSON.stringify(item) : String(item)
+        ).join(", ");
+        result = result.replace(regex, arrayString);
+      } else {
+        result = result.replace(regex, String(value));
+      }
+    });
+    result = result.replace(/\{\{[^}]+\}\}/g, "");
+    result = result.replace(/\n\s*\n\s*\n/g, "\n\n");
+    return result.trim();
+  }
+};
+
+// src/services/ASTAnalysisService.ts
+var ASTAnalysisService = class _ASTAnalysisService {
+  static getInstance() {
+    if (!_ASTAnalysisService.instance) {
+      _ASTAnalysisService.instance = new _ASTAnalysisService();
+    }
+    return _ASTAnalysisService.instance;
+  }
+  /**
+   * Analisa um documento TypeScript/JavaScript
+   */
+  analyzeDocument(document) {
+    const text = document.getText();
+    const lines = text.split("\n");
+    const analysis = {
+      imports: this.extractImports(lines),
+      interfaces: this.extractInterfaces(lines),
+      classes: this.extractClasses(lines),
+      functions: this.extractFunctions(lines),
+      patterns: this.detectPatterns(lines),
+      suggestions: []
+    };
+    analysis.suggestions = this.generateSuggestions(analysis);
+    return analysis;
+  }
+  /**
+   * Extrai imports do código
+   */
+  extractImports(lines) {
+    const imports = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      const importMatch = trimmed.match(/^import\s+(.+?)\s+from\s+['"](.+?)['"];?$/);
+      if (importMatch) {
+        imports.push(importMatch[2]);
+        continue;
+      }
+      const requireMatch = trimmed.match(/(?:const|let|var)\s+.+?\s*=\s*require\(['"](.+?)['"]\)/);
+      if (requireMatch) {
+        imports.push(requireMatch[1]);
+      }
+    }
+    return [...new Set(imports)];
+  }
+  /**
+   * Extrai interfaces do código
+   */
+  extractInterfaces(lines) {
+    const interfaces = [];
+    let currentInterface = null;
+    let braceLevel = 0;
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2].trim();
+      const interfaceMatch = line.match(/^(?:export\s+)?interface\s+(\w+)(?:\s+extends\s+[\w,\s]+)?\s*\{?/);
+      if (interfaceMatch) {
+        currentInterface = {
+          name: interfaceMatch[1],
+          properties: [],
+          methods: [],
+          isEmpty: true,
+          line: i2
+        };
+        braceLevel = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+        continue;
+      }
+      if (currentInterface) {
+        braceLevel += (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+        if (braceLevel > 0 && line && !line.startsWith("//") && !line.startsWith("*")) {
+          const property = this.parseProperty(line);
+          if (property) {
+            currentInterface.properties.push(property);
+            currentInterface.isEmpty = false;
+          }
+          const method = this.parseMethod(line);
+          if (method) {
+            currentInterface.methods.push(method);
+            currentInterface.isEmpty = false;
+          }
+        }
+        if (braceLevel <= 0) {
+          interfaces.push(currentInterface);
+          currentInterface = null;
+        }
+      }
+    }
+    return interfaces;
+  }
+  /**
+   * Extrai classes do código
+   */
+  extractClasses(lines) {
+    const classes = [];
+    let currentClass = null;
+    let braceLevel = 0;
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2].trim();
+      const classMatch = line.match(/^(?:export\s+)?(?:abstract\s+)?class\s+(\w+)(?:\s+extends\s+(\w+))?(?:\s+implements\s+([\w,\s]+))?\s*\{?/);
+      if (classMatch) {
+        currentClass = {
+          name: classMatch[1],
+          extends: classMatch[2],
+          implements: classMatch[3] ? classMatch[3].split(",").map((i3) => i3.trim()) : void 0,
+          properties: [],
+          methods: [],
+          line: i2
+        };
+        braceLevel = (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+        continue;
+      }
+      if (currentClass) {
+        braceLevel += (line.match(/\{/g) || []).length - (line.match(/\}/g) || []).length;
+        if (braceLevel > 0 && line && !line.startsWith("//") && !line.startsWith("*")) {
+          const property = this.parseProperty(line);
+          if (property) {
+            currentClass.properties.push(property);
+          }
+          const method = this.parseMethod(line);
+          if (method) {
+            currentClass.methods.push(method);
+          }
+          if (line.includes("constructor")) {
+            currentClass.constructor = this.parseConstructor(line);
+          }
+        }
+        if (braceLevel <= 0) {
+          classes.push(currentClass);
+          currentClass = null;
+        }
+      }
+    }
+    return classes;
+  }
+  /**
+   * Extrai funções do código
+   */
+  extractFunctions(lines) {
+    const functions = [];
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const line = lines[i2].trim();
+      const funcMatch = line.match(/^(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\((.*?)\)(?:\s*:\s*([^{]+))?\s*\{?/);
+      if (funcMatch) {
+        functions.push({
+          name: funcMatch[1],
+          parameters: this.parseParameters(funcMatch[2]),
+          returnType: funcMatch[3]?.trim(),
+          isAsync: line.includes("async"),
+          isExported: line.includes("export"),
+          hasImplementation: true,
+          line: i2
+        });
+        continue;
+      }
+      const arrowMatch = line.match(/^(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\((.*?)\)(?:\s*:\s*([^=]+))?\s*=>/);
+      if (arrowMatch) {
+        functions.push({
+          name: arrowMatch[1],
+          parameters: this.parseParameters(arrowMatch[2]),
+          returnType: arrowMatch[3]?.trim(),
+          isAsync: line.includes("async"),
+          isExported: line.includes("export"),
+          hasImplementation: true,
+          line: i2
+        });
+      }
+    }
+    return functions;
+  }
+  /**
+   * Detecta padrões arquiteturais no código
+   */
+  detectPatterns(lines) {
+    const patterns = /* @__PURE__ */ new Set();
+    const text = lines.join("\n").toLowerCase();
+    const patternDetectors = [
+      { pattern: "Repository", keywords: ["repository", "findById", "save", "delete"] },
+      { pattern: "Factory", keywords: ["factory", "create", "build"] },
+      { pattern: "Singleton", keywords: ["getInstance", "instance", "singleton"] },
+      { pattern: "Observer", keywords: ["subscribe", "observer", "notify", "emit"] },
+      { pattern: "Strategy", keywords: ["strategy", "algorithm", "execute"] },
+      { pattern: "CRUD", keywords: ["create", "read", "update", "delete", "findAll"] },
+      { pattern: "MVC", keywords: ["controller", "model", "view"] },
+      { pattern: "Service", keywords: ["service", "business logic", "usecase"] },
+      { pattern: "DTO", keywords: ["dto", "data transfer", "request", "response"] },
+      { pattern: "Decorator", keywords: ["decorator", "@", "wrapper"] }
+    ];
+    for (const detector of patternDetectors) {
+      const matchCount = detector.keywords.filter((keyword) => text.includes(keyword)).length;
+      if (matchCount >= 2) {
+        patterns.add(detector.pattern);
+      }
+    }
+    return Array.from(patterns);
+  }
+  /**
+   * Gera sugestões baseadas na análise
+   */
+  generateSuggestions(analysis) {
+    const suggestions = [];
+    const emptyInterfaces = analysis.interfaces.filter((i2) => i2.isEmpty);
+    if (emptyInterfaces.length > 0) {
+      suggestions.push(`Found ${emptyInterfaces.length} empty interface(s). Consider implementing them.`);
+    }
+    const classesWithoutMethods = analysis.classes.filter((c) => c.methods.length === 0);
+    if (classesWithoutMethods.length > 0) {
+      suggestions.push(`Found ${classesWithoutMethods.length} class(es) without methods. Consider adding functionality.`);
+    }
+    if (analysis.patterns.includes("CRUD") && !analysis.patterns.includes("Repository")) {
+      suggestions.push("Consider implementing Repository pattern for better data access abstraction.");
+    }
+    if (analysis.classes.length > 0 && !analysis.patterns.includes("Factory")) {
+      suggestions.push("Consider using Factory pattern for complex object creation.");
+    }
+    const functionsWithoutImpl = analysis.functions.filter((f3) => !f3.hasImplementation);
+    if (functionsWithoutImpl.length > 0) {
+      suggestions.push(`Found ${functionsWithoutImpl.length} function(s) without implementation.`);
+    }
+    return suggestions;
+  }
+  /**
+   * Extrai informações de uma propriedade
+   */
+  parseProperty(line) {
+    const cleanLine = line.replace(/^(private|protected|public|readonly|static)\s+/, "");
+    const propertyMatch = cleanLine.match(/^(\w+)(\?)?\s*:\s*([^;=]+)/);
+    if (propertyMatch) {
+      return {
+        name: propertyMatch[1],
+        type: propertyMatch[3].trim(),
+        isOptional: !!propertyMatch[2],
+        isReadonly: line.includes("readonly")
+      };
+    }
+    return null;
+  }
+  /**
+   * Extrai informações de um método
+   */
+  parseMethod(line) {
+    const methodMatch = line.match(/^(?:private|protected|public|static|abstract)?\s*(?:async\s+)?(\w+)\s*\((.*?)\)(?:\s*:\s*([^{;]+))?/);
+    if (methodMatch && !line.includes(":") && !line.includes("=")) {
+      return {
+        name: methodMatch[1],
+        parameters: this.parseParameters(methodMatch[2]),
+        returnType: methodMatch[3]?.trim(),
+        isAsync: line.includes("async"),
+        isAbstract: line.includes("abstract"),
+        hasImplementation: line.includes("{") || !line.includes(";")
+      };
+    }
+    return null;
+  }
+  /**
+   * Extrai informações do constructor
+   */
+  parseConstructor(line) {
+    const paramMatch = line.match(/constructor\s*\((.*?)\)/);
+    const parameters = paramMatch ? this.parseParameters(paramMatch[1]) : [];
+    return {
+      name: "constructor",
+      parameters,
+      isAsync: false,
+      isAbstract: false,
+      hasImplementation: line.includes("{")
+    };
+  }
+  /**
+   * Extrai parâmetros de uma string
+   */
+  parseParameters(paramString) {
+    if (!paramString.trim()) {
+      return [];
+    }
+    return paramString.split(",").map((param) => {
+      const trimmed = param.trim();
+      const parts = trimmed.split(":").map((p) => p.trim());
+      const namePart = parts[0];
+      const typePart = parts[1];
+      const defaultMatch = namePart.match(/(\w+)(?:\s*=\s*(.+))?/);
+      const name = defaultMatch ? defaultMatch[1] : namePart.replace(/[?=].*/, "").trim();
+      const isOptional = namePart.includes("?") || namePart.includes("=");
+      const defaultValue = defaultMatch && defaultMatch[2] ? defaultMatch[2] : void 0;
+      return {
+        name,
+        type: typePart,
+        isOptional,
+        defaultValue
+      };
+    });
+  }
+  /**
+   * Encontra interfaces vazias em um documento
+   */
+  findEmptyInterfaces(document) {
+    const analysis = this.analyzeDocument(document);
+    return analysis.interfaces.filter((i2) => i2.isEmpty);
+  }
+  /**
+   * Encontra funções sem implementação
+   */
+  findUnimplementedFunctions(document) {
+    const analysis = this.analyzeDocument(document);
+    return analysis.functions.filter((f3) => !f3.hasImplementation);
+  }
+  /**
+   * Detecta o tipo de linguagem do arquivo
+   */
+  detectLanguage(document) {
+    const fileName = document.fileName.toLowerCase();
+    if (fileName.endsWith(".ts") || fileName.endsWith(".tsx")) {
+      return "typescript";
+    }
+    if (fileName.endsWith(".js") || fileName.endsWith(".jsx")) {
+      return "javascript";
+    }
+    if (fileName.endsWith(".py")) {
+      return "python";
+    }
+    if (fileName.endsWith(".java")) {
+      return "java";
+    }
+    return "unknown";
+  }
+  /**
+   * Obtém contexto semântico em uma posição específica
+   */
+  getSemanticContext(document, position) {
+    const analysis = this.analyzeDocument(document);
+    const line = position.line;
+    const context = {
+      availableTypes: [],
+      nearbySymbols: []
+    };
+    for (const cls of analysis.classes) {
+      if (cls.line <= line) {
+        context.insideClass = cls.name;
+        context.availableTypes.push(...cls.properties.map((p) => p.type).filter(Boolean));
+      }
+    }
+    for (const func of analysis.functions) {
+      if (func.line <= line && func.line + 10 > line) {
+        context.insideFunction = func.name;
+      }
+    }
+    context.availableTypes.push(...analysis.interfaces.map((i2) => i2.name));
+    context.availableTypes.push(...analysis.classes.map((c) => c.name));
+    context.availableTypes = [...new Set(context.availableTypes)];
+    return context;
+  }
+};
+
+// src/services/MultilineCodeGenerationService.ts
+var MultilineCodeGenerationService = class _MultilineCodeGenerationService {
+  constructor() {
+    this.commentAnalysis = CommentAnalysisService.getInstance();
+    this.codeGeneration = CodeGenerationService.getInstance();
+    this.astAnalysis = ASTAnalysisService.getInstance();
+  }
+  static getInstance() {
+    if (!_MultilineCodeGenerationService.instance) {
+      _MultilineCodeGenerationService.instance = new _MultilineCodeGenerationService();
+    }
+    return _MultilineCodeGenerationService.instance;
+  }
+  /**
+   * Detecta comentários TODO/FIXME automaticamente e oferece geração de código
+   */
+  async detectAndGenerateFromComments(document) {
+    const doc = document || vscode3.window.activeTextEditor?.document;
+    if (!doc) {
+      vscode3.window.showErrorMessage("No active document found");
+      return;
+    }
+    try {
+      const comments = this.commentAnalysis.analyzeDocument(doc);
+      const implementationComments = comments.filter(
+        (c) => c.type === "TODO" || c.type === "FIXME" || this.commentAnalysis.isImplementationComment(c.content)
+      );
+      if (implementationComments.length === 0) {
+        vscode3.window.showInformationMessage("No implementation comments found");
+        return;
+      }
+      const items = implementationComments.map((comment) => ({
+        label: `Line ${comment.line + 1}: ${comment.intention}`,
+        description: comment.type,
+        detail: comment.content,
+        comment
+      }));
+      const selected = await vscode3.window.showQuickPick(items, {
+        placeHolder: "Select a comment to generate code for",
+        matchOnDescription: true,
+        matchOnDetail: true
+      });
+      if (selected) {
+        await this.generateCodeFromComment(doc, selected.comment);
+      }
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error detecting comments: ${error}`);
+    }
+  }
+  /**
+   * Gera código a partir de um comentário específico
+   */
+  async generateCodeFromComment(document, comment) {
+    try {
+      const language = this.astAnalysis.detectLanguage(document);
+      const result = await this.codeGeneration.generateFromComment(comment, language);
+      if (result.success) {
+        await this.insertOrPreviewCode(document, result, comment.line + 1);
+      } else {
+        vscode3.window.showErrorMessage(`Code generation failed: ${result.error}`);
+      }
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error generating code: ${error}`);
+    }
+  }
+  /**
+   * Implementa interfaces vazias automaticamente
+   */
+  async implementEmptyInterfaces(document) {
+    const doc = document || vscode3.window.activeTextEditor?.document;
+    if (!doc) {
+      vscode3.window.showErrorMessage("No active document found");
+      return;
+    }
+    try {
+      const emptyInterfaces = this.astAnalysis.findEmptyInterfaces(doc);
+      if (emptyInterfaces.length === 0) {
+        vscode3.window.showInformationMessage("No empty interfaces found");
+        return;
+      }
+      const items = emptyInterfaces.map((iface) => ({
+        label: iface.name,
+        description: `Line ${iface.line + 1}`,
+        detail: "Empty interface",
+        interface: iface
+      }));
+      const selected = await vscode3.window.showQuickPick(items, {
+        placeHolder: "Select an interface to implement",
+        canPickMany: true
+      });
+      if (selected && selected.length > 0) {
+        for (const item of selected) {
+          await this.generateInterfaceImplementation(doc, item.interface);
+        }
+      }
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error implementing interfaces: ${error}`);
+    }
+  }
+  /**
+   * Gera implementação para uma interface
+   */
+  async generateInterfaceImplementation(document, interfaceInfo) {
+    try {
+      const language = this.astAnalysis.detectLanguage(document);
+      const className = `${interfaceInfo.name}Impl`;
+      const request = {
+        type: "interface",
+        language,
+        context: {
+          fileName: document.fileName,
+          fileType: language,
+          selectedText: interfaceInfo.name
+        },
+        specification: `Implement interface ${interfaceInfo.name}`,
+        template: this.codeGeneration.getTemplate(`${language.substring(0, 2)}-interface`)
+      };
+      const result = await this.codeGeneration.generateCode(request);
+      if (result.success) {
+        const insertLine = this.findBestInsertionPoint(document, interfaceInfo.line);
+        await this.insertOrPreviewCode(document, result, insertLine);
+      } else {
+        vscode3.window.showErrorMessage(`Implementation generation failed: ${result.error}`);
+      }
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error generating implementation: ${error}`);
+    }
+  }
+  /**
+   * Gera funções completas a partir de especificação
+   */
+  async generateCompleteFunction() {
+    const editor = vscode3.window.activeTextEditor;
+    if (!editor) {
+      vscode3.window.showErrorMessage("No active editor found");
+      return;
+    }
+    try {
+      const specification = await vscode3.window.showInputBox({
+        prompt: 'Enter function specification (e.g., "function calculateTax(amount: number, rate: number): number")',
+        placeHolder: "function name(params): returnType - description"
+      });
+      if (!specification) {
+        return;
+      }
+      const language = this.astAnalysis.detectLanguage(editor.document);
+      const position = editor.selection.active;
+      const request = {
+        type: "function",
+        language,
+        context: {
+          fileName: editor.document.fileName,
+          fileType: language,
+          cursorPosition: {
+            line: position.line,
+            character: position.character
+          }
+        },
+        specification,
+        preview: true
+      };
+      const result = await this.codeGeneration.generateCode(request);
+      if (result.success) {
+        await this.insertOrPreviewCode(editor.document, result, position.line);
+      } else {
+        vscode3.window.showErrorMessage(`Function generation failed: ${result.error}`);
+      }
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error generating function: ${error}`);
+    }
+  }
+  /**
+   * Gera código baseado em padrões (CRUD, Repository, Factory, etc.)
+   */
+  async generateFromPattern() {
+    const editor = vscode3.window.activeTextEditor;
+    if (!editor) {
+      vscode3.window.showErrorMessage("No active editor found");
+      return;
+    }
+    try {
+      const language = this.astAnalysis.detectLanguage(editor.document);
+      const templates = this.codeGeneration.getTemplatesByLanguage(language);
+      if (templates.length === 0) {
+        vscode3.window.showErrorMessage(`No templates available for ${language}`);
+        return;
+      }
+      const items = templates.map((template) => ({
+        label: template.name,
+        description: template.pattern,
+        detail: template.description,
+        template
+      }));
+      const selected = await vscode3.window.showQuickPick(items, {
+        placeHolder: "Select a pattern to generate"
+      });
+      if (!selected) {
+        return;
+      }
+      let entityName = "Entity";
+      if (["CRUD", "Repository", "Factory"].includes(selected.template.pattern)) {
+        const input = await vscode3.window.showInputBox({
+          prompt: `Enter entity name for ${selected.template.pattern} pattern`,
+          placeHolder: "e.g., User, Product, Order"
+        });
+        if (input) {
+          entityName = input;
+        }
+      }
+      const position = editor.selection.active;
+      const request = {
+        type: "pattern",
+        language,
+        context: {
+          fileName: editor.document.fileName,
+          fileType: language,
+          cursorPosition: {
+            line: position.line,
+            character: position.character
+          }
+        },
+        specification: `Generate ${selected.template.pattern} pattern for ${entityName}`,
+        template: selected.template,
+        preview: true
+      };
+      const result = await this.codeGeneration.generateCode(request);
+      if (result.success) {
+        await this.insertOrPreviewCode(editor.document, result, position.line);
+      } else {
+        vscode3.window.showErrorMessage(`Pattern generation failed: ${result.error}`);
+      }
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error generating pattern: ${error}`);
+    }
+  }
+  /**
+   * Analisa padrões arquiteturais no código atual
+   */
+  async analyzeCodePatterns() {
+    const editor = vscode3.window.activeTextEditor;
+    if (!editor) {
+      vscode3.window.showErrorMessage("No active editor found");
+      return;
+    }
+    try {
+      const analysis = this.astAnalysis.analyzeDocument(editor.document);
+      const info = [
+        `**Code Analysis for ${editor.document.fileName}**`,
+        "",
+        `**Imports:** ${analysis.imports.length}`,
+        ...analysis.imports.slice(0, 5).map((imp) => `  - ${imp}`),
+        analysis.imports.length > 5 ? `  ... and ${analysis.imports.length - 5} more` : "",
+        "",
+        `**Interfaces:** ${analysis.interfaces.length}`,
+        ...analysis.interfaces.map((iface) => `  - ${iface.name} (${iface.isEmpty ? "empty" : "implemented"})`),
+        "",
+        `**Classes:** ${analysis.classes.length}`,
+        ...analysis.classes.map((cls) => `  - ${cls.name} (${cls.methods.length} methods)`),
+        "",
+        `**Functions:** ${analysis.functions.length}`,
+        ...analysis.functions.slice(0, 3).map((func) => `  - ${func.name}(${func.parameters.length} params)`),
+        "",
+        `**Detected Patterns:** ${analysis.patterns.length}`,
+        ...analysis.patterns.map((pattern) => `  - ${pattern}`),
+        "",
+        `**Suggestions:**`,
+        ...analysis.suggestions.map((suggestion) => `  - ${suggestion}`)
+      ].filter((line) => line !== "").join("\n");
+      const panel = vscode3.window.createWebviewPanel(
+        "codeAnalysis",
+        "Code Analysis",
+        vscode3.ViewColumn.Beside,
+        { enableScripts: false }
+      );
+      panel.webview.html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; }
+                        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; }
+                        h3 { color: #007acc; }
+                    </style>
+                </head>
+                <body>
+                    <pre>${info}</pre>
+                </body>
+                </html>
+            `;
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error analyzing code: ${error}`);
+    }
+  }
+  /**
+   * Insere código ou mostra preview
+   */
+  async insertOrPreviewCode(document, result, insertLine) {
+    const action = await vscode3.window.showInformationMessage(
+      `Generated ${result.description}. Do you want to insert it?`,
+      { modal: false },
+      "Insert",
+      "Preview",
+      "Cancel"
+    );
+    if (action === "Preview") {
+      await this.showCodePreview(result);
+      return;
+    }
+    if (action === "Insert") {
+      const editor = await vscode3.window.showTextDocument(document);
+      const position = new vscode3.Position(insertLine, 0);
+      await editor.edit((editBuilder) => {
+        editBuilder.insert(position, result.code + "\n\n");
+      });
+      vscode3.window.showInformationMessage("Code inserted successfully!");
+    }
+  }
+  /**
+   * Mostra preview do código gerado
+   */
+  async showCodePreview(result) {
+    const panel = vscode3.window.createWebviewPanel(
+      "codePreview",
+      "Generated Code Preview",
+      vscode3.ViewColumn.Beside,
+      { enableScripts: true }
+    );
+    panel.webview.html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { 
+                        font-family: 'Courier New', monospace; 
+                        padding: 20px; 
+                        background: #1e1e1e; 
+                        color: #d4d4d4; 
+                    }
+                    .header { 
+                        background: #007acc; 
+                        color: white; 
+                        padding: 10px; 
+                        border-radius: 5px; 
+                        margin-bottom: 20px; 
+                    }
+                    .code { 
+                        background: #2d2d2d; 
+                        padding: 15px; 
+                        border-radius: 5px; 
+                        border: 1px solid #555; 
+                        white-space: pre-wrap;
+                        overflow-x: auto;
+                    }
+                    .actions {
+                        margin-top: 20px;
+                        text-align: center;
+                    }
+                    button {
+                        background: #007acc;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        margin: 0 10px;
+                    }
+                    button:hover {
+                        background: #005a9e;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h3>\u{1F4DD} ${result.description}</h3>
+                    <p>Language: ${result.language}</p>
+                </div>
+                <div class="code">${this.escapeHtml(result.code)}</div>
+                <div class="actions">
+                    <button onclick="copyToClipboard()">\u{1F4CB} Copy</button>
+                    <button onclick="closePreview()">\u274C Close</button>
+                </div>
+                
+                <script>
+                    function copyToClipboard() {
+                        navigator.clipboard.writeText(\`${result.code.replace(/`/g, "\\`")}\`);
+                        alert('Code copied to clipboard!');
+                    }
+                    
+                    function closePreview() {
+                        window.close();
+                    }
+                </script>
+            </body>
+            </html>
+        `;
+  }
+  /**
+   * Encontra o melhor ponto de inserção para novo código
+   */
+  findBestInsertionPoint(document, nearLine) {
+    const lines = document.getText().split("\n");
+    for (let i2 = nearLine + 1; i2 < Math.min(nearLine + 10, lines.length); i2++) {
+      if (lines[i2].trim() === "") {
+        return i2;
+      }
+    }
+    return nearLine + 1;
+  }
+  /**
+   * Escapa HTML para preview
+   */
+  escapeHtml(text) {
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  /**
+   * Detecta automaticamente comentários TODO/FIXME em todos os arquivos do workspace
+   */
+  async scanWorkspaceForComments() {
+    try {
+      const comments = await this.commentAnalysis.findAllComments();
+      if (comments.length === 0) {
+        vscode3.window.showInformationMessage("No TODO/FIXME comments found in workspace");
+        return;
+      }
+      const commentsByFile = /* @__PURE__ */ new Map();
+      comments.forEach((comment) => {
+        const file = "unknown";
+        if (!commentsByFile.has(file)) {
+          commentsByFile.set(file, []);
+        }
+        commentsByFile.get(file).push(comment);
+      });
+      const info = [
+        `**TODO/FIXME Comments in Workspace**`,
+        `Found ${comments.length} comments`,
+        ""
+      ];
+      commentsByFile.forEach((fileComments, file) => {
+        info.push(`**${file}:**`);
+        fileComments.forEach((comment) => {
+          info.push(`  - Line ${comment.line + 1}: ${comment.intention} (${comment.type})`);
+        });
+        info.push("");
+      });
+      const panel = vscode3.window.createWebviewPanel(
+        "todoReport",
+        "TODO/FIXME Report",
+        vscode3.ViewColumn.Beside,
+        { enableScripts: false }
+      );
+      panel.webview.html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; }
+                        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; }
+                        h3 { color: #007acc; }
+                    </style>
+                </head>
+                <body>
+                    <pre>${info.join("\n")}</pre>
+                </body>
+                </html>
+            `;
+    } catch (error) {
+      vscode3.window.showErrorMessage(`Error scanning workspace: ${error}`);
+    }
+  }
+};
+
+// src/commands/CodeGenerationCommands.ts
+var CodeGenerationCommands = class {
+  constructor() {
+    this.multilineService = MultilineCodeGenerationService.getInstance();
+  }
+  /**
+   * Registra todos os comandos de geração de código
+   */
+  registerCommands(context) {
+    const generateFromComments = vscode4.commands.registerCommand(
+      "xcopilot.generateFromComments",
+      () => this.multilineService.detectAndGenerateFromComments()
+    );
+    const implementInterfaces = vscode4.commands.registerCommand(
+      "xcopilot.implementInterfaces",
+      () => this.multilineService.implementEmptyInterfaces()
+    );
+    const generateFunction = vscode4.commands.registerCommand(
+      "xcopilot.generateFunction",
+      () => this.multilineService.generateCompleteFunction()
+    );
+    const generatePattern = vscode4.commands.registerCommand(
+      "xcopilot.generatePattern",
+      () => this.multilineService.generateFromPattern()
+    );
+    const analyzePatterns = vscode4.commands.registerCommand(
+      "xcopilot.analyzePatterns",
+      () => this.multilineService.analyzeCodePatterns()
+    );
+    const scanTodoComments = vscode4.commands.registerCommand(
+      "xcopilot.scanTodoComments",
+      () => this.multilineService.scanWorkspaceForComments()
+    );
+    context.subscriptions.push(
+      generateFromComments,
+      implementInterfaces,
+      generateFunction,
+      generatePattern,
+      analyzePatterns,
+      scanTodoComments
+    );
+    console.log("xCopilot Multi-line Code Generation commands registered");
   }
 };
 
@@ -6485,7 +8115,7 @@ function fixResponseChunkedTransferBadEnding(request, errorCallback) {
 }
 
 // src/services/ConfigurationService.ts
-var vscode2 = __toESM(require("vscode"));
+var vscode5 = __toESM(require("vscode"));
 var ConfigurationService = class _ConfigurationService {
   constructor() {
   }
@@ -6499,7 +8129,7 @@ var ConfigurationService = class _ConfigurationService {
    * Obtém a configuração atual da extensão
    */
   getConfig() {
-    const config = vscode2.workspace.getConfiguration("xcopilot");
+    const config = vscode5.workspace.getConfiguration("xcopilot");
     return {
       backendUrl: config.get("backendUrl") || "http://localhost:3000",
       inlineCompletion: {
@@ -6529,7 +8159,7 @@ var ConfigurationService = class _ConfigurationService {
    * Monitora mudanças na configuração
    */
   onConfigurationChanged(callback) {
-    return vscode2.workspace.onDidChangeConfiguration((e2) => {
+    return vscode5.workspace.onDidChangeConfiguration((e2) => {
       if (e2.affectsConfiguration("xcopilot.backendUrl") || e2.affectsConfiguration("xcopilot.inlineCompletion")) {
         Logger.info("Configuration changed");
         callback();
@@ -6633,7 +8263,7 @@ var BackendService = class _BackendService {
 };
 
 // src/services/CodeContextService.ts
-var vscode3 = __toESM(require("vscode"));
+var vscode6 = __toESM(require("vscode"));
 var CodeContextService = class _CodeContextService {
   constructor() {
   }
@@ -6647,7 +8277,7 @@ var CodeContextService = class _CodeContextService {
    * Captura o contexto atual do editor
    */
   getCurrentContext(includeFullFile = false) {
-    const editor = vscode3.window.activeTextEditor;
+    const editor = vscode6.window.activeTextEditor;
     if (!editor) {
       Logger.warn("No active editor found");
       return null;
@@ -6681,7 +8311,7 @@ var CodeContextService = class _CodeContextService {
    * Captura contexto com texto selecionado ou contexto ao redor do cursor
    */
   getContextWithFallback(lines = 10) {
-    const editor = vscode3.window.activeTextEditor;
+    const editor = vscode6.window.activeTextEditor;
     if (!editor) {
       return null;
     }
@@ -6695,7 +8325,7 @@ var CodeContextService = class _CodeContextService {
       const currentLine = selection.active.line;
       const startLine = Math.max(0, currentLine - Math.floor(lines / 2));
       const endLine = Math.min(document.lineCount - 1, currentLine + Math.floor(lines / 2));
-      const range = new vscode3.Range(startLine, 0, endLine, document.lineAt(endLine).text.length);
+      const range = new vscode6.Range(startLine, 0, endLine, document.lineAt(endLine).text.length);
       context.selectedText = document.getText(range);
       context.lineNumbers = {
         start: startLine + 1,
@@ -6759,14 +8389,14 @@ ${context.fullFileContent}
    * Verifica se há contexto útil disponível
    */
   hasUsefulContext() {
-    const editor = vscode3.window.activeTextEditor;
+    const editor = vscode6.window.activeTextEditor;
     return editor !== void 0;
   }
   /**
    * Obtém estatísticas do contexto atual
    */
   getContextStats() {
-    const editor = vscode3.window.activeTextEditor;
+    const editor = vscode6.window.activeTextEditor;
     if (!editor) {
       return null;
     }
@@ -6780,12 +8410,12 @@ ${context.fullFileContent}
 };
 
 // src/services/CodeExplanationService.ts
-var vscode4 = __toESM(require("vscode"));
+var vscode7 = __toESM(require("vscode"));
 var CodeExplanationService = class _CodeExplanationService {
   constructor() {
     this.backendService = BackendService.getInstance();
     this.contextService = CodeContextService.getInstance();
-    this.outputChannel = vscode4.window.createOutputChannel("xCopilot - Code Explanation");
+    this.outputChannel = vscode7.window.createOutputChannel("xCopilot - Code Explanation");
   }
   static getInstance() {
     if (!_CodeExplanationService.instance) {
@@ -6797,20 +8427,20 @@ var CodeExplanationService = class _CodeExplanationService {
    * Explica código selecionado
    */
   async explainSelectedCode() {
-    const editor = vscode4.window.activeTextEditor;
+    const editor = vscode7.window.activeTextEditor;
     if (!editor) {
-      vscode4.window.showWarningMessage("Nenhum editor ativo encontrado");
+      vscode7.window.showWarningMessage("Nenhum editor ativo encontrado");
       return;
     }
     const selection = editor.selection;
     const selectedText = editor.document.getText(selection);
     if (!selectedText.trim()) {
-      vscode4.window.showWarningMessage("Selecione um c\xF3digo para explicar");
+      vscode7.window.showWarningMessage("Selecione um c\xF3digo para explicar");
       return;
     }
     try {
-      vscode4.window.withProgress({
-        location: vscode4.ProgressLocation.Notification,
+      vscode7.window.withProgress({
+        location: vscode7.ProgressLocation.Notification,
         title: "Analisando c\xF3digo...",
         cancellable: true
       }, async (progress, token) => {
@@ -6826,26 +8456,26 @@ var CodeExplanationService = class _CodeExplanationService {
       });
     } catch (error) {
       Logger.error("Error explaining code:", error);
-      vscode4.window.showErrorMessage("Erro ao explicar c\xF3digo");
+      vscode7.window.showErrorMessage("Erro ao explicar c\xF3digo");
     }
   }
   /**
    * Explica função/método atual
    */
   async explainCurrentFunction() {
-    const editor = vscode4.window.activeTextEditor;
+    const editor = vscode7.window.activeTextEditor;
     if (!editor) {
-      vscode4.window.showWarningMessage("Nenhum editor ativo encontrado");
+      vscode7.window.showWarningMessage("Nenhum editor ativo encontrado");
       return;
     }
     try {
       const functionCode = await this.getFunctionAtCursor(editor);
       if (!functionCode) {
-        vscode4.window.showWarningMessage("Nenhuma fun\xE7\xE3o encontrada na posi\xE7\xE3o atual");
+        vscode7.window.showWarningMessage("Nenhuma fun\xE7\xE3o encontrada na posi\xE7\xE3o atual");
         return;
       }
-      vscode4.window.withProgress({
-        location: vscode4.ProgressLocation.Notification,
+      vscode7.window.withProgress({
+        location: vscode7.ProgressLocation.Notification,
         title: "Analisando fun\xE7\xE3o...",
         cancellable: true
       }, async (progress, token) => {
@@ -6860,22 +8490,22 @@ var CodeExplanationService = class _CodeExplanationService {
       });
     } catch (error) {
       Logger.error("Error explaining function:", error);
-      vscode4.window.showErrorMessage("Erro ao explicar fun\xE7\xE3o");
+      vscode7.window.showErrorMessage("Erro ao explicar fun\xE7\xE3o");
     }
   }
   /**
    * Explica arquivo completo
    */
   async explainEntireFile() {
-    const editor = vscode4.window.activeTextEditor;
+    const editor = vscode7.window.activeTextEditor;
     if (!editor) {
-      vscode4.window.showWarningMessage("Nenhum editor ativo encontrado");
+      vscode7.window.showWarningMessage("Nenhum editor ativo encontrado");
       return;
     }
     const document = editor.document;
     const fileContent = document.getText();
     if (fileContent.length > 5e3) {
-      const choice = await vscode4.window.showWarningMessage(
+      const choice = await vscode7.window.showWarningMessage(
         "Arquivo muito grande. Isso pode demorar. Continuar?",
         "Sim",
         "N\xE3o"
@@ -6885,8 +8515,8 @@ var CodeExplanationService = class _CodeExplanationService {
       }
     }
     try {
-      vscode4.window.withProgress({
-        location: vscode4.ProgressLocation.Notification,
+      vscode7.window.withProgress({
+        location: vscode7.ProgressLocation.Notification,
         title: "Analisando arquivo...",
         cancellable: true
       }, async (progress, token) => {
@@ -6898,7 +8528,7 @@ var CodeExplanationService = class _CodeExplanationService {
       });
     } catch (error) {
       Logger.error("Error explaining file:", error);
-      vscode4.window.showErrorMessage("Erro ao explicar arquivo");
+      vscode7.window.showErrorMessage("Erro ao explicar arquivo");
     }
   }
   /**
@@ -6909,7 +8539,7 @@ var CodeExplanationService = class _CodeExplanationService {
     const startLine = Math.max(0, selection.start.line - 5);
     const endLine = Math.min(document.lineCount - 1, selection.end.line + 5);
     const surroundingCode = document.getText(
-      new vscode4.Range(startLine, 0, endLine, 0)
+      new vscode7.Range(startLine, 0, endLine, 0)
     );
     const prompt = `
 Forne\xE7a uma explica\xE7\xE3o detalhada e educativa do c\xF3digo selecionado:
@@ -7061,7 +8691,7 @@ Foque nos aspectos arquiteturais e de design.`;
           break;
       }
       if (startLine < endLine) {
-        const range = new vscode4.Range(startLine, 0, endLine + 1, 0);
+        const range = new vscode7.Range(startLine, 0, endLine + 1, 0);
         return document.getText(range);
       }
       return null;
@@ -7089,7 +8719,7 @@ Foque nos aspectos arquiteturais e de design.`;
     this.outputChannel.appendLine("");
     this.outputChannel.appendLine("=".repeat(80));
     this.outputChannel.show();
-    vscode4.window.showInformationMessage(
+    vscode7.window.showInformationMessage(
       'Explica\xE7\xE3o gerada! Veja no painel "xCopilot - Code Explanation"',
       "Ver Explica\xE7\xE3o"
     ).then((choice) => {
@@ -7114,13 +8744,13 @@ Foque nos aspectos arquiteturais e de design.`;
 };
 
 // src/services/CodeSuggestionsService.ts
-var vscode5 = __toESM(require("vscode"));
+var vscode8 = __toESM(require("vscode"));
 var CodeSuggestionsService = class _CodeSuggestionsService {
   constructor() {
     this.isEnabled = true;
     this.backendService = BackendService.getInstance();
     this.contextService = CodeContextService.getInstance();
-    this.diagnosticCollection = vscode5.languages.createDiagnosticCollection("xcopilot-suggestions");
+    this.diagnosticCollection = vscode8.languages.createDiagnosticCollection("xcopilot-suggestions");
     this.initializeProviders();
   }
   static getInstance() {
@@ -7133,7 +8763,7 @@ var CodeSuggestionsService = class _CodeSuggestionsService {
    * Inicializa os providers de sugestões
    */
   initializeProviders() {
-    this.suggestionProvider = vscode5.languages.registerCompletionItemProvider(
+    this.suggestionProvider = vscode8.languages.registerCompletionItemProvider(
       ["typescript", "javascript", "python", "java", "csharp"],
       {
         provideCompletionItems: async (document, position, token, context) => {
@@ -7145,7 +8775,7 @@ var CodeSuggestionsService = class _CodeSuggestionsService {
       "(",
       "{"
     );
-    vscode5.workspace.onDidChangeTextDocument(async (event) => {
+    vscode8.workspace.onDidChangeTextDocument(async (event) => {
       if (this.isEnabled) {
         await this.analyzeCodeChanges(event);
       }
@@ -7168,13 +8798,13 @@ var CodeSuggestionsService = class _CodeSuggestionsService {
       const context_info = this.contextService.getCurrentContext();
       const suggestions = await this.generateCodeSuggestions(beforeCursor, context_info);
       return suggestions.map((suggestion, index) => {
-        const item = new vscode5.CompletionItem(
+        const item = new vscode8.CompletionItem(
           suggestion.text,
-          vscode5.CompletionItemKind.Snippet
+          vscode8.CompletionItemKind.Snippet
         );
         item.detail = suggestion.description;
-        item.documentation = new vscode5.MarkdownString(suggestion.explanation);
-        item.insertText = new vscode5.SnippetString(suggestion.text);
+        item.documentation = new vscode8.MarkdownString(suggestion.explanation);
+        item.insertText = new vscode8.SnippetString(suggestion.text);
         item.sortText = `00${index}`;
         return item;
       });
@@ -7250,10 +8880,10 @@ Foque em:
       const patterns = await this.detectCodePatterns(text, document.languageId);
       for (const pattern of patterns) {
         if (pattern.severity === "warning" || pattern.severity === "info") {
-          const diagnostic = new vscode5.Diagnostic(
+          const diagnostic = new vscode8.Diagnostic(
             pattern.range,
             pattern.message,
-            pattern.severity === "warning" ? vscode5.DiagnosticSeverity.Warning : vscode5.DiagnosticSeverity.Information
+            pattern.severity === "warning" ? vscode8.DiagnosticSeverity.Warning : vscode8.DiagnosticSeverity.Information
           );
           diagnostic.source = "xCopilot AI";
           diagnostic.code = pattern.code;
@@ -7301,7 +8931,7 @@ Foque em:
       if (jsonMatch) {
         const patterns = JSON.parse(jsonMatch[0]);
         return patterns.map((pattern) => ({
-          range: new vscode5.Range(
+          range: new vscode8.Range(
             Math.max(0, pattern.line - 1),
             0,
             Math.max(0, pattern.line - 1),
@@ -7407,7 +9037,7 @@ Retorne apenas uma lista de sugest\xF5es claras e objetivas.
 };
 
 // src/services/GhostTextService.ts
-var vscode6 = __toESM(require("vscode"));
+var vscode9 = __toESM(require("vscode"));
 var GhostTextService = class _GhostTextService {
   constructor() {
     this.isEnabled = true;
@@ -7427,9 +9057,9 @@ var GhostTextService = class _GhostTextService {
    * Configura as decorações para ghost text
    */
   setupDecorations() {
-    this.decorationType = vscode6.window.createTextEditorDecorationType({
+    this.decorationType = vscode9.window.createTextEditorDecorationType({
       after: {
-        color: new vscode6.ThemeColor("editorGhostText.foreground"),
+        color: new vscode9.ThemeColor("editorGhostText.foreground"),
         fontStyle: "italic"
       }
     });
@@ -7439,20 +9069,20 @@ var GhostTextService = class _GhostTextService {
    */
   setupEventListeners() {
     this.disposables.push(
-      vscode6.window.onDidChangeActiveTextEditor((editor) => {
+      vscode9.window.onDidChangeActiveTextEditor((editor) => {
         this.activeEditor = editor;
         this.clearGhostText();
       })
     );
     this.disposables.push(
-      vscode6.workspace.onDidChangeTextDocument((event) => {
+      vscode9.workspace.onDidChangeTextDocument((event) => {
         if (this.activeEditor && event.document === this.activeEditor.document) {
           this.scheduleGhostText();
         }
       })
     );
     this.disposables.push(
-      vscode6.window.onDidChangeTextEditorSelection((event) => {
+      vscode9.window.onDidChangeTextEditorSelection((event) => {
         if (event.textEditor === this.activeEditor) {
           this.scheduleGhostText();
         }
@@ -7514,7 +9144,7 @@ var GhostTextService = class _GhostTextService {
       const startLine = Math.max(0, position.line - 8);
       const endLine = Math.min(document.lineCount - 1, position.line + 3);
       const contextCode = document.getText(
-        new vscode6.Range(startLine, 0, endLine, 0)
+        new vscode9.Range(startLine, 0, endLine, 0)
       );
       const currentLine = document.lineAt(position).text;
       const prompt = `
@@ -7566,11 +9196,11 @@ Sugest\xE3o:`;
       return;
     }
     const decoration = {
-      range: new vscode6.Range(position, position),
+      range: new vscode9.Range(position, position),
       renderOptions: {
         after: {
           contentText: ` // ${suggestion}`,
-          color: new vscode6.ThemeColor("editorGhostText.foreground")
+          color: new vscode9.ThemeColor("editorGhostText.foreground")
         }
       }
     };
@@ -7653,10 +9283,10 @@ ${suggestion}`);
 };
 
 // src/services/GitIntegrationService.ts
-var vscode7 = __toESM(require("vscode"));
+var vscode10 = __toESM(require("vscode"));
 
 // src/services/InlineCompletionService.ts
-var vscode8 = __toESM(require("vscode"));
+var vscode11 = __toESM(require("vscode"));
 
 // src/utils/LRUCache.ts
 var LRUCache = class {
@@ -7765,7 +9395,7 @@ var InlineCompletionService = class _InlineCompletionService {
       "swift",
       "kotlin"
     ];
-    const provider = vscode8.languages.registerInlineCompletionItemProvider(
+    const provider = vscode11.languages.registerInlineCompletionItemProvider(
       selector,
       this
     );
@@ -7822,9 +9452,9 @@ var InlineCompletionService = class _InlineCompletionService {
         this.cacheHits++;
         Logger.debug(`Cache hit! (${this.cacheHits}/${this.requestCount})`);
         return [
-          new vscode8.InlineCompletionItem(
+          new vscode11.InlineCompletionItem(
             cachedCompletion,
-            new vscode8.Range(position, position)
+            new vscode11.Range(position, position)
           )
         ];
       }
@@ -7840,9 +9470,9 @@ var InlineCompletionService = class _InlineCompletionService {
       }
       this.setCachedCompletion(cacheKey, completion);
       return [
-        new vscode8.InlineCompletionItem(
+        new vscode11.InlineCompletionItem(
           completion,
-          new vscode8.Range(position, position)
+          new vscode11.Range(position, position)
         )
       ];
     } catch (error) {
@@ -7861,7 +9491,7 @@ var InlineCompletionService = class _InlineCompletionService {
       const startLine = Math.max(0, position.line - contextLines);
       const endLine = Math.min(document.lineCount - 1, position.line + contextLines);
       const surroundingCode = document.getText(
-        new vscode8.Range(startLine, 0, endLine, 0)
+        new vscode11.Range(startLine, 0, endLine, 0)
       );
       const prompt = `
 Complete o c\xF3digo seguinte de forma inteligente e contextual:
@@ -8016,13 +9646,13 @@ Complete a linha atual:`;
 };
 
 // src/services/PatternDetectionService.ts
-var vscode9 = __toESM(require("vscode"));
+var vscode12 = __toESM(require("vscode"));
 var PatternDetectionService = class _PatternDetectionService {
   constructor() {
     this.isEnabled = true;
     this.backendService = BackendService.getInstance();
     this.contextService = CodeContextService.getInstance();
-    this.diagnosticCollection = vscode9.languages.createDiagnosticCollection("xcopilot-patterns");
+    this.diagnosticCollection = vscode12.languages.createDiagnosticCollection("xcopilot-patterns");
     this.setupDocumentWatcher();
   }
   static getInstance() {
@@ -8035,17 +9665,17 @@ var PatternDetectionService = class _PatternDetectionService {
    * Configura o monitoramento de documentos
    */
   setupDocumentWatcher() {
-    vscode9.workspace.onDidSaveTextDocument((document) => {
+    vscode12.workspace.onDidSaveTextDocument((document) => {
       if (this.isEnabled && this.shouldAnalyzeFile(document)) {
         this.analyzeDocument(document);
       }
     });
-    vscode9.workspace.onDidChangeTextDocument((event) => {
+    vscode12.workspace.onDidChangeTextDocument((event) => {
       if (this.isEnabled && this.shouldAnalyzeFile(event.document)) {
         this.scheduleAnalysis(event.document);
       }
     });
-    vscode9.workspace.onDidOpenTextDocument((document) => {
+    vscode12.workspace.onDidOpenTextDocument((document) => {
       if (this.isEnabled && this.shouldAnalyzeFile(document)) {
         this.analyzeDocument(document);
       }
@@ -8091,13 +9721,13 @@ var PatternDetectionService = class _PatternDetectionService {
       this.updateDiagnostics(document, patterns);
       const criticalPatterns = patterns.filter((p) => p.severity === "error");
       if (criticalPatterns.length > 0) {
-        const choice = await vscode9.window.showWarningMessage(
+        const choice = await vscode12.window.showWarningMessage(
           `${criticalPatterns.length} padr\xE3o(\xF5es) cr\xEDtico(s) detectado(s) em ${document.fileName}`,
           "Ver Problemas",
           "Ignorar"
         );
         if (choice === "Ver Problemas") {
-          vscode9.commands.executeCommand("workbench.panel.markers.view.focus");
+          vscode12.commands.executeCommand("workbench.panel.markers.view.focus");
         }
       }
     } catch (error) {
@@ -8127,7 +9757,7 @@ var PatternDetectionService = class _PatternDetectionService {
         patterns.push({
           type: "code-duplication",
           description: "Poss\xEDvel c\xF3digo duplicado detectado",
-          location: new vscode9.Range(lineNumber, 0, lineNumber, line.length),
+          location: new vscode12.Range(lineNumber, 0, lineNumber, line.length),
           severity: "warning",
           suggestion: "Considere extrair em uma fun\xE7\xE3o reutiliz\xE1vel",
           autoFixAvailable: false
@@ -8137,7 +9767,7 @@ var PatternDetectionService = class _PatternDetectionService {
         patterns.push({
           type: "long-function",
           description: "Fun\xE7\xE3o muito longa detectada",
-          location: new vscode9.Range(lineNumber, 0, lineNumber, line.length),
+          location: new vscode12.Range(lineNumber, 0, lineNumber, line.length),
           severity: "info",
           suggestion: "Considere dividir em fun\xE7\xF5es menores",
           autoFixAvailable: true
@@ -8147,7 +9777,7 @@ var PatternDetectionService = class _PatternDetectionService {
         patterns.push({
           type: "high-complexity",
           description: "Alta complexidade ciclom\xE1tica",
-          location: new vscode9.Range(lineNumber, 0, lineNumber, line.length),
+          location: new vscode12.Range(lineNumber, 0, lineNumber, line.length),
           severity: "warning",
           suggestion: "Simplifique a l\xF3gica condicional",
           autoFixAvailable: false
@@ -8158,7 +9788,7 @@ var PatternDetectionService = class _PatternDetectionService {
         patterns.push({
           type: "magic-number",
           description: `N\xFAmero m\xE1gico detectado: ${magicNumber.value}`,
-          location: new vscode9.Range(lineNumber, magicNumber.start, lineNumber, magicNumber.end),
+          location: new vscode12.Range(lineNumber, magicNumber.start, lineNumber, magicNumber.end),
           severity: "info",
           suggestion: "Considere usar uma constante nomeada",
           autoFixAvailable: true
@@ -8169,7 +9799,7 @@ var PatternDetectionService = class _PatternDetectionService {
         patterns.push({
           type: "todo",
           description: `${todoMatch[1]}: ${todoMatch[2]}`,
-          location: new vscode9.Range(lineNumber, 0, lineNumber, line.length),
+          location: new vscode12.Range(lineNumber, 0, lineNumber, line.length),
           severity: "info",
           suggestion: "Item pendente identificado",
           autoFixAvailable: false
@@ -8236,7 +9866,7 @@ Para cada padr\xE3o encontrado, retorne JSON no formato:
           patterns.push({
             type: pattern.type || "ai-detected",
             description: pattern.description || "Padr\xE3o detectado pela IA",
-            location: new vscode9.Range(lineNumber, 0, lineNumber, line.text.length),
+            location: new vscode12.Range(lineNumber, 0, lineNumber, line.text.length),
             severity: pattern.severity || "info",
             suggestion: pattern.suggestion || "Revisar c\xF3digo",
             autoFixAvailable: false
@@ -8254,7 +9884,7 @@ Para cada padr\xE3o encontrado, retorne JSON no formato:
    */
   updateDiagnostics(document, patterns) {
     const diagnostics = patterns.map((pattern) => {
-      const diagnostic = new vscode9.Diagnostic(
+      const diagnostic = new vscode12.Diagnostic(
         pattern.location,
         `[${pattern.type}] ${pattern.description}`,
         this.severityToVSCode(pattern.severity)
@@ -8270,12 +9900,12 @@ Para cada padr\xE3o encontrado, retorne JSON no formato:
   severityToVSCode(severity) {
     switch (severity) {
       case "error":
-        return vscode9.DiagnosticSeverity.Error;
+        return vscode12.DiagnosticSeverity.Error;
       case "warning":
-        return vscode9.DiagnosticSeverity.Warning;
+        return vscode12.DiagnosticSeverity.Warning;
       case "info":
       default:
-        return vscode9.DiagnosticSeverity.Information;
+        return vscode12.DiagnosticSeverity.Information;
     }
   }
   /**
@@ -8359,15 +9989,15 @@ Para cada padr\xE3o encontrado, retorne JSON no formato:
    * Registra comandos relacionados à detecção de padrões
    */
   registerCommands(context) {
-    const analyzeCommand = vscode9.commands.registerCommand(
+    const analyzeCommand = vscode12.commands.registerCommand(
       "xcopilot.analyzePatterns",
       () => this.analyzeCurrentFile()
     );
-    const analyzeWorkspaceCommand = vscode9.commands.registerCommand(
+    const analyzeWorkspaceCommand = vscode12.commands.registerCommand(
       "xcopilot.analyzeWorkspacePatterns",
       () => this.analyzeWorkspace()
     );
-    const toggleCommand = vscode9.commands.registerCommand(
+    const toggleCommand = vscode12.commands.registerCommand(
       "xcopilot.togglePatternDetection",
       () => this.togglePatternDetection()
     );
@@ -8377,34 +10007,34 @@ Para cada padr\xE3o encontrado, retorne JSON no formato:
    * Analisa arquivo atual
    */
   async analyzeCurrentFile() {
-    const editor = vscode9.window.activeTextEditor;
+    const editor = vscode12.window.activeTextEditor;
     if (!editor) {
-      vscode9.window.showWarningMessage("Nenhum arquivo ativo para analisar");
+      vscode12.window.showWarningMessage("Nenhum arquivo ativo para analisar");
       return;
     }
-    vscode9.window.showInformationMessage("\u{1F50D} Analisando padr\xF5es de c\xF3digo...");
+    vscode12.window.showInformationMessage("\u{1F50D} Analisando padr\xF5es de c\xF3digo...");
     await this.analyzeDocument(editor.document);
-    vscode9.window.showInformationMessage("\u2705 An\xE1lise de padr\xF5es conclu\xEDda!");
+    vscode12.window.showInformationMessage("\u2705 An\xE1lise de padr\xF5es conclu\xEDda!");
   }
   /**
    * Analisa workspace inteiro
    */
   async analyzeWorkspace() {
-    const files = await vscode9.workspace.findFiles("**/*.{ts,js,py,java,cs,cpp,c,php,rb,go,rs}");
+    const files = await vscode12.workspace.findFiles("**/*.{ts,js,py,java,cs,cpp,c,php,rb,go,rs}");
     if (files.length === 0) {
-      vscode9.window.showInformationMessage("Nenhum arquivo de c\xF3digo encontrado no workspace");
+      vscode12.window.showInformationMessage("Nenhum arquivo de c\xF3digo encontrado no workspace");
       return;
     }
-    vscode9.window.showInformationMessage(`\u{1F50D} Analisando ${files.length} arquivo(s)...`);
+    vscode12.window.showInformationMessage(`\u{1F50D} Analisando ${files.length} arquivo(s)...`);
     for (const fileUri of files) {
       try {
-        const document = await vscode9.workspace.openTextDocument(fileUri);
+        const document = await vscode12.workspace.openTextDocument(fileUri);
         await this.analyzeDocument(document);
       } catch (error) {
         Logger.error(`Error analyzing file ${fileUri.fsPath}:`, error);
       }
     }
-    vscode9.window.showInformationMessage("\u2705 An\xE1lise do workspace conclu\xEDda!");
+    vscode12.window.showInformationMessage("\u2705 An\xE1lise do workspace conclu\xEDda!");
   }
   /**
    * Toggle da detecção automática
@@ -8414,7 +10044,7 @@ Para cada padr\xE3o encontrado, retorne JSON no formato:
     if (!this.isEnabled) {
       this.diagnosticCollection.clear();
     }
-    vscode9.window.showInformationMessage(
+    vscode12.window.showInformationMessage(
       `Detec\xE7\xE3o de padr\xF5es ${this.isEnabled ? "ativada" : "desativada"}`
     );
   }
@@ -8436,7 +10066,7 @@ Para cada padr\xE3o encontrado, retorne JSON no formato:
 };
 
 // src/services/RefactoringService.ts
-var vscode10 = __toESM(require("vscode"));
+var vscode13 = __toESM(require("vscode"));
 var RefactoringService = class _RefactoringService {
   constructor() {
     this.backendService = BackendService.getInstance();
@@ -8452,23 +10082,23 @@ var RefactoringService = class _RefactoringService {
    * Registra os command handlers para refatoração
    */
   registerCommands(context) {
-    const refactorCommand = vscode10.commands.registerCommand(
+    const refactorCommand = vscode13.commands.registerCommand(
       "xcopilot.refactorCode",
       () => this.refactorSelectedCode()
     );
-    const extractFunctionCommand = vscode10.commands.registerCommand(
+    const extractFunctionCommand = vscode13.commands.registerCommand(
       "xcopilot.extractFunction",
       () => this.extractFunction()
     );
-    const extractVariableCommand = vscode10.commands.registerCommand(
+    const extractVariableCommand = vscode13.commands.registerCommand(
       "xcopilot.extractVariable",
       () => this.extractVariable()
     );
-    const optimizeImportsCommand = vscode10.commands.registerCommand(
+    const optimizeImportsCommand = vscode13.commands.registerCommand(
       "xcopilot.optimizeImports",
       () => this.optimizeImports()
     );
-    const applyPatternCommand = vscode10.commands.registerCommand(
+    const applyPatternCommand = vscode13.commands.registerCommand(
       "xcopilot.applyDesignPattern",
       () => this.applyDesignPattern()
     );
@@ -8484,23 +10114,23 @@ var RefactoringService = class _RefactoringService {
    * Refatora código selecionado
    */
   async refactorSelectedCode() {
-    const editor = vscode10.window.activeTextEditor;
+    const editor = vscode13.window.activeTextEditor;
     if (!editor) {
-      vscode10.window.showWarningMessage("Nenhum editor ativo encontrado");
+      vscode13.window.showWarningMessage("Nenhum editor ativo encontrado");
       return;
     }
     const selection = editor.selection;
     if (selection.isEmpty) {
-      vscode10.window.showWarningMessage("Selecione o c\xF3digo para refatorar");
+      vscode13.window.showWarningMessage("Selecione o c\xF3digo para refatorar");
       return;
     }
     try {
       const selectedText = editor.document.getText(selection);
       const context = this.contextService.getCurrentContext();
-      vscode10.window.showInformationMessage("\u{1F527} Analisando c\xF3digo para refatora\xE7\xE3o...");
+      vscode13.window.showInformationMessage("\u{1F527} Analisando c\xF3digo para refatora\xE7\xE3o...");
       const refactoredCode = await this.generateRefactoredCode(selectedText, context, editor.document.languageId);
       if (refactoredCode && refactoredCode !== selectedText) {
-        const choice = await vscode10.window.showInformationMessage(
+        const choice = await vscode13.window.showInformationMessage(
           "C\xF3digo refatorado gerado! Deseja aplicar as mudan\xE7as?",
           "Aplicar",
           "Visualizar",
@@ -8510,33 +10140,33 @@ var RefactoringService = class _RefactoringService {
           await editor.edit((editBuilder) => {
             editBuilder.replace(selection, refactoredCode);
           });
-          vscode10.window.showInformationMessage("\u2705 Refatora\xE7\xE3o aplicada com sucesso!");
+          vscode13.window.showInformationMessage("\u2705 Refatora\xE7\xE3o aplicada com sucesso!");
         } else if (choice === "Visualizar") {
           await this.showRefactoringPreview(selectedText, refactoredCode);
         }
       } else {
-        vscode10.window.showInformationMessage("Nenhuma melhoria de refatora\xE7\xE3o foi identificada");
+        vscode13.window.showInformationMessage("Nenhuma melhoria de refatora\xE7\xE3o foi identificada");
       }
     } catch (error) {
       Logger.error("Error refactoring code:", error);
-      vscode10.window.showErrorMessage("Erro ao refatorar c\xF3digo");
+      vscode13.window.showErrorMessage("Erro ao refatorar c\xF3digo");
     }
   }
   /**
    * Extrai função do código selecionado
    */
   async extractFunction() {
-    const editor = vscode10.window.activeTextEditor;
+    const editor = vscode13.window.activeTextEditor;
     if (!editor)
       return;
     const selection = editor.selection;
     if (selection.isEmpty) {
-      vscode10.window.showWarningMessage("Selecione o c\xF3digo para extrair em fun\xE7\xE3o");
+      vscode13.window.showWarningMessage("Selecione o c\xF3digo para extrair em fun\xE7\xE3o");
       return;
     }
     try {
       const selectedText = editor.document.getText(selection);
-      const functionName = await vscode10.window.showInputBox({
+      const functionName = await vscode13.window.showInputBox({
         prompt: "Nome da nova fun\xE7\xE3o:",
         value: "extractedFunction"
       });
@@ -8557,28 +10187,28 @@ var RefactoringService = class _RefactoringService {
 ${extraction.functionDefinition}
 `);
         });
-        vscode10.window.showInformationMessage(`\u2705 Fun\xE7\xE3o "${functionName}" extra\xEDda com sucesso!`);
+        vscode13.window.showInformationMessage(`\u2705 Fun\xE7\xE3o "${functionName}" extra\xEDda com sucesso!`);
       }
     } catch (error) {
       Logger.error("Error extracting function:", error);
-      vscode10.window.showErrorMessage("Erro ao extrair fun\xE7\xE3o");
+      vscode13.window.showErrorMessage("Erro ao extrair fun\xE7\xE3o");
     }
   }
   /**
    * Extrai variável do código selecionado
    */
   async extractVariable() {
-    const editor = vscode10.window.activeTextEditor;
+    const editor = vscode13.window.activeTextEditor;
     if (!editor)
       return;
     const selection = editor.selection;
     if (selection.isEmpty) {
-      vscode10.window.showWarningMessage("Selecione a express\xE3o para extrair em vari\xE1vel");
+      vscode13.window.showWarningMessage("Selecione a express\xE3o para extrair em vari\xE1vel");
       return;
     }
     try {
       const selectedText = editor.document.getText(selection);
-      const variableName = await vscode10.window.showInputBox({
+      const variableName = await vscode13.window.showInputBox({
         prompt: "Nome da nova vari\xE1vel:",
         value: "extractedVariable"
       });
@@ -8598,22 +10228,22 @@ ${extraction.functionDefinition}
 `);
           editBuilder.replace(selection, variableName);
         });
-        vscode10.window.showInformationMessage(`\u2705 Vari\xE1vel "${variableName}" extra\xEDda com sucesso!`);
+        vscode13.window.showInformationMessage(`\u2705 Vari\xE1vel "${variableName}" extra\xEDda com sucesso!`);
       }
     } catch (error) {
       Logger.error("Error extracting variable:", error);
-      vscode10.window.showErrorMessage("Erro ao extrair vari\xE1vel");
+      vscode13.window.showErrorMessage("Erro ao extrair vari\xE1vel");
     }
   }
   /**
    * Otimiza imports do arquivo atual
    */
   async optimizeImports() {
-    const editor = vscode10.window.activeTextEditor;
+    const editor = vscode13.window.activeTextEditor;
     if (!editor)
       return;
     try {
-      vscode10.window.showInformationMessage("\u{1F527} Otimizando imports...");
+      vscode13.window.showInformationMessage("\u{1F527} Otimizando imports...");
       const fileContent = editor.document.getText();
       const context = this.contextService.getCurrentContext();
       const optimizedImports = await this.generateOptimizedImports(
@@ -8622,27 +10252,27 @@ ${extraction.functionDefinition}
         editor.document.languageId
       );
       if (optimizedImports && optimizedImports !== fileContent) {
-        const choice = await vscode10.window.showInformationMessage(
+        const choice = await vscode13.window.showInformationMessage(
           "Imports otimizados! Aplicar mudan\xE7as?",
           "Aplicar",
           "Cancelar"
         );
         if (choice === "Aplicar") {
-          const fullRange = new vscode10.Range(
+          const fullRange = new vscode13.Range(
             editor.document.positionAt(0),
             editor.document.positionAt(fileContent.length)
           );
           await editor.edit((editBuilder) => {
             editBuilder.replace(fullRange, optimizedImports);
           });
-          vscode10.window.showInformationMessage("\u2705 Imports otimizados com sucesso!");
+          vscode13.window.showInformationMessage("\u2705 Imports otimizados com sucesso!");
         }
       } else {
-        vscode10.window.showInformationMessage("Imports j\xE1 est\xE3o otimizados");
+        vscode13.window.showInformationMessage("Imports j\xE1 est\xE3o otimizados");
       }
     } catch (error) {
       Logger.error("Error optimizing imports:", error);
-      vscode10.window.showErrorMessage("Erro ao otimizar imports");
+      vscode13.window.showErrorMessage("Erro ao otimizar imports");
     }
   }
   /**
@@ -8658,19 +10288,19 @@ ${extraction.functionDefinition}
       "Adapter",
       "Decorator"
     ];
-    const pattern = await vscode10.window.showQuickPick(patterns, {
+    const pattern = await vscode13.window.showQuickPick(patterns, {
       placeHolder: "Selecione o padr\xE3o de design a aplicar"
     });
     if (!pattern)
       return;
-    const editor = vscode10.window.activeTextEditor;
+    const editor = vscode13.window.activeTextEditor;
     if (!editor)
       return;
     try {
       const selection = editor.selection;
       const selectedText = selection.isEmpty ? editor.document.getText() : editor.document.getText(selection);
       const context = this.contextService.getCurrentContext();
-      vscode10.window.showInformationMessage(`\u{1F527} Aplicando padr\xE3o ${pattern}...`);
+      vscode13.window.showInformationMessage(`\u{1F527} Aplicando padr\xE3o ${pattern}...`);
       const patternCode = await this.generateDesignPattern(
         selectedText,
         pattern,
@@ -8682,7 +10312,7 @@ ${extraction.functionDefinition}
       }
     } catch (error) {
       Logger.error("Error applying design pattern:", error);
-      vscode10.window.showErrorMessage("Erro ao aplicar padr\xE3o de design");
+      vscode13.window.showErrorMessage("Erro ao aplicar padr\xE3o de design");
     }
   }
   /**
@@ -8800,7 +10430,7 @@ Retorne APENAS o c\xF3digo refatorado com o padr\xE3o aplicado:
    * Mostra preview da refatoração
    */
   async showRefactoringPreview(original, refactored) {
-    const doc = await vscode10.workspace.openTextDocument({
+    const doc = await vscode13.workspace.openTextDocument({
       content: `// ORIGINAL:
 ${original}
 
@@ -8808,25 +10438,25 @@ ${original}
 ${refactored}`,
       language: "typescript"
     });
-    await vscode10.window.showTextDocument(doc);
+    await vscode13.window.showTextDocument(doc);
   }
   /**
    * Mostra preview do padrão aplicado
    */
   async showPatternPreview(original, pattern, patternName) {
-    const choice = await vscode10.window.showInformationMessage(
+    const choice = await vscode13.window.showInformationMessage(
       `Padr\xE3o ${patternName} gerado! Deseja visualizar?`,
       "Visualizar",
       "Cancelar"
     );
     if (choice === "Visualizar") {
-      const doc = await vscode10.workspace.openTextDocument({
+      const doc = await vscode13.workspace.openTextDocument({
         content: `// PADR\xC3O ${patternName.toUpperCase()} APLICADO:
 
 ${pattern}`,
         language: "typescript"
       });
-      await vscode10.window.showTextDocument(doc);
+      await vscode13.window.showTextDocument(doc);
     }
   }
   /**
@@ -9536,7 +11166,7 @@ var ChatWebviewProvider = class {
 };
 
 // src/views/SidebarChatProvider.ts
-var vscode11 = __toESM(require("vscode"));
+var vscode14 = __toESM(require("vscode"));
 var SidebarChatProvider = class {
   constructor(context, chatProvider) {
     this.context = context;
@@ -9553,8 +11183,8 @@ var SidebarChatProvider = class {
     this.webview.options = {
       enableScripts: true,
       localResourceRoots: [
-        vscode11.Uri.joinPath(this.context.extensionUri, "media"),
-        vscode11.Uri.joinPath(this.context.extensionUri, "dist")
+        vscode14.Uri.joinPath(this.context.extensionUri, "media"),
+        vscode14.Uri.joinPath(this.context.extensionUri, "dist")
       ]
     };
     this.webview.html = this.getWebviewContent(this.webview);
@@ -10143,7 +11773,7 @@ ${code}
 // src/ExtensionManager.ts
 var ExtensionManager = class {
   constructor() {
-    this.outputChannel = vscode12.window.createOutputChannel("xCopilot");
+    this.outputChannel = vscode15.window.createOutputChannel("xCopilot");
     Logger.init(this.outputChannel);
     this.configService = ConfigurationService.getInstance();
   }
@@ -10156,14 +11786,17 @@ var ExtensionManager = class {
       this.chatProvider = new ChatWebviewProvider(context);
       this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
       this.chatCommands = new ChatCommands(this.chatProvider);
+      this.codeGenerationCommands = new CodeGenerationCommands();
       this.codeSuggestionsService = CodeSuggestionsService.getInstance();
       this.codeExplanationService = CodeExplanationService.getInstance();
       this.ghostTextService = GhostTextService.getInstance();
       this.inlineCompletionService = InlineCompletionService.getInstance();
       this.refactoringService = RefactoringService.getInstance();
       this.patternDetectionService = PatternDetectionService.getInstance();
+      this.multilineCodeGenerationService = MultilineCodeGenerationService.getInstance();
       this.registerWebviewProvider(context);
       this.chatCommands.registerCommands(context);
+      this.codeGenerationCommands.registerCommands(context);
       this.refactoringService.registerCommands(context);
       this.patternDetectionService.registerCommands(context);
       this.registerCodeExplanationCommands(context);
@@ -10173,7 +11806,7 @@ var ExtensionManager = class {
       Logger.info("\u2705 Extension activation completed successfully");
     } catch (error) {
       Logger.error("\u274C CRITICAL ERROR during extension activation:", error);
-      vscode12.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+      vscode15.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
   }
   /**
@@ -10181,7 +11814,7 @@ var ExtensionManager = class {
    */
   registerWebviewProvider(context) {
     Logger.info("\u{1F4DD} Registering WebviewViewProvider for xcopilotPanel...");
-    const mainDisposable = vscode12.window.registerWebviewViewProvider(
+    const mainDisposable = vscode15.window.registerWebviewViewProvider(
       "xcopilotPanel",
       this.chatProvider,
       {
@@ -10190,7 +11823,7 @@ var ExtensionManager = class {
         }
       }
     );
-    const sidebarDisposable = vscode12.window.registerWebviewViewProvider(
+    const sidebarDisposable = vscode15.window.registerWebviewViewProvider(
       "xcopilotChat",
       this.sidebarChatProvider,
       {
@@ -10223,63 +11856,83 @@ var ExtensionManager = class {
    * Registra comandos de explicação de código
    */
   registerCodeExplanationCommands(context) {
-    const commands5 = [
-      vscode12.commands.registerCommand("xcopilot.explainSelected", () => {
+    const commands6 = [
+      vscode15.commands.registerCommand("xcopilot.explainSelected", () => {
         this.codeExplanationService.explainSelectedCode();
       }),
-      vscode12.commands.registerCommand("xcopilot.explainFunction", () => {
+      vscode15.commands.registerCommand("xcopilot.explainFunction", () => {
         this.codeExplanationService.explainCurrentFunction();
       }),
-      vscode12.commands.registerCommand("xcopilot.explainFile", () => {
+      vscode15.commands.registerCommand("xcopilot.explainFile", () => {
         this.codeExplanationService.explainEntireFile();
       }),
-      vscode12.commands.registerCommand("xcopilot.acceptGhostText", () => {
+      vscode15.commands.registerCommand("xcopilot.acceptGhostText", () => {
         this.ghostTextService.acceptGhostText();
       }),
-      vscode12.commands.registerCommand("xcopilot.openChat", () => {
-        vscode12.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
-        vscode12.commands.executeCommand("setContext", "xcopilot.chatVisible", true);
+      vscode15.commands.registerCommand("xcopilot.openChat", () => {
+        vscode15.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+        vscode15.commands.executeCommand("setContext", "xcopilot.chatVisible", true);
       }),
-      vscode12.commands.registerCommand("xcopilot.closeChat", () => {
-        vscode12.commands.executeCommand("workbench.action.closePanel");
-        vscode12.commands.executeCommand("setContext", "xcopilot.chatVisible", false);
+      vscode15.commands.registerCommand("xcopilot.closeChat", () => {
+        vscode15.commands.executeCommand("workbench.action.closePanel");
+        vscode15.commands.executeCommand("setContext", "xcopilot.chatVisible", false);
       }),
-      vscode12.commands.registerCommand("xcopilot.toggleChat", () => {
-        vscode12.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+      vscode15.commands.registerCommand("xcopilot.toggleChat", () => {
+        vscode15.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
       }),
-      vscode12.commands.registerCommand("xcopilot.openChatWithCode", () => {
-        const editor = vscode12.window.activeTextEditor;
+      vscode15.commands.registerCommand("xcopilot.openChatWithCode", () => {
+        const editor = vscode15.window.activeTextEditor;
         if (editor && !editor.selection.isEmpty) {
           const selectedCode = editor.document.getText(editor.selection);
-          vscode12.commands.executeCommand("xcopilot.openChat");
+          vscode15.commands.executeCommand("xcopilot.openChat");
           this.sidebarChatProvider.openWithSelectedCode(selectedCode);
         } else {
-          vscode12.window.showWarningMessage("Selecione c\xF3digo para explicar no chat");
+          vscode15.window.showWarningMessage("Selecione c\xF3digo para explicar no chat");
         }
       }),
-      vscode12.commands.registerCommand("xcopilot.toggleInlineCompletion", () => {
+      vscode15.commands.registerCommand("xcopilot.toggleInlineCompletion", () => {
         const currentState = this.inlineCompletionService.isServiceEnabled();
         this.inlineCompletionService.setEnabled(!currentState);
-        vscode12.window.showInformationMessage(
+        vscode15.window.showInformationMessage(
           `Inline Completion ${!currentState ? "habilitado" : "desabilitado"}`
         );
       }),
-      vscode12.commands.registerCommand("xcopilot.clearCompletionCache", () => {
+      vscode15.commands.registerCommand("xcopilot.clearCompletionCache", () => {
         this.inlineCompletionService.clearCache();
-        vscode12.window.showInformationMessage("Cache de completions limpo");
+        vscode15.window.showInformationMessage("Cache de completions limpo");
       }),
-      vscode12.commands.registerCommand("xcopilot.showCompletionStats", () => {
+      vscode15.commands.registerCommand("xcopilot.showCompletionStats", () => {
         const stats = this.inlineCompletionService.getStats();
         const message = `Estat\xEDsticas de Completion:
 Requisi\xE7\xF5es: ${stats.requestCount}
 Cache Hits: ${stats.cacheHits}
 Taxa de Cache: ${stats.cacheHitRate.toFixed(1)}%
 Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats.utilization.toFixed(1)}%)`;
-        vscode12.window.showInformationMessage(message);
+        vscode15.window.showInformationMessage(message);
       })
     ];
-    context.subscriptions.push(...commands5);
+    context.subscriptions.push(...commands6);
     Logger.info("\u2705 Code explanation commands registered");
+  }
+  /**
+   * Configura monitoramento de mudanças na configuração
+   */
+  setupConfigurationWatcher(context) {
+    const configWatcher = vscode15.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("xcopilot")) {
+        Logger.info("\u2699\uFE0F Configuration changed, reloading services...");
+        this.configService.reload();
+      }
+    });
+    context.subscriptions.push(configWatcher);
+    Logger.info("\u2705 Configuration watcher setup complete");
+  }
+  /**
+   * Desativa a extensão
+   */
+  deactivate() {
+    Logger.info("\u{1F504} xCopilot extension is being deactivated...");
+    Logger.info("\u2705 Extension deactivated successfully");
   }
 };
 
