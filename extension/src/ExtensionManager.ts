@@ -30,12 +30,12 @@ export class ExtensionManager {
     private inlineCompletionService!: InlineCompletionService;
     private refactoringService!: RefactoringService;
     private patternDetectionService!: PatternDetectionService;
-    
+
     // New context-aware services
     private workspaceAnalysisService!: WorkspaceAnalysisService;
     private contextAwareService!: ContextAwareService;
     private semanticSearchService!: SemanticSearchService;
-    
+
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
@@ -256,7 +256,7 @@ export class ExtensionManager {
             vscode.commands.registerCommand('xcopilot.showContextStats', () => {
                 const stats = this.contextAwareService.getContextStats();
                 const cacheStats = this.semanticSearchService.getCacheStats();
-                
+
                 const message = `Estatísticas de Contexto:
 🧠 Inicializado: ${stats.isInitialized ? 'Sim' : 'Não'}
 📊 Análise disponível: ${stats.hasWorkspaceAnalysis ? 'Sim' : 'Não'}
@@ -285,12 +285,12 @@ export class ExtensionManager {
     private async initializeContextAwareFeatures(): Promise<void> {
         try {
             Logger.info('🧠 Initializing context-aware features...');
-            
+
             // Initialize context-aware service in background
             await this.contextAwareService.initialize();
-            
+
             Logger.info('✅ Context-aware features initialized successfully');
-            
+
         } catch (error) {
             Logger.error('Error initializing context-aware features:', error);
             // Don't show error to user as this is not critical for basic functionality
