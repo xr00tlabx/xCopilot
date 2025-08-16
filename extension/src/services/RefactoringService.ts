@@ -453,7 +453,7 @@ export class RefactoringService {
             const duplicates = await this.findDuplicatedCode(editor.document, targetLine);
 
             if (duplicates.length < 2) {
-                vscode.window.showInformationMessage('Código duplicado não encontrado suficientemente');
+                vscode.window.showInformationMessage('Insufficient duplicate code found');
                 return;
             }
 
