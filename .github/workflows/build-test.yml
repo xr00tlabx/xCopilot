@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ master, dev ]
 
+permissions:
+  contents: write  # Permite commits automáticos
+  pull-requests: read
+
 jobs:
   build-backend:
     runs-on: ubuntu-latest
@@ -24,7 +28,17 @@ jobs:
         
     - name: 📦 Install Backend Dependencies
       working-directory: ./backend
-      run: npm ci
+      run: |
+        # Verifica se package-lock.json está sincronizado
+        echo "Verificando sincronização do package-lock.json do backend..."
+        if ! npm ci --dry-run 2>/dev/null; then
+          echo "❌ Package-lock desatualizado! Atualizando..."
+          npm install
+          echo "✅ Package-lock do backend atualizado"
+        else
+          echo "✅ Package-lock sincronizado, usando npm ci"
+          npm ci
+        fi
       
     - name: 🧪 Run Backend Tests
       working-directory: ./backend
@@ -38,6 +52,22 @@ jobs:
         sleep 10
         curl -f http://localhost:3000/health || exit 1
         pkill -f "node.*index.js"
+
+    - name: 📝 Commit Updated Lock Files
+      if: github.event_name == 'push'  # Só commita em push, não em PR
+      run: |
+        # Verifica se houve mudanças em qualquer package-lock.json
+        if git diff --name-only | grep -q "package-lock.json"; then
+          echo "📝 Commitando package-lock.json atualizados..."
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add . -A
+          git commit -m "chore: atualiza package-lock.json automaticamente via CI"
+          git push
+          echo "✅ Package-lock.json commitados com sucesso"
+        else
+          echo "✅ Nenhuma atualização necessária nos package-lock.json"
+        fi
 
   build-extension:
     runs-on: ubuntu-latest
@@ -56,7 +86,37 @@ jobs:
         
     - name: 📦 Install Extension Dependencies
       working-directory: ./extension
-      run: npm ci
+      run: |
+        # Verifica se package-lock.json está sincronizado
+        echo "Verificando sincronização do package-lock.json..."
+        if ! npm ci --dry-run 2>/dev/null; then
+          echo "❌ Package-lock desatualizado! Atualizando..."
+          npm install
+          echo "✅ Package-lock atualizado"
+        else
+          echo "✅ Package-lock sincronizado, usando npm ci"
+          npm ci
+        fi
+        
+    - name: 📝 Commit Updated Lock File
+      working-directory: ./extension
+      run: |
+        # Verifica se houve mudanças no package-lock.json
+        if git diff --name-only | grep -q "package-lock.json"; then
+          echo "📝 Commitando package-lock.json atualizado..."
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "chore: atualiza package-lock.json automaticamente
+          
+          - Sincroniza dependências com package.json
+          - Gerado automaticamente pelo workflow CI
+          - Mantém lock file sempre atualizado"
+          git push
+          echo "✅ Package-lock.json commitado com sucesso"
+        else
+          echo "✅ Nenhuma atualização necessária no package-lock.json"
+        fi
       
     - name: 🔨 Compile TypeScript
       working-directory: ./extension
