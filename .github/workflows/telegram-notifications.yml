@@ -14,6 +14,9 @@ on:
 jobs:
   notify-telegram:
     runs-on: ubuntu-latest
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,44 +34,43 @@ jobs:
         run: |
           EVENT="${{ github.event_name }}"
           
+          # Mensagens por tipo de evento
           if [ "$EVENT" = "push" ]; then
-            TEXT="[xCopilot] PUSH na branch ${{ steps.info.outputs.branch }} por ${{ steps.info.outputs.actor }} (commit ${{ steps.info.outputs.short_sha }})"
+            TEXT="🚀 xCopilot: Push na ${{ steps.info.outputs.branch }} por ${{ steps.info.outputs.actor }} (commit ${{ steps.info.outputs.short_sha }})"
           elif [ "$EVENT" = "pull_request" ]; then
             ACTION="${{ github.event.action }}"
             if [ "$ACTION" = "opened" ]; then
-              TEXT="[xCopilot] PR #${{ github.event.number }} ABERTO por ${{ github.event.pull_request.user.login }}"
+              TEXT="🎯 xCopilot: PR #${{ github.event.number }} aberto por ${{ github.event.pull_request.user.login }}"
+            elif [ "$ACTION" = "closed" ] && [ "${{ github.event.pull_request.merged }}" = "true" ]; then
+              TEXT="✅ xCopilot: PR #${{ github.event.number }} merged por ${{ github.event.pull_request.user.login }}!"
             elif [ "$ACTION" = "closed" ]; then
-              if [ "${{ github.event.pull_request.merged }}" = "true" ]; then
-                TEXT="[xCopilot] PR #${{ github.event.number }} MERGED por ${{ github.event.pull_request.user.login }}"
-              else
-                TEXT="[xCopilot] PR #${{ github.event.number }} FECHADO por ${{ github.event.pull_request.user.login }}"
-              fi
+              TEXT="❌ xCopilot: PR #${{ github.event.number }} fechado sem merge"
             else
-              TEXT="[xCopilot] PR #${{ github.event.number }} atualizado por ${{ github.event.pull_request.user.login }}"
+              TEXT="🔄 xCopilot: PR #${{ github.event.number }} atualizado"
             fi
           elif [ "$EVENT" = "release" ]; then
-            TEXT="[xCopilot] RELEASE ${{ github.event.release.tag_name }} por ${{ github.event.release.author.login }}"
+            TEXT="🚀 xCopilot: Release ${{ github.event.release.tag_name }} disponível!"
           elif [ "$EVENT" = "workflow_run" ]; then
             if [ "${{ github.event.workflow_run.conclusion }}" = "success" ]; then
-              TEXT="[xCopilot] BUILD OK - ${{ github.event.workflow_run.name }} na branch ${{ github.event.workflow_run.head_branch }}"
+              TEXT="✅ xCopilot: Build sucesso na ${{ github.event.workflow_run.head_branch }}"
             else
-              TEXT="[xCopilot] BUILD FAIL - ${{ github.event.workflow_run.name }} na branch ${{ github.event.workflow_run.head_branch }}"
+              TEXT="❌ xCopilot: Build falhou na ${{ github.event.workflow_run.head_branch }}"
             fi
           else
-            TEXT="[xCopilot] Evento $EVENT detectado"
+            TEXT="🤖 xCopilot: Evento $EVENT detectado no repositório"
           fi
           
           echo "text=$TEXT" >> $GITHUB_OUTPUT
-          echo "Debug: MESSAGE='$TEXT'" # Para debug
+          echo "Mensagem: $TEXT"
 
       - name: Send Telegram
         if: steps.msg.outputs.text != ''
         run: |
           MESSAGE="${{ steps.msg.outputs.text }}"
           echo "Enviando: $MESSAGE"
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
             -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"$MESSAGE\"}"
+            -d "{\"chat_id\": \"$TELEGRAM_CHAT_ID\", \"text\": \"$MESSAGE\"}"
 
       - name: Send Status
         if: always()
@@ -79,6 +81,6 @@ jobs:
             STATUS_MSG="[xCopilot] Falha no envio da notificacao"
           fi
           echo "Status: $STATUS_MSG"
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
             -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"$STATUS_MSG\"}"
+            -d "{\"chat_id\": \"$TELEGRAM_CHAT_ID\", \"text\": \"$STATUS_MSG\"}"
