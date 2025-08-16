@@ -159,6 +159,22 @@
             {
                 "command": "xcopilot.showCompletionStats",
                 "title": "xCopilot: Mostrar Estatísticas de Completion"
+            },
+            {
+                "command": "xcopilot.analyzeWorkspace",
+                "title": "xCopilot: Analisar Workspace Completo"
+            },
+            {
+                "command": "xcopilot.quickAnalyzeWorkspace",
+                "title": "xCopilot: Análise Rápida do Workspace"
+            },
+            {
+                "command": "xcopilot.showWorkspaceDashboard",
+                "title": "xCopilot: Mostrar Dashboard do Workspace"
+            },
+            {
+                "command": "xcopilot.clearAnalysisCache",
+                "title": "xCopilot: Limpar Cache de Análise"
             }
         ],
         "viewsContainers": {
@@ -182,6 +198,11 @@
                 {
                     "id": "xcopilotPanel",
                     "name": "Assistente",
+                    "type": "webview"
+                },
+                {
+                    "id": "xcopilot.workspaceDashboard",
+                    "name": "Workspace Intelligence",
                     "type": "webview"
                 }
             ],
@@ -264,6 +285,24 @@
                     "group": "xcopilot-chat@2"
                 }
             ],
+            "commandPalette": [
+                {
+                    "command": "xcopilot.analyzeWorkspace",
+                    "when": "workspaceFolderCount > 0"
+                },
+                {
+                    "command": "xcopilot.quickAnalyzeWorkspace", 
+                    "when": "workspaceFolderCount > 0"
+                },
+                {
+                    "command": "xcopilot.showWorkspaceDashboard",
+                    "when": "workspaceFolderCount > 0"
+                },
+                {
+                    "command": "xcopilot.clearAnalysisCache",
+                    "when": "workspaceFolderCount > 0"
+                }
+            ],
             "explorer/context": [
                 {
                     "command": "xcopilot.analyzeFile",
@@ -342,6 +381,16 @@
             {
                 "command": "xcopilot.toggleInlineCompletion",
                 "key": "ctrl+alt+i",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.analyzeWorkspace",
+                "key": "ctrl+k ctrl+w",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.showWorkspaceDashboard",
+                "key": "ctrl+k ctrl+d",
                 "when": "editorTextFocus"
             }
         ]

@@ -10,4 +10,5 @@ export { InlineCompletionService } from './InlineCompletionService';
 export { PatternDetectionService } from './PatternDetectionService';
 export { PromptTemplateService } from './PromptTemplateService';
 export { RefactoringService } from './RefactoringService';
+export { WorkspaceAnalysisService } from './WorkspaceAnalysisService';
 

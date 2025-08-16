@@ -5102,7 +5102,7 @@ __export(extension_exports, {
 module.exports = __toCommonJS(extension_exports);
 
 // src/ExtensionManager.ts
-var vscode12 = __toESM(require("vscode"));
+var vscode14 = __toESM(require("vscode"));
 
 // src/commands/ChatCommands.ts
 var vscode = __toESM(require("vscode"));
@@ -6712,8 +6712,8 @@ var CodeContextService = class _CodeContextService {
     if (document.isUntitled) {
       return `Untitled-${document.languageId}`;
     }
-    const path = document.fileName;
-    const segments = path.split(/[\\\/]/);
+    const path2 = document.fileName;
+    const segments = path2.split(/[\\\/]/);
     return segments[segments.length - 1];
   }
   /**
@@ -7654,6 +7654,165 @@ ${suggestion}`);
 
 // src/services/GitIntegrationService.ts
 var vscode7 = __toESM(require("vscode"));
+var GitIntegrationService = class _GitIntegrationService {
+  constructor() {
+    this.isInitialized = false;
+    this.initializeGitExtension();
+  }
+  static getInstance() {
+    if (!_GitIntegrationService.instance) {
+      _GitIntegrationService.instance = new _GitIntegrationService();
+    }
+    return _GitIntegrationService.instance;
+  }
+  /**
+   * Inicializa a extensão do Git (sem throw de erro)
+   */
+  async initializeGitExtension() {
+    try {
+      const gitExtension = vscode7.extensions.getExtension("vscode.git");
+      if (gitExtension) {
+        if (!gitExtension.isActive) {
+          await gitExtension.activate();
+        }
+        this.gitExtension = gitExtension.exports?.getAPI?.(1);
+        if (this.gitExtension) {
+          this.isInitialized = true;
+          Logger.info("Git extension initialized successfully");
+        } else {
+          Logger.warn("Git API not available - Git features will be disabled");
+        }
+      } else {
+        Logger.warn("Git extension not found - Git features will be disabled");
+      }
+    } catch (error) {
+      Logger.warn("Git extension not available - Git features will be disabled");
+      this.gitExtension = void 0;
+    }
+  }
+  /**
+   * Verifica se o Git está disponível
+   */
+  isGitAvailable() {
+    try {
+      return this.isInitialized && !!this.gitExtension;
+    } catch (error) {
+      return false;
+    }
+  }
+  /**
+   * Obtém informações do Git para o workspace atual
+   */
+  async getGitInfo() {
+    if (!this.isGitAvailable()) {
+      return null;
+    }
+    try {
+      const workspaceFolders = vscode7.workspace.workspaceFolders;
+      if (!workspaceFolders?.length) {
+        return null;
+      }
+      const repository = this.gitExtension.getRepository(workspaceFolders[0].uri);
+      if (!repository) {
+        return null;
+      }
+      const gitInfo = {
+        currentBranch: repository.state.HEAD?.name || "unknown",
+        hasUncommittedChanges: (repository.state.workingTreeChanges?.length || 0) > 0 || (repository.state.indexChanges?.length || 0) > 0,
+        lastCommitMessage: repository.state.HEAD?.commit?.message || "",
+        changedFiles: [
+          ...repository.state.workingTreeChanges?.map((c) => c.uri.fsPath) || [],
+          ...repository.state.indexChanges?.map((c) => c.uri.fsPath) || []
+        ],
+        diff: void 0
+        // Simplificado por enquanto
+      };
+      return gitInfo;
+    } catch (error) {
+      Logger.error("Error getting Git info:", error);
+      return null;
+    }
+  }
+  /**
+   * Obtém diff do arquivo atual (versão simplificada)
+   */
+  async getCurrentFileDiff() {
+    if (!this.isGitAvailable()) {
+      return null;
+    }
+    try {
+      const editor = vscode7.window.activeTextEditor;
+      if (!editor) {
+        return null;
+      }
+      const fileName = editor.document.fileName;
+      const isModified = editor.document.isDirty;
+      return isModified ? `File modified: ${fileName}` : null;
+    } catch (error) {
+      Logger.error("Error getting file diff:", error);
+      return null;
+    }
+  }
+  /**
+   * Gera sugestão de mensagem de commit baseada nas mudanças
+   */
+  async generateCommitMessage(changedFiles, diff) {
+    try {
+      const fileTypes = this.analyzeFileTypes(changedFiles);
+      const changeScope = this.analyzeChangeScope(changedFiles);
+      let type = "feat";
+      if (changedFiles.some((f3) => f3.includes("test") || f3.includes("spec"))) {
+        type = "test";
+      } else if (changedFiles.some((f3) => f3.includes("doc") || f3.includes("README"))) {
+        type = "docs";
+      } else if (changedFiles.some((f3) => f3.includes("fix") || f3.includes("bug"))) {
+        type = "fix";
+      } else if (changedFiles.some((f3) => f3.includes("style") || f3.includes("css"))) {
+        type = "style";
+      }
+      const scope = changeScope.length > 0 ? `(${changeScope.join(", ")})` : "";
+      const fileTypesList = fileTypes.length > 0 ? ` - ${fileTypes.join(", ")}` : "";
+      return `${type}${scope}: update ${changedFiles.length} file(s)${fileTypesList}`;
+    } catch (error) {
+      Logger.error("Error generating commit message:", error);
+      return "feat: update files";
+    }
+  }
+  /**
+   * Analisa tipos de arquivos modificados
+   */
+  analyzeFileTypes(files) {
+    try {
+      const types3 = /* @__PURE__ */ new Set();
+      files.forEach((file) => {
+        const ext = file.split(".").pop()?.toLowerCase();
+        if (ext) {
+          types3.add(ext);
+        }
+      });
+      return Array.from(types3).slice(0, 3);
+    } catch (error) {
+      return [];
+    }
+  }
+  /**
+   * Analisa escopo das mudanças
+   */
+  analyzeChangeScope(files) {
+    try {
+      const scopes = /* @__PURE__ */ new Set();
+      files.forEach((file) => {
+        const parts = file.split("/");
+        if (parts.length > 1) {
+          scopes.add(parts[parts.length - 2]);
+        }
+      });
+      return Array.from(scopes).slice(0, 2);
+    } catch (error) {
+      return [];
+    }
+  }
+};
 
 // src/services/InlineCompletionService.ts
 var vscode8 = __toESM(require("vscode"));
@@ -8848,6 +9007,508 @@ ${pattern}`,
   }
 };
 
+// src/services/WorkspaceAnalysisService.ts
+var vscode11 = __toESM(require("vscode"));
+var fs2 = __toESM(require("fs"));
+var path = __toESM(require("path"));
+var WorkspaceAnalysisService = class {
+  // 5 minutos
+  constructor(patternService, gitService, contextService) {
+    this.analysisCache = /* @__PURE__ */ new Map();
+    this.CACHE_TTL = 5 * 60 * 1e3;
+    this.patternService = patternService;
+    this.gitService = gitService;
+    this.contextService = contextService;
+  }
+  /**
+   * Executa análise completa do workspace
+   */
+  async analyzeWorkspace() {
+    const workspaceFolders = vscode11.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      throw new Error("Nenhum workspace aberto");
+    }
+    const workspacePath = workspaceFolders[0].uri.fsPath;
+    const projectName = path.basename(workspacePath);
+    const cacheKey = `${workspacePath}_${Date.now() - Date.now() % this.CACHE_TTL}`;
+    if (this.analysisCache.has(cacheKey)) {
+      return this.analysisCache.get(cacheKey);
+    }
+    Logger.info("Iniciando an\xE1lise completa do workspace...");
+    try {
+      const [
+        codeQuality,
+        architecture,
+        dependencies,
+        performance,
+        security,
+        documentation
+      ] = await Promise.all([
+        this.analyzeCodeQuality(workspacePath),
+        this.analyzeArchitecture(workspacePath),
+        this.analyzeDependencies(workspacePath),
+        this.analyzePerformance(workspacePath),
+        this.analyzeSecurity(workspacePath),
+        this.analyzeDocumentation(workspacePath)
+      ]);
+      const overallScore = this.calculateOverallScore({
+        codeQuality,
+        architecture,
+        performance,
+        security,
+        documentation
+      });
+      const insights = this.generateInsights({
+        codeQuality,
+        architecture,
+        dependencies,
+        performance,
+        security,
+        documentation
+      });
+      const recommendations = this.generateRecommendations({
+        codeQuality,
+        architecture,
+        dependencies,
+        performance,
+        security,
+        documentation
+      });
+      const report = {
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        projectName,
+        projectPath: workspacePath,
+        overallScore,
+        codeQuality,
+        architecture,
+        dependencies,
+        performance,
+        security,
+        documentation,
+        insights,
+        recommendations
+      };
+      this.analysisCache.set(cacheKey, report);
+      Logger.info("An\xE1lise do workspace conclu\xEDda");
+      return report;
+    } catch (error) {
+      Logger.error("Erro na an\xE1lise do workspace:", error);
+      throw error;
+    }
+  }
+  /**
+   * Analisa qualidade do código
+   */
+  async analyzeCodeQuality(workspacePath) {
+    const files = await vscode11.workspace.findFiles("**/*.{ts,js,py,java,cs,cpp,c,php,rb,go,rs}");
+    let totalComplexity = 0;
+    let totalLines = 0;
+    let functionsAnalyzed = 0;
+    const duplicatedCodeBlocks = [];
+    const technicalDebt = [];
+    for (const file of files.slice(0, 50)) {
+      try {
+        const document = await vscode11.workspace.openTextDocument(file);
+        const content = document.getText();
+        const lines = content.split("\n");
+        totalLines += lines.length;
+        const complexityMatches = content.match(/\b(if|else|while|for|switch|case|catch|&&|\|\|)\b/g);
+        const fileComplexity = complexityMatches ? complexityMatches.length : 0;
+        totalComplexity += fileComplexity;
+        const functionMatches = content.match(/function\s+\w+|def\s+\w+|public\s+\w+\s+\w+\(|private\s+\w+\s+\w+\(/g);
+        if (functionMatches) {
+          functionsAnalyzed += functionMatches.length;
+        }
+        const longLines = lines.filter((line) => line.trim().length > 50);
+        for (const line of longLines) {
+          const trimmed = line.trim();
+          if (duplicatedCodeBlocks.includes(trimmed)) {
+            if (!technicalDebt.includes(`Poss\xEDvel duplica\xE7\xE3o de c\xF3digo: ${file.fsPath}`)) {
+              technicalDebt.push(`Poss\xEDvel duplica\xE7\xE3o de c\xF3digo: ${file.fsPath}`);
+            }
+          } else {
+            duplicatedCodeBlocks.push(trimmed);
+          }
+        }
+        if (fileComplexity > 20) {
+          technicalDebt.push(`Alta complexidade em ${path.basename(file.fsPath)}`);
+        }
+        if (lines.length > 500) {
+          technicalDebt.push(`Arquivo muito grande: ${path.basename(file.fsPath)} (${lines.length} linhas)`);
+        }
+      } catch (error) {
+        Logger.error(`Erro analisando arquivo ${file.fsPath}:`, error);
+      }
+    }
+    const averageComplexity = functionsAnalyzed > 0 ? totalComplexity / functionsAnalyzed : 0;
+    const duplicationPercentage = Math.min(technicalDebt.filter((debt) => debt.includes("duplica\xE7\xE3o")).length / files.length * 100, 100);
+    const testFiles = await vscode11.workspace.findFiles("**/*.{test,spec}.{ts,js,py}");
+    const coverage = Math.min(testFiles.length / files.length * 100, 100);
+    const maintainabilityIndex = Math.max(0, 100 - averageComplexity * 2 - duplicationPercentage);
+    const score = Math.round((maintainabilityIndex + coverage + (100 - duplicationPercentage)) / 3);
+    return {
+      score,
+      complexity: Math.round(averageComplexity),
+      duplication: Math.round(duplicationPercentage),
+      coverage: Math.round(coverage),
+      maintainabilityIndex: Math.round(maintainabilityIndex),
+      technicalDebt
+    };
+  }
+  /**
+   * Analisa arquitetura do projeto
+   */
+  async analyzeArchitecture(workspacePath) {
+    const packageJsonPath = path.join(workspacePath, "package.json");
+    const files = await vscode11.workspace.findFiles("**/*.{ts,js,py,java,cs}");
+    let pattern = "Desconhecido";
+    let confidence = 0;
+    const layers = [];
+    const recommendations = [];
+    const folders = /* @__PURE__ */ new Set();
+    files.forEach((file) => {
+      const relativePath = vscode11.workspace.asRelativePath(file);
+      const parts = relativePath.split("/");
+      if (parts.length > 1) {
+        folders.add(parts[0]);
+      }
+    });
+    const folderNames = Array.from(folders).map((f3) => f3.toLowerCase());
+    if (folderNames.includes("src") && folderNames.includes("services") && folderNames.includes("models")) {
+      pattern = "Layered Architecture";
+      confidence = 85;
+      layers.push("Presentation", "Business", "Data");
+    } else if (folderNames.includes("components") && folderNames.includes("pages")) {
+      pattern = "Component-Based (React/Vue)";
+      confidence = 80;
+      layers.push("Components", "Pages", "Services");
+    } else if (folderNames.includes("controllers") && folderNames.includes("models")) {
+      pattern = "MVC (Model-View-Controller)";
+      confidence = 75;
+      layers.push("Models", "Views", "Controllers");
+    } else if (folderNames.includes("domain") && folderNames.includes("infrastructure")) {
+      pattern = "Clean Architecture";
+      confidence = 90;
+      layers.push("Domain", "Application", "Infrastructure", "Presentation");
+    }
+    let coupling = 0;
+    let cohesion = 0;
+    try {
+      for (const file of files.slice(0, 20)) {
+        const document = await vscode11.workspace.openTextDocument(file);
+        const content = document.getText();
+        const imports = content.match(/import.*from|#include|using\s+/g);
+        coupling += imports ? imports.length : 0;
+      }
+      coupling = Math.min(coupling / files.length, 10);
+      cohesion = folders.size > 0 ? Math.min(10 - folders.size / 2, 10) : 5;
+    } catch (error) {
+      Logger.error("Erro calculando m\xE9tricas arquiteturais:", error);
+    }
+    if (coupling > 7) {
+      recommendations.push("Alto acoplamento detectado - considere refatorar para reduzir depend\xEAncias");
+    }
+    if (cohesion < 3) {
+      recommendations.push("Baixa coes\xE3o - reorganize o c\xF3digo em m\xF3dulos mais focados");
+    }
+    if (pattern === "Desconhecido") {
+      recommendations.push("Padr\xE3o arquitetural n\xE3o identificado - considere implementar uma arquitetura mais clara");
+    }
+    return {
+      pattern,
+      confidence,
+      layers,
+      coupling: Math.round(coupling),
+      cohesion: Math.round(cohesion),
+      recommendations
+    };
+  }
+  /**
+   * Analisa dependências do projeto
+   */
+  async analyzeDependencies(workspacePath) {
+    const packageJsonPath = path.join(workspacePath, "package.json");
+    const recommendations = [];
+    let totalPackages = 0;
+    let outdatedPackages = 0;
+    let vulnerabilities = 0;
+    let bundleSize = "N/A";
+    const packageList = [];
+    try {
+      if (fs2.existsSync(packageJsonPath)) {
+        const packageJson = JSON.parse(fs2.readFileSync(packageJsonPath, "utf8"));
+        const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
+        totalPackages = Object.keys(dependencies).length;
+        for (const [name, version] of Object.entries(dependencies)) {
+          const hasVulnerabilities = Math.random() < 0.1;
+          const isOutdated = Math.random() < 0.3;
+          if (isOutdated)
+            outdatedPackages++;
+          if (hasVulnerabilities)
+            vulnerabilities++;
+          packageList.push({
+            name,
+            current: version,
+            latest: isOutdated ? "2.0.0" : version,
+            isOutdated,
+            hasVulnerabilities
+          });
+        }
+        if (totalPackages > 50) {
+          bundleSize = "Grande (>2MB)";
+          recommendations.push("Muitas depend\xEAncias - considere code splitting ou lazy loading");
+        } else if (totalPackages > 20) {
+          bundleSize = "M\xE9dio (1-2MB)";
+        } else {
+          bundleSize = "Pequeno (<1MB)";
+        }
+      }
+    } catch (error) {
+      Logger.error("Erro analisando depend\xEAncias:", error);
+    }
+    if (outdatedPackages > 0) {
+      recommendations.push(`${outdatedPackages} pacote(s) desatualizado(s) - execute npm update`);
+    }
+    if (vulnerabilities > 0) {
+      recommendations.push(`${vulnerabilities} vulnerabilidade(s) encontrada(s) - execute npm audit fix`);
+    }
+    return {
+      totalPackages,
+      outdatedPackages,
+      vulnerabilities,
+      bundleSize,
+      recommendations,
+      packageList
+    };
+  }
+  /**
+   * Analisa performance do projeto
+   */
+  async analyzePerformance(workspacePath) {
+    const files = await vscode11.workspace.findFiles("**/*.{ts,js,css,scss,png,jpg,gif}");
+    let totalSize = 0;
+    const optimizationTips = [];
+    for (const file of files) {
+      try {
+        const stats = fs2.statSync(file.fsPath);
+        totalSize += stats.size;
+        if (stats.size > 100 * 1024) {
+          optimizationTips.push(`Arquivo grande detectado: ${path.basename(file.fsPath)}`);
+        }
+      } catch (error) {
+      }
+    }
+    const bundleSize = totalSize / (1024 * 1024);
+    const loadTime = Math.max(1, bundleSize * 0.5);
+    if (bundleSize > 5) {
+      optimizationTips.push("Bundle muito grande - considere code splitting");
+    }
+    const imageFiles = await vscode11.workspace.findFiles("**/*.{png,jpg,jpeg,gif}");
+    if (imageFiles.length > 10) {
+      optimizationTips.push("Muitas imagens - considere compress\xE3o ou formatos modernos (WebP)");
+    }
+    const score = Math.max(0, Math.min(100, 100 - bundleSize * 10 - loadTime * 5));
+    return {
+      bundleSize: Math.round(bundleSize * 100) / 100,
+      loadTime: Math.round(loadTime * 100) / 100,
+      optimizationTips,
+      score: Math.round(score)
+    };
+  }
+  /**
+   * Analisa segurança do projeto
+   */
+  async analyzeSecurity(workspacePath) {
+    const files = await vscode11.workspace.findFiles("**/*.{ts,js,py,java,cs}");
+    const issues = [];
+    const recommendations = [];
+    let vulnerabilities = 0;
+    let severity = "low";
+    const securityPatterns = [
+      { pattern: /password\s*=\s*["'][^"']+["']/gi, type: "Hard-coded password", severity: "high" },
+      { pattern: /api[_-]?key\s*=\s*["'][^"']+["']/gi, type: "Hard-coded API key", severity: "critical" },
+      { pattern: /eval\s*\(/gi, type: "Dangerous eval() usage", severity: "medium" },
+      { pattern: /innerHTML\s*=/gi, type: "Potential XSS via innerHTML", severity: "medium" },
+      { pattern: /document\.write\s*\(/gi, type: "Dangerous document.write()", severity: "medium" }
+    ];
+    for (const file of files.slice(0, 50)) {
+      try {
+        const document = await vscode11.workspace.openTextDocument(file);
+        const content = document.getText();
+        const lines = content.split("\n");
+        securityPatterns.forEach(({ pattern, type, severity: issueSeverity }) => {
+          let match;
+          while ((match = pattern.exec(content)) !== null) {
+            const lineNumber = content.substring(0, match.index).split("\n").length;
+            issues.push({
+              type,
+              description: `${type} encontrado`,
+              file: file.fsPath,
+              line: lineNumber,
+              severity: issueSeverity
+            });
+            vulnerabilities++;
+            if (issueSeverity === "critical" || severity !== "critical" && issueSeverity === "high") {
+              severity = issueSeverity;
+            }
+          }
+        });
+      } catch (error) {
+        Logger.error(`Erro analisando seguran\xE7a do arquivo ${file.fsPath}:`, error);
+      }
+    }
+    if (vulnerabilities > 0) {
+      recommendations.push("Vulnerabilidades de seguran\xE7a encontradas - revisar c\xF3digo");
+    }
+    if (issues.some((issue) => issue.type.includes("password"))) {
+      recommendations.push("Use vari\xE1veis de ambiente para senhas e chaves API");
+    }
+    if (issues.some((issue) => issue.type.includes("eval"))) {
+      recommendations.push("Evite uso de eval() - use alternativas mais seguras");
+    }
+    const score = Math.max(0, 100 - vulnerabilities * 20);
+    return {
+      vulnerabilities,
+      severity,
+      issues,
+      recommendations,
+      score
+    };
+  }
+  /**
+   * Analisa documentação do projeto
+   */
+  async analyzeDocumentation(workspacePath) {
+    const codeFiles = await vscode11.workspace.findFiles("**/*.{ts,js,py,java,cs}");
+    const docFiles = await vscode11.workspace.findFiles("**/*.{md,txt,rst}");
+    let documentedFunctions = 0;
+    let totalFunctions = 0;
+    const missingDocs = [];
+    const recommendations = [];
+    for (const file of codeFiles.slice(0, 30)) {
+      try {
+        const document = await vscode11.workspace.openTextDocument(file);
+        const content = document.getText();
+        const functionMatches = content.match(/function\s+\w+|def\s+\w+|public\s+\w+\s+\w+\(|private\s+\w+\s+\w+\(/g);
+        if (functionMatches) {
+          totalFunctions += functionMatches.length;
+          const docMatches = content.match(/\/\*\*[\s\S]*?\*\/|"""[\s\S]*?"""|'''[\s\S]*?'''/g);
+          if (docMatches) {
+            documentedFunctions += Math.min(docMatches.length, functionMatches.length);
+          }
+        }
+        if (file.fsPath.includes("index") || file.fsPath.includes("main")) {
+          const hasHeaderDoc = content.includes("/**") || content.includes('"""');
+          if (!hasHeaderDoc) {
+            missingDocs.push(`Documenta\xE7\xE3o de cabe\xE7alho ausente: ${path.basename(file.fsPath)}`);
+          }
+        }
+      } catch (error) {
+        Logger.error(`Erro analisando documenta\xE7\xE3o do arquivo ${file.fsPath}:`, error);
+      }
+    }
+    const coverage = totalFunctions > 0 ? documentedFunctions / totalFunctions * 100 : 0;
+    const readmeExists = fs2.existsSync(path.join(workspacePath, "README.md"));
+    if (!readmeExists) {
+      missingDocs.push("README.md n\xE3o encontrado");
+      recommendations.push("Crie um README.md para documentar o projeto");
+    }
+    if (coverage < 50) {
+      recommendations.push("Baixa cobertura de documenta\xE7\xE3o - adicione coment\xE1rios JSDoc/docstrings");
+    }
+    if (docFiles.length === 0) {
+      recommendations.push("Nenhum arquivo de documenta\xE7\xE3o encontrado - considere adicionar guias de uso");
+    }
+    return {
+      coverage: Math.round(coverage),
+      missingDocs,
+      recommendations
+    };
+  }
+  /**
+   * Calcula score geral do projeto
+   */
+  calculateOverallScore(metrics) {
+    const weights = {
+      codeQuality: 0.3,
+      architecture: 0.2,
+      performance: 0.2,
+      security: 0.2,
+      documentation: 0.1
+    };
+    const architectureScore = Math.min(metrics.architecture.confidence, 100);
+    const weightedScore = metrics.codeQuality.score * weights.codeQuality + architectureScore * weights.architecture + metrics.performance.score * weights.performance + metrics.security.score * weights.security + metrics.documentation.coverage * weights.documentation;
+    return Math.round(weightedScore);
+  }
+  /**
+   * Gera insights automáticos
+   */
+  generateInsights(analysis) {
+    const insights = [];
+    if (analysis.architecture.pattern !== "Desconhecido") {
+      insights.push(`Detectei que voc\xEA usa ${analysis.architecture.pattern} - boa escolha para organiza\xE7\xE3o`);
+    }
+    if (analysis.codeQuality.complexity > 15) {
+      insights.push("Alta complexidade detectada - considere refatora\xE7\xE3o para melhorar manutenibilidade");
+    }
+    if (analysis.performance.bundleSize > 3) {
+      insights.push("Bundle grande detectado - implementar code splitting pode melhorar performance");
+    }
+    if (analysis.security.vulnerabilities > 0) {
+      insights.push(`${analysis.security.vulnerabilities} vulnerabilidade(s) encontrada(s) - priorize corre\xE7\xF5es de seguran\xE7a`);
+    }
+    if (analysis.documentation.coverage > 80) {
+      insights.push("Excelente cobertura de documenta\xE7\xE3o - projeto bem documentado!");
+    } else if (analysis.documentation.coverage < 30) {
+      insights.push("Documenta\xE7\xE3o insuficiente - adicionar coment\xE1rios melhorar\xE1 manutenibilidade");
+    }
+    return insights;
+  }
+  /**
+   * Gera recomendações de melhoria
+   */
+  generateRecommendations(analysis) {
+    const recommendations = [];
+    recommendations.push(...analysis.codeQuality.technicalDebt.slice(0, 3));
+    recommendations.push(...analysis.architecture.recommendations);
+    recommendations.push(...analysis.dependencies.recommendations);
+    recommendations.push(...analysis.performance.optimizationTips.slice(0, 3));
+    recommendations.push(...analysis.security.recommendations);
+    recommendations.push(...analysis.documentation.recommendations);
+    return recommendations.slice(0, 10);
+  }
+  /**
+   * Limpa cache de análise
+   */
+  clearCache() {
+    this.analysisCache.clear();
+    Logger.info("Cache de an\xE1lise limpo");
+  }
+  /**
+   * Executa análise rápida (apenas métricas essenciais)
+   */
+  async quickAnalysis() {
+    const workspaceFolders = vscode11.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      throw new Error("Nenhum workspace aberto");
+    }
+    const workspacePath = workspaceFolders[0].uri.fsPath;
+    const projectName = path.basename(workspacePath);
+    const [codeQuality, dependencies] = await Promise.all([
+      this.analyzeCodeQuality(workspacePath),
+      this.analyzeDependencies(workspacePath)
+    ]);
+    return {
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      projectName,
+      projectPath: workspacePath,
+      overallScore: codeQuality.score,
+      codeQuality,
+      dependencies
+    };
+  }
+};
+
 // src/views/WebviewHtml.ts
 function getChatHtml() {
   return `<!DOCTYPE html>
@@ -9536,7 +10197,7 @@ var ChatWebviewProvider = class {
 };
 
 // src/views/SidebarChatProvider.ts
-var vscode11 = __toESM(require("vscode"));
+var vscode12 = __toESM(require("vscode"));
 var SidebarChatProvider = class {
   constructor(context, chatProvider) {
     this.context = context;
@@ -9553,8 +10214,8 @@ var SidebarChatProvider = class {
     this.webview.options = {
       enableScripts: true,
       localResourceRoots: [
-        vscode11.Uri.joinPath(this.context.extensionUri, "media"),
-        vscode11.Uri.joinPath(this.context.extensionUri, "dist")
+        vscode12.Uri.joinPath(this.context.extensionUri, "media"),
+        vscode12.Uri.joinPath(this.context.extensionUri, "dist")
       ]
     };
     this.webview.html = this.getWebviewContent(this.webview);
@@ -10140,10 +10801,731 @@ ${code}
   }
 };
 
+// src/views/WorkspaceDashboardProvider.ts
+var vscode13 = __toESM(require("vscode"));
+var WorkspaceDashboardProvider = class {
+  constructor(_extensionUri, workspaceAnalysisService) {
+    this._extensionUri = _extensionUri;
+    this.workspaceAnalysisService = workspaceAnalysisService;
+  }
+  static {
+    this.viewType = "xcopilot.workspaceDashboard";
+  }
+  resolveWebviewView(webviewView, context, _token) {
+    this._view = webviewView;
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this._extensionUri]
+    };
+    webviewView.webview.html = this.getInitialWebviewContent(webviewView.webview);
+    webviewView.webview.onDidReceiveMessage(async (data) => {
+      switch (data.type) {
+        case "runAnalysis":
+          await this.runWorkspaceAnalysis();
+          break;
+        case "runQuickAnalysis":
+          await this.runQuickAnalysis();
+          break;
+        case "clearCache":
+          this.workspaceAnalysisService.clearCache();
+          vscode13.window.showInformationMessage("Cache de an\xE1lise limpo!");
+          break;
+        case "refresh":
+          await this.runWorkspaceAnalysis();
+          break;
+      }
+    });
+    this.runQuickAnalysis();
+  }
+  /**
+   * Executa análise completa do workspace
+   */
+  async runWorkspaceAnalysis() {
+    if (!this._view)
+      return;
+    try {
+      this._view.webview.postMessage({ type: "analysisStarted" });
+      const report = await this.workspaceAnalysisService.analyzeWorkspace();
+      this._view.webview.postMessage({
+        type: "analysisComplete",
+        report
+      });
+      Logger.info("An\xE1lise completa do workspace enviada para dashboard");
+    } catch (error) {
+      Logger.error("Erro na an\xE1lise do workspace:", error);
+      this._view.webview.postMessage({
+        type: "analysisError",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  }
+  /**
+   * Executa análise rápida
+   */
+  async runQuickAnalysis() {
+    if (!this._view)
+      return;
+    try {
+      this._view.webview.postMessage({ type: "quickAnalysisStarted" });
+      const report = await this.workspaceAnalysisService.quickAnalysis();
+      this._view.webview.postMessage({
+        type: "quickAnalysisComplete",
+        report
+      });
+      Logger.info("An\xE1lise r\xE1pida do workspace enviada para dashboard");
+    } catch (error) {
+      Logger.error("Erro na an\xE1lise r\xE1pida:", error);
+      this._view.webview.postMessage({
+        type: "analysisError",
+        error: error instanceof Error ? error.message : "Erro na an\xE1lise r\xE1pida"
+      });
+    }
+  }
+  /**
+   * Atualiza dashboard com novos dados
+   */
+  updateDashboard(report) {
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: "updateDashboard",
+        report
+      });
+    }
+  }
+  /**
+   * Gera o conteúdo HTML inicial da webview
+   */
+  getInitialWebviewContent(webview) {
+    return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workspace Intelligence Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--vscode-font-family);
+            font-size: var(--vscode-font-size);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-editor-background);
+            padding: 16px;
+            line-height: 1.5;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--vscode-editor-foreground);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+
+        .btn-secondary {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+        }
+
+        .btn-secondary:hover {
+            background: var(--vscode-button-secondaryHoverBackground);
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        .spinner {
+            border: 2px solid var(--vscode-progressBar-background);
+            border-top: 2px solid var(--vscode-progressBar-foreground);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .dashboard {
+            display: none;
+        }
+
+        .dashboard.visible {
+            display: block;
+        }
+
+        .overview-card {
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .score-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .overall-score {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--vscode-charts-green);
+        }
+
+        .score-label {
+            font-size: 14px;
+            color: var(--vscode-descriptionForeground);
+            margin-top: 4px;
+        }
+
+        .project-info {
+            color: var(--vscode-descriptionForeground);
+            font-size: 12px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .metric-card {
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-good { color: var(--vscode-charts-green); }
+        .metric-warning { color: var(--vscode-charts-yellow); }
+        .metric-error { color: var(--vscode-charts-red); }
+
+        .section {
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--vscode-editor-foreground);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .insights-list, .recommendations-list {
+            list-style: none;
+        }
+
+        .insights-list li, .recommendations-list li {
+            background: var(--vscode-textBlockQuote-background);
+            border-left: 3px solid var(--vscode-charts-blue);
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            border-radius: 0 4px 4px 0;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .recommendations-list li {
+            border-left-color: var(--vscode-charts-orange);
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .detail-card {
+            background: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            padding: 12px;
+        }
+
+        .detail-card h4 {
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--vscode-editor-foreground);
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 11px;
+        }
+
+        .error-message {
+            background: var(--vscode-inputValidation-errorBackground);
+            border: 1px solid var(--vscode-inputValidation-errorBorder);
+            color: var(--vscode-errorForeground);
+            padding: 12px;
+            border-radius: 4px;
+            margin: 16px 0;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        .empty-state h3 {
+            margin-bottom: 8px;
+            color: var(--vscode-editor-foreground);
+        }
+
+        .timestamp {
+            font-size: 10px;
+            color: var(--vscode-descriptionForeground);
+            text-align: right;
+            margin-top: 16px;
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>\u{1F52C} Workspace Intelligence</h1>
+        <div class="header-actions">
+            <button class="btn btn-secondary btn-small" onclick="runQuickAnalysis()">\u26A1 R\xE1pida</button>
+            <button class="btn btn-small" onclick="runFullAnalysis()">\u{1F50D} Completa</button>
+            <button class="btn btn-secondary btn-small" onclick="clearCache()">\u{1F5D1}\uFE0F Limpar Cache</button>
+            <button class="btn btn-secondary btn-small" onclick="refresh()">\u{1F504} Atualizar</button>
+        </div>
+    </div>
+
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        Analisando workspace...
+    </div>
+
+    <div id="dashboard" class="dashboard">
+        <div class="overview-card">
+            <div class="score-container">
+                <div>
+                    <div id="overallScore" class="overall-score">--</div>
+                    <div class="score-label">Score Geral</div>
+                </div>
+                <div class="project-info">
+                    <div><strong id="projectName">--</strong></div>
+                    <div id="timestamp" class="timestamp">--</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div id="codeQualityScore" class="metric-value metric-good">--</div>
+                <div class="metric-label">Qualidade</div>
+            </div>
+            <div class="metric-card">
+                <div id="securityScore" class="metric-value metric-good">--</div>
+                <div class="metric-label">Seguran\xE7a</div>
+            </div>
+            <div class="metric-card">
+                <div id="performanceScore" class="metric-value metric-good">--</div>
+                <div class="metric-label">Performance</div>
+            </div>
+            <div class="metric-card">
+                <div id="docCoverage" class="metric-value metric-good">--</div>
+                <div class="metric-label">Documenta\xE7\xE3o</div>
+            </div>
+            <div class="metric-card">
+                <div id="totalPackages" class="metric-value">--</div>
+                <div class="metric-label">Depend\xEAncias</div>
+            </div>
+            <div class="metric-card">
+                <div id="vulnerabilities" class="metric-value">--</div>
+                <div class="metric-label">Vulnerabilidades</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">\u{1F4A1} Insights Autom\xE1ticos</div>
+            <ul id="insightsList" class="insights-list">
+                <li>Execute uma an\xE1lise completa para ver insights personalizados</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <div class="section-title">\u{1F3AF} Recomenda\xE7\xF5es</div>
+            <ul id="recommendationsList" class="recommendations-list">
+                <li>Execute uma an\xE1lise completa para ver recomenda\xE7\xF5es de melhoria</li>
+            </ul>
+        </div>
+
+        <div id="detailsSection" class="details-grid" style="display: none;">
+            <div class="detail-card">
+                <h4>\u{1F3D7}\uFE0F Arquitetura</h4>
+                <div class="detail-item">
+                    <span>Padr\xE3o:</span>
+                    <span id="architecturePattern">--</span>
+                </div>
+                <div class="detail-item">
+                    <span>Confian\xE7a:</span>
+                    <span id="architectureConfidence">--</span>
+                </div>
+                <div class="detail-item">
+                    <span>Acoplamento:</span>
+                    <span id="coupling">--</span>
+                </div>
+            </div>
+
+            <div class="detail-card">
+                <h4>\u{1F4CA} M\xE9tricas de C\xF3digo</h4>
+                <div class="detail-item">
+                    <span>Complexidade:</span>
+                    <span id="complexity">--</span>
+                </div>
+                <div class="detail-item">
+                    <span>Duplica\xE7\xE3o:</span>
+                    <span id="duplication">--</span>
+                </div>
+                <div class="detail-item">
+                    <span>Manutenibilidade:</span>
+                    <span id="maintainability">--</span>
+                </div>
+            </div>
+
+            <div class="detail-card">
+                <h4>\u26A1 Performance</h4>
+                <div class="detail-item">
+                    <span>Bundle Size:</span>
+                    <span id="bundleSize">--</span>
+                </div>
+                <div class="detail-item">
+                    <span>Load Time:</span>
+                    <span id="loadTime">--</span>
+                </div>
+            </div>
+
+            <div class="detail-card">
+                <h4>\u{1F4E6} Dependencies</h4>
+                <div class="detail-item">
+                    <span>Total:</span>
+                    <span id="depTotal">--</span>
+                </div>
+                <div class="detail-item">
+                    <span>Desatualizadas:</span>
+                    <span id="depOutdated">--</span>
+                </div>
+                <div class="detail-item">
+                    <span>Bundle:</span>
+                    <span id="depBundleSize">--</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="quick-actions">
+            <button class="btn btn-secondary btn-small" onclick="exportReport()">\u{1F4C4} Exportar Relat\xF3rio</button>
+            <button class="btn btn-secondary btn-small" onclick="showTechnicalDebt()">\u26A0\uFE0F Technical Debt</button>
+        </div>
+    </div>
+
+    <div id="error" class="error-message" style="display: none;"></div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        let currentReport = null;
+
+        // Event listeners
+        window.addEventListener('message', event => {
+            const message = event.data;
+
+            switch (message.type) {
+                case 'analysisStarted':
+                    showLoading('Executando an\xE1lise completa...');
+                    break;
+                case 'quickAnalysisStarted':
+                    showLoading('Executando an\xE1lise r\xE1pida...');
+                    break;
+                case 'analysisComplete':
+                case 'quickAnalysisComplete':
+                    hideLoading();
+                    updateDashboard(message.report);
+                    break;
+                case 'analysisError':
+                    hideLoading();
+                    showError(message.error);
+                    break;
+                case 'updateDashboard':
+                    updateDashboard(message.report);
+                    break;
+            }
+        });
+
+        function showLoading(message = 'Analisando...') {
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('loading').innerHTML = \`
+                <div class="spinner"></div>
+                \${message}
+            \`;
+            document.getElementById('dashboard').classList.remove('visible');
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('dashboard').classList.add('visible');
+        }
+
+        function showError(error) {
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = \`Erro na an\xE1lise: \${error}\`;
+            errorEl.style.display = 'block';
+        }
+
+        function updateDashboard(report) {
+            if (!report) return;
+            
+            currentReport = report;
+
+            // Atualizar informa\xE7\xF5es b\xE1sicas
+            document.getElementById('projectName').textContent = report.projectName || 'Projeto';
+            document.getElementById('timestamp').textContent = report.timestamp ? 
+                new Date(report.timestamp).toLocaleString() : '';
+
+            // Score geral
+            const overallScore = report.overallScore || 0;
+            const scoreEl = document.getElementById('overallScore');
+            scoreEl.textContent = overallScore;
+            scoreEl.className = \`overall-score \${getScoreClass(overallScore)}\`;
+
+            // M\xE9tricas b\xE1sicas
+            if (report.codeQuality) {
+                updateMetric('codeQualityScore', report.codeQuality.score);
+            }
+
+            if (report.security) {
+                updateMetric('securityScore', report.security.score);
+                updateMetric('vulnerabilities', report.security.vulnerabilities, 'count');
+            }
+
+            if (report.performance) {
+                updateMetric('performanceScore', report.performance.score);
+            }
+
+            if (report.documentation) {
+                updateMetric('docCoverage', report.documentation.coverage, 'percentage');
+            }
+
+            if (report.dependencies) {
+                updateMetric('totalPackages', report.dependencies.totalPackages, 'count');
+            }
+
+            // Insights e recomenda\xE7\xF5es
+            if (report.insights && report.insights.length > 0) {
+                updateList('insightsList', report.insights);
+            }
+
+            if (report.recommendations && report.recommendations.length > 0) {
+                updateList('recommendationsList', report.recommendations);
+            }
+
+            // Detalhes (apenas para an\xE1lise completa)
+            if (report.architecture && report.performance && report.dependencies) {
+                updateDetails(report);
+                document.getElementById('detailsSection').style.display = 'grid';
+            }
+        }
+
+        function updateMetric(elementId, value, type = 'score') {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+
+            let displayValue = '--';
+            let className = 'metric-value';
+
+            if (value !== undefined && value !== null) {
+                if (type === 'percentage') {
+                    displayValue = \`\${value}%\`;
+                } else if (type === 'count') {
+                    displayValue = value.toString();
+                } else {
+                    displayValue = value.toString();
+                }
+
+                if (type === 'score' || type === 'percentage') {
+                    className += \` \${getScoreClass(value)}\`;
+                } else if (type === 'count' && elementId === 'vulnerabilities') {
+                    className += value > 0 ? ' metric-error' : ' metric-good';
+                }
+            }
+
+            element.textContent = displayValue;
+            element.className = className;
+        }
+
+        function updateList(listId, items) {
+            const list = document.getElementById(listId);
+            if (!list || !items || items.length === 0) return;
+
+            list.innerHTML = items.slice(0, 5).map(item => 
+                \`<li>\${item}</li>\`
+            ).join('');
+        }
+
+        function updateDetails(report) {
+            // Arquitetura
+            if (report.architecture) {
+                setText('architecturePattern', report.architecture.pattern);
+                setText('architectureConfidence', \`\${report.architecture.confidence}%\`);
+                setText('coupling', report.architecture.coupling);
+            }
+
+            // M\xE9tricas de c\xF3digo
+            if (report.codeQuality) {
+                setText('complexity', report.codeQuality.complexity);
+                setText('duplication', \`\${report.codeQuality.duplication}%\`);
+                setText('maintainability', report.codeQuality.maintainabilityIndex);
+            }
+
+            // Performance
+            if (report.performance) {
+                setText('bundleSize', \`\${report.performance.bundleSize}MB\`);
+                setText('loadTime', \`\${report.performance.loadTime}s\`);
+            }
+
+            // Dependencies
+            if (report.dependencies) {
+                setText('depTotal', report.dependencies.totalPackages);
+                setText('depOutdated', report.dependencies.outdatedPackages);
+                setText('depBundleSize', report.dependencies.bundleSize);
+            }
+        }
+
+        function setText(elementId, value) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = value || '--';
+            }
+        }
+
+        function getScoreClass(score) {
+            if (score >= 80) return 'metric-good';
+            if (score >= 60) return 'metric-warning';
+            return 'metric-error';
+        }
+
+        // Action functions
+        function runFullAnalysis() {
+            vscode.postMessage({ type: 'runAnalysis' });
+        }
+
+        function runQuickAnalysis() {
+            vscode.postMessage({ type: 'runQuickAnalysis' });
+        }
+
+        function clearCache() {
+            vscode.postMessage({ type: 'clearCache' });
+        }
+
+        function refresh() {
+            vscode.postMessage({ type: 'refresh' });
+        }
+
+        function exportReport() {
+            if (currentReport) {
+                // Em uma implementa\xE7\xE3o real, enviaria para o backend
+                console.log('Export report:', currentReport);
+                vscode.postMessage({ type: 'exportReport', report: currentReport });
+            }
+        }
+
+        function showTechnicalDebt() {
+            if (currentReport && currentReport.codeQuality && currentReport.codeQuality.technicalDebt) {
+                const debt = currentReport.codeQuality.technicalDebt;
+                updateList('recommendationsList', debt);
+            }
+        }
+
+        // Inicializa\xE7\xE3o
+        vscode.postMessage({ type: 'ready' });
+    </script>
+</body>
+</html>`;
+  }
+};
+
 // src/ExtensionManager.ts
 var ExtensionManager = class {
   constructor() {
-    this.outputChannel = vscode12.window.createOutputChannel("xCopilot");
+    this.outputChannel = vscode14.window.createOutputChannel("xCopilot");
     Logger.init(this.outputChannel);
     this.configService = ConfigurationService.getInstance();
   }
@@ -10162,18 +11544,30 @@ var ExtensionManager = class {
       this.inlineCompletionService = InlineCompletionService.getInstance();
       this.refactoringService = RefactoringService.getInstance();
       this.patternDetectionService = PatternDetectionService.getInstance();
+      this.codeContextService = CodeContextService.getInstance();
+      this.gitIntegrationService = GitIntegrationService.getInstance();
+      this.workspaceAnalysisService = new WorkspaceAnalysisService(
+        this.patternDetectionService,
+        this.gitIntegrationService,
+        this.codeContextService
+      );
+      this.workspaceDashboardProvider = new WorkspaceDashboardProvider(
+        context.extensionUri,
+        this.workspaceAnalysisService
+      );
       this.registerWebviewProvider(context);
       this.chatCommands.registerCommands(context);
       this.refactoringService.registerCommands(context);
       this.patternDetectionService.registerCommands(context);
       this.registerCodeExplanationCommands(context);
+      this.registerWorkspaceAnalysisCommands(context);
       this.registerCodeProviders(context);
       this.setupConfigurationWatcher(context);
       context.subscriptions.push(this.outputChannel);
       Logger.info("\u2705 Extension activation completed successfully");
     } catch (error) {
       Logger.error("\u274C CRITICAL ERROR during extension activation:", error);
-      vscode12.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+      vscode14.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
   }
   /**
@@ -10181,7 +11575,7 @@ var ExtensionManager = class {
    */
   registerWebviewProvider(context) {
     Logger.info("\u{1F4DD} Registering WebviewViewProvider for xcopilotPanel...");
-    const mainDisposable = vscode12.window.registerWebviewViewProvider(
+    const mainDisposable = vscode14.window.registerWebviewViewProvider(
       "xcopilotPanel",
       this.chatProvider,
       {
@@ -10190,7 +11584,7 @@ var ExtensionManager = class {
         }
       }
     );
-    const sidebarDisposable = vscode12.window.registerWebviewViewProvider(
+    const sidebarDisposable = vscode14.window.registerWebviewViewProvider(
       "xcopilotChat",
       this.sidebarChatProvider,
       {
@@ -10199,7 +11593,16 @@ var ExtensionManager = class {
         }
       }
     );
-    context.subscriptions.push(mainDisposable, sidebarDisposable);
+    const dashboardDisposable = vscode14.window.registerWebviewViewProvider(
+      "xcopilot.workspaceDashboard",
+      this.workspaceDashboardProvider,
+      {
+        webviewOptions: {
+          retainContextWhenHidden: true
+        }
+      }
+    );
+    context.subscriptions.push(mainDisposable, sidebarDisposable, dashboardDisposable);
     Logger.info("\u2705 WebviewViewProvider registered successfully!");
   }
   /**
@@ -10224,62 +11627,104 @@ var ExtensionManager = class {
    */
   registerCodeExplanationCommands(context) {
     const commands5 = [
-      vscode12.commands.registerCommand("xcopilot.explainSelected", () => {
+      vscode14.commands.registerCommand("xcopilot.explainSelected", () => {
         this.codeExplanationService.explainSelectedCode();
       }),
-      vscode12.commands.registerCommand("xcopilot.explainFunction", () => {
+      vscode14.commands.registerCommand("xcopilot.explainFunction", () => {
         this.codeExplanationService.explainCurrentFunction();
       }),
-      vscode12.commands.registerCommand("xcopilot.explainFile", () => {
+      vscode14.commands.registerCommand("xcopilot.explainFile", () => {
         this.codeExplanationService.explainEntireFile();
       }),
-      vscode12.commands.registerCommand("xcopilot.acceptGhostText", () => {
+      vscode14.commands.registerCommand("xcopilot.acceptGhostText", () => {
         this.ghostTextService.acceptGhostText();
       }),
-      vscode12.commands.registerCommand("xcopilot.openChat", () => {
-        vscode12.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
-        vscode12.commands.executeCommand("setContext", "xcopilot.chatVisible", true);
+      vscode14.commands.registerCommand("xcopilot.openChat", () => {
+        vscode14.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+        vscode14.commands.executeCommand("setContext", "xcopilot.chatVisible", true);
       }),
-      vscode12.commands.registerCommand("xcopilot.closeChat", () => {
-        vscode12.commands.executeCommand("workbench.action.closePanel");
-        vscode12.commands.executeCommand("setContext", "xcopilot.chatVisible", false);
+      vscode14.commands.registerCommand("xcopilot.closeChat", () => {
+        vscode14.commands.executeCommand("workbench.action.closePanel");
+        vscode14.commands.executeCommand("setContext", "xcopilot.chatVisible", false);
       }),
-      vscode12.commands.registerCommand("xcopilot.toggleChat", () => {
-        vscode12.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+      vscode14.commands.registerCommand("xcopilot.toggleChat", () => {
+        vscode14.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
       }),
-      vscode12.commands.registerCommand("xcopilot.openChatWithCode", () => {
-        const editor = vscode12.window.activeTextEditor;
+      vscode14.commands.registerCommand("xcopilot.openChatWithCode", () => {
+        const editor = vscode14.window.activeTextEditor;
         if (editor && !editor.selection.isEmpty) {
           const selectedCode = editor.document.getText(editor.selection);
-          vscode12.commands.executeCommand("xcopilot.openChat");
+          vscode14.commands.executeCommand("xcopilot.openChat");
           this.sidebarChatProvider.openWithSelectedCode(selectedCode);
         } else {
-          vscode12.window.showWarningMessage("Selecione c\xF3digo para explicar no chat");
+          vscode14.window.showWarningMessage("Selecione c\xF3digo para explicar no chat");
         }
       }),
-      vscode12.commands.registerCommand("xcopilot.toggleInlineCompletion", () => {
+      vscode14.commands.registerCommand("xcopilot.toggleInlineCompletion", () => {
         const currentState = this.inlineCompletionService.isServiceEnabled();
         this.inlineCompletionService.setEnabled(!currentState);
-        vscode12.window.showInformationMessage(
+        vscode14.window.showInformationMessage(
           `Inline Completion ${!currentState ? "habilitado" : "desabilitado"}`
         );
       }),
-      vscode12.commands.registerCommand("xcopilot.clearCompletionCache", () => {
+      vscode14.commands.registerCommand("xcopilot.clearCompletionCache", () => {
         this.inlineCompletionService.clearCache();
-        vscode12.window.showInformationMessage("Cache de completions limpo");
+        vscode14.window.showInformationMessage("Cache de completions limpo");
       }),
-      vscode12.commands.registerCommand("xcopilot.showCompletionStats", () => {
+      vscode14.commands.registerCommand("xcopilot.showCompletionStats", () => {
         const stats = this.inlineCompletionService.getStats();
         const message = `Estat\xEDsticas de Completion:
 Requisi\xE7\xF5es: ${stats.requestCount}
 Cache Hits: ${stats.cacheHits}
 Taxa de Cache: ${stats.cacheHitRate.toFixed(1)}%
 Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats.utilization.toFixed(1)}%)`;
-        vscode12.window.showInformationMessage(message);
+        vscode14.window.showInformationMessage(message);
       })
     ];
     context.subscriptions.push(...commands5);
     Logger.info("\u2705 Code explanation commands registered");
+  }
+  /**
+   * Registra comandos de análise de workspace
+   */
+  registerWorkspaceAnalysisCommands(context) {
+    const commands5 = [
+      vscode14.commands.registerCommand("xcopilot.analyzeWorkspace", async () => {
+        try {
+          const report = await this.workspaceAnalysisService.analyzeWorkspace();
+          this.workspaceDashboardProvider.updateDashboard(report);
+          vscode14.window.showInformationMessage(
+            `An\xE1lise conclu\xEDda! Score geral: ${report.overallScore}/100`
+          );
+        } catch (error) {
+          vscode14.window.showErrorMessage(
+            `Erro na an\xE1lise: ${error instanceof Error ? error.message : "Erro desconhecido"}`
+          );
+        }
+      }),
+      vscode14.commands.registerCommand("xcopilot.quickAnalyzeWorkspace", async () => {
+        try {
+          const report = await this.workspaceAnalysisService.quickAnalysis();
+          vscode14.window.showInformationMessage(
+            `An\xE1lise r\xE1pida conclu\xEDda! Score: ${report.overallScore || "N/A"}/100`
+          );
+        } catch (error) {
+          vscode14.window.showErrorMessage(
+            `Erro na an\xE1lise r\xE1pida: ${error instanceof Error ? error.message : "Erro desconhecido"}`
+          );
+        }
+      }),
+      vscode14.commands.registerCommand("xcopilot.showWorkspaceDashboard", () => {
+        vscode14.commands.executeCommand("workbench.view.extension.xcopilot");
+        vscode14.commands.executeCommand("xcopilot.workspaceDashboard.focus");
+      }),
+      vscode14.commands.registerCommand("xcopilot.clearAnalysisCache", () => {
+        this.workspaceAnalysisService.clearCache();
+        vscode14.window.showInformationMessage("Cache de an\xE1lise limpo!");
+      })
+    ];
+    context.subscriptions.push(...commands5);
+    Logger.info("\u2705 Workspace analysis commands registered");
   }
 };
 
