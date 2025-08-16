@@ -1,16 +1,19 @@
 import * as vscode from 'vscode';
 import { ChatCommands } from './commands';
 import {
+    CodeContextService,
     CodeExplanationService,
     CodeSuggestionsService,
     ConfigurationService,
     GhostTextService,
+    GitIntegrationService,
     InlineCompletionService,
     PatternDetectionService,
-    RefactoringService
+    RefactoringService,
+    WorkspaceAnalysisService
 } from './services';
 import { Logger } from './utils';
-import { ChatWebviewProvider, SidebarChatProvider } from './views';
+import { ChatWebviewProvider, SidebarChatProvider, WorkspaceDashboardProvider } from './views';
 
 /**
  * Classe principal da extensão xCopilot
@@ -18,6 +21,7 @@ import { ChatWebviewProvider, SidebarChatProvider } from './views';
 export class ExtensionManager {
     private chatProvider!: ChatWebviewProvider;
     private sidebarChatProvider!: SidebarChatProvider;
+    private workspaceDashboardProvider!: WorkspaceDashboardProvider;
     private chatCommands!: ChatCommands;
     private configService: ConfigurationService;
     private codeSuggestionsService!: CodeSuggestionsService;
@@ -26,6 +30,9 @@ export class ExtensionManager {
     private inlineCompletionService!: InlineCompletionService;
     private refactoringService!: RefactoringService;
     private patternDetectionService!: PatternDetectionService;
+    private workspaceAnalysisService!: WorkspaceAnalysisService;
+    private codeContextService!: CodeContextService;
+    private gitIntegrationService!: GitIntegrationService;
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
@@ -56,6 +63,21 @@ export class ExtensionManager {
             this.inlineCompletionService = InlineCompletionService.getInstance();
             this.refactoringService = RefactoringService.getInstance();
             this.patternDetectionService = PatternDetectionService.getInstance();
+            this.codeContextService = CodeContextService.getInstance();
+            this.gitIntegrationService = GitIntegrationService.getInstance();
+            
+            // Inicializar serviço de análise de workspace
+            this.workspaceAnalysisService = new WorkspaceAnalysisService(
+                this.patternDetectionService,
+                this.gitIntegrationService,
+                this.codeContextService
+            );
+
+            // Inicializar workspace dashboard provider
+            this.workspaceDashboardProvider = new WorkspaceDashboardProvider(
+                context.extensionUri,
+                this.workspaceAnalysisService
+            );
 
             // Registrar o provider da webview
             this.registerWebviewProvider(context);
@@ -65,6 +87,7 @@ export class ExtensionManager {
             this.refactoringService.registerCommands(context);
             this.patternDetectionService.registerCommands(context);
             this.registerCodeExplanationCommands(context);
+            this.registerWorkspaceAnalysisCommands(context);
 
             // Registrar providers de código
             // Registrar providers de código
@@ -112,7 +135,18 @@ export class ExtensionManager {
             }
         );
 
-        context.subscriptions.push(mainDisposable, sidebarDisposable);
+        // Registrar provider do workspace dashboard
+        const dashboardDisposable = vscode.window.registerWebviewViewProvider(
+            'xcopilot.workspaceDashboard',
+            this.workspaceDashboardProvider,
+            {
+                webviewOptions: {
+                    retainContextWhenHidden: true
+                }
+            }
+        );
+
+        context.subscriptions.push(mainDisposable, sidebarDisposable, dashboardDisposable);
         Logger.info('✅ WebviewViewProvider registered successfully!');
     }
 
@@ -200,5 +234,49 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
 
         context.subscriptions.push(...commands);
         Logger.info('✅ Code explanation commands registered');
+    }
+
+    /**
+     * Registra comandos de análise de workspace
+     */
+    private registerWorkspaceAnalysisCommands(context: vscode.ExtensionContext): void {
+        const commands = [
+            vscode.commands.registerCommand('xcopilot.analyzeWorkspace', async () => {
+                try {
+                    const report = await this.workspaceAnalysisService.analyzeWorkspace();
+                    this.workspaceDashboardProvider.updateDashboard(report);
+                    vscode.window.showInformationMessage(
+                        `Análise concluída! Score geral: ${report.overallScore}/100`
+                    );
+                } catch (error) {
+                    vscode.window.showErrorMessage(
+                        `Erro na análise: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+                    );
+                }
+            }),
+            vscode.commands.registerCommand('xcopilot.quickAnalyzeWorkspace', async () => {
+                try {
+                    const report = await this.workspaceAnalysisService.quickAnalysis();
+                    vscode.window.showInformationMessage(
+                        `Análise rápida concluída! Score: ${report.overallScore || 'N/A'}/100`
+                    );
+                } catch (error) {
+                    vscode.window.showErrorMessage(
+                        `Erro na análise rápida: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+                    );
+                }
+            }),
+            vscode.commands.registerCommand('xcopilot.showWorkspaceDashboard', () => {
+                vscode.commands.executeCommand('workbench.view.extension.xcopilot');
+                vscode.commands.executeCommand('xcopilot.workspaceDashboard.focus');
+            }),
+            vscode.commands.registerCommand('xcopilot.clearAnalysisCache', () => {
+                this.workspaceAnalysisService.clearCache();
+                vscode.window.showInformationMessage('Cache de análise limpo!');
+            })
+        ];
+
+        context.subscriptions.push(...commands);
+        Logger.info('✅ Workspace analysis commands registered');
     }
 }
