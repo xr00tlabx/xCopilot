@@ -435,7 +435,7 @@ export class ASTAnalysisService {
 
         // Determina se está dentro de uma função
         for (const func of analysis.functions) {
-            if (func.line <= line && func.line + 10 > line) { // Heurística: função não deve ter mais de 10 linhas
+            if (func.line <= line && func.endLine >= line) { // Verifica se está dentro dos limites reais da função
                 context.insideFunction = func.name;
             }
         }
