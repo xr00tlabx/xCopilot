@@ -4,11 +4,14 @@ import {
     CodeExplanationService,
     CodeSuggestionsService,
     ConfigurationService,
+    ConversationHistoryService,
     GhostTextService,
     InlineCompletionService,
+    MultilineGenerationService,
     PatternDetectionService,
     RefactoringService,
-    RefactoringCodeLensProvider
+    RefactoringCodeLensProvider,
+    WorkspaceAnalysisService
 } from './services';
 import { Logger } from './utils';
 import { ChatWebviewProvider, SidebarChatProvider } from './views';
@@ -21,13 +24,16 @@ export class ExtensionManager {
     private sidebarChatProvider!: SidebarChatProvider;
     private chatCommands!: ChatCommands;
     private configService: ConfigurationService;
+    private conversationHistoryService!: ConversationHistoryService;
     private codeSuggestionsService!: CodeSuggestionsService;
     private codeExplanationService!: CodeExplanationService;
     private ghostTextService!: GhostTextService;
     private inlineCompletionService!: InlineCompletionService;
+    private multilineGenerationService!: MultilineGenerationService;
     private refactoringService!: RefactoringService;
     private patternDetectionService!: PatternDetectionService;
     private refactoringCodeLensProvider!: RefactoringCodeLensProvider;
+    private workspaceAnalysisService!: WorkspaceAnalysisService;
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
@@ -52,13 +58,16 @@ export class ExtensionManager {
             this.chatCommands = new ChatCommands(this.chatProvider);
 
             // Inicializar todos os serviços IA
+            this.conversationHistoryService = ConversationHistoryService.getInstance();
             this.codeSuggestionsService = CodeSuggestionsService.getInstance();
             this.codeExplanationService = CodeExplanationService.getInstance();
             this.ghostTextService = GhostTextService.getInstance();
             this.inlineCompletionService = InlineCompletionService.getInstance();
+            this.multilineGenerationService = MultilineGenerationService.getInstance();
             this.refactoringService = RefactoringService.getInstance();
             this.patternDetectionService = PatternDetectionService.getInstance();
             this.refactoringCodeLensProvider = RefactoringCodeLensProvider.getInstance();
+            this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance();
 
             // Registrar o provider da webview
             this.registerWebviewProvider(context);
