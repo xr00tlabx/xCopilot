@@ -308,7 +308,9 @@ export class ASTAnalysisService {
      */
     private parseMethod(line: string): MethodInfo | null {
         const methodMatch = line.match(/^(?:private|protected|public|static|abstract)?\s*(?:async\s+)?(\w+)\s*\((.*?)\)(?:\s*:\s*([^{;]+))?/);
-        if (methodMatch && !line.includes(':') && !line.includes('=')) {
+        // Improved regex: handles multiple/optional modifiers, async, method name, params, return type
+        const methodMatch = line.match(/^(?:(?:private|protected|public|static|abstract|readonly)\s+)*\s*(?:async\s+)?(\w+)\s*\(([^)]*)\)\s*(?::\s*([^{;=]+))?\s*(?:{|;)?/);
+        if (methodMatch) {
             return {
                 name: methodMatch[1],
                 parameters: this.parseParameters(methodMatch[2]),
