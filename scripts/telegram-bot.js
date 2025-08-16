@@ -12,7 +12,11 @@ const fs = require('fs');
 const path = require('path');
 
 // 🔐 Configurações do Bot (use variáveis de ambiente em produção)
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '7635832623:AAHSEq2p5OFDPKLl_kztVh4kCVQQ_pGv8UI';
+// 🔐 Configurações do Bot (o token deve ser fornecido apenas via variável de ambiente)
+if (!process.env.TELEGRAM_BOT_TOKEN) {
+    throw new Error('TELEGRAM_BOT_TOKEN environment variable is required and must not be hardcoded.');
+}
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || 7335391186;
 
