@@ -101,6 +101,38 @@
                 "title": "xCopilot: Aplicar Padrão de Design"
             },
             {
+                "command": "xcopilot.showSmartSuggestions",
+                "title": "xCopilot: Mostrar Sugestões Inteligentes"
+            },
+            {
+                "command": "xcopilot.extractClass",
+                "title": "xCopilot: Extrair Classe"
+            },
+            {
+                "command": "xcopilot.extractInterface",
+                "title": "xCopilot: Extrair Interface"
+            },
+            {
+                "command": "xcopilot.modernizeCode",
+                "title": "xCopilot: Modernizar Código"
+            },
+            {
+                "command": "xcopilot.smartRename",
+                "title": "xCopilot: Rename Inteligente"
+            },
+            {
+                "command": "xcopilot.bulkRefactor",
+                "title": "xCopilot: Refatoração em Lote"
+            },
+            {
+                "command": "xcopilot.previewRefactoring",
+                "title": "xCopilot: Prévia de Refatoração"
+            },
+            {
+                "command": "xcopilot.applyRefactoring",
+                "title": "xCopilot: Aplicar Refatoração"
+            },
+            {
                 "command": "xcopilot.analyzePatterns",
                 "title": "xCopilot: Analisar Padrões"
             },
@@ -238,6 +270,32 @@
                     "group": "xcopilot-refactor@5"
                 },
                 {
+                    "command": "xcopilot.showSmartSuggestions",
+                    "group": "xcopilot-refactor@6"
+                },
+                {
+                    "command": "xcopilot.extractClass",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-refactor@7"
+                },
+                {
+                    "command": "xcopilot.extractInterface",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-refactor@8"
+                },
+                {
+                    "command": "xcopilot.modernizeCode",
+                    "group": "xcopilot-refactor@9"
+                },
+                {
+                    "command": "xcopilot.smartRename",
+                    "group": "xcopilot-refactor@10"
+                },
+                {
+                    "command": "xcopilot.bulkRefactor",
+                    "group": "xcopilot-refactor@11"
+                },
+                {
                     "command": "xcopilot.analyzePatterns",
                     "group": "xcopilot-analysis@1"
                 },
@@ -342,6 +400,26 @@
             {
                 "command": "xcopilot.toggleInlineCompletion",
                 "key": "ctrl+alt+i",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.showSmartSuggestions",
+                "key": "ctrl+k ctrl+s",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.modernizeCode",
+                "key": "ctrl+k ctrl+m",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.smartRename",
+                "key": "ctrl+k ctrl+n",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.bulkRefactor",
+                "key": "ctrl+k ctrl+b",
                 "when": "editorTextFocus"
             }
         ]
