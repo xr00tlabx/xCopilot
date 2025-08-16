@@ -528,7 +528,8 @@ export class MultilineCodeGenerationService {
             const commentsByFile = new Map<string, CommentAnalysis[]>();
             comments.forEach(comment => {
                 // Note: findAllComments doesn't return file info, so this is a placeholder
-                const file = 'unknown';
+                // Use comment.file if available, otherwise fallback to 'unknown'
+                const file = (comment as any).file || 'unknown';
                 if (!commentsByFile.has(file)) {
                     commentsByFile.set(file, []);
                 }
