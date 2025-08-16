@@ -10,6 +10,10 @@ yarn-error.log*
 .vscode/*
 !.vscode/extensions.json
 
+# Build artifacts
+extension/dist/
+extension/*.vsix
+
 # Logs
 logs/
 *.log
