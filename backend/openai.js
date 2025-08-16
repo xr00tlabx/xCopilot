@@ -1,4 +1,4 @@
-// Módulo para integração com OpenAI (SDK v5)
+// Módulo para integração com OpenAI (SDK v5) com retry e fallback de modelo
 const OpenAI = require('openai');
 
 class OpenAIError extends Error {
@@ -21,12 +21,76 @@ function getClient() {
     return client;
 }
 
+// Configuração com defaults e possibilidade de override via env
+const MODEL_PRIMARY = process.env.OPENAI_PRIMARY_MODEL || 'gpt-4o-mini';
+const MODEL_FALLBACK = process.env.OPENAI_FALLBACK_MODEL || 'gpt-3.5-turbo';
+const MAX_RETRIES = parseInt(process.env.OPENAI_MAX_RETRIES || '3', 10);
+const RETRY_BASE_MS = parseInt(process.env.OPENAI_RETRY_BASE_MS || '500', 10); // backoff inicial
+const ENABLE_MODEL_FALLBACK = (process.env.OPENAI_ENABLE_MODEL_FALLBACK || 'true').toLowerCase() === 'true';
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function shouldRetry(err, attempt) {
+    if (attempt >= MAX_RETRIES) return false;
+    const status = err?.status || err?.response?.status;
+    // Não retry em erros de autenticação ou requisição inválida
+    if (status === 400 || status === 401 || status === 403) return false;
+    // Rate limit ou erros de servidor / rede
+    if (status === 408 || status === 409 || status === 429 || (status >= 500)) return true;
+    // Erros sem status (rede, timeout baixo nível)
+    const code = err?.code || '';
+    if (['ETIMEDOUT','ECONNRESET','EAI_AGAIN','ENOTFOUND'].includes(code)) return true;
+    return false;
+}
+
+async function callWithRetry(model, messages, options = {}) {
+    let lastErr;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const completion = await getClient().chat.completions.create({
+                model,
+                messages,
+                ...options
+            });
+            return completion;
+        } catch (err) {
+            lastErr = err;
+            if (!shouldRetry(err, attempt)) break;
+            const delay = RETRY_BASE_MS * Math.pow(2, attempt) + Math.floor(Math.random() * 100);
+            if (process.env.DEBUG_OPENAI === '1') {
+                console.warn(`[openai] tentativa ${attempt + 1} falhou para modelo ${model} (status=${err.status || err.code}); retry em ${delay}ms`);
+            }
+            await sleep(delay);
+        }
+    }
+    throw lastErr;
+}
+
+async function callChatWithFallback(messages, options = {}) {
+    try {
+        return await callWithRetry(MODEL_PRIMARY, messages, options);
+    } catch (primaryErr) {
+        if (ENABLE_MODEL_FALLBACK) {
+            if (process.env.DEBUG_OPENAI === '1') {
+                console.warn(`[openai] fallback para modelo secundário ${MODEL_FALLBACK} devido a erro primário: ${primaryErr.status || primaryErr.code}`);
+            }
+            try {
+                return await callWithRetry(MODEL_FALLBACK, messages, options);
+            } catch (fallbackErr) {
+                // Anexa informação do fallback
+                fallbackErr.primaryError = primaryErr;
+                throw fallbackErr;
+            }
+        }
+        throw primaryErr;
+    }
+}
+
 async function gerarResposta(prompt) {
     try {
-        const completion = await getClient().chat.completions.create({
-            model: 'gpt-3.5-turbo',
-            messages: [{ role: 'user', content: prompt }]
-        });
+        const completion = await callChatWithFallback([
+            { role: 'user', content: prompt }
+        ]);
         return completion.choices?.[0]?.message?.content || '';
     } catch (err) {
         // Sanitiza e reclassifica erro
@@ -70,12 +134,10 @@ ${prompt}
 
 Complete the code:`;
 
-        const completion = await getClient().chat.completions.create({
-            model: 'gpt-3.5-turbo',
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt }
-            ],
+        const completion = await callChatWithFallback([
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+        ], {
             max_tokens: maxTokens,
             temperature: temperature,
             top_p: 0.9,
