@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ChatCommands } from './commands';
+import { ChatCommands, InlineCompletionCommands } from './commands';
 import {
     CodeExplanationService,
     CodeSuggestionsService,
@@ -22,6 +22,7 @@ export class ExtensionManager {
     private chatProvider!: ChatWebviewProvider;
     private sidebarChatProvider!: SidebarChatProvider;
     private chatCommands!: ChatCommands;
+    private inlineCompletionCommands!: InlineCompletionCommands;
     private configService: ConfigurationService;
     private codeSuggestionsService!: CodeSuggestionsService;
     private codeExplanationService!: CodeExplanationService;
@@ -29,12 +30,12 @@ export class ExtensionManager {
     private inlineCompletionService!: InlineCompletionService;
     private refactoringService!: RefactoringService;
     private patternDetectionService!: PatternDetectionService;
-    
+
     // New context-aware services
     private workspaceAnalysisService!: WorkspaceAnalysisService;
     private contextAwareService!: ContextAwareService;
     private semanticSearchService!: SemanticSearchService;
-    
+
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
@@ -70,6 +71,7 @@ export class ExtensionManager {
             this.chatProvider = new ChatWebviewProvider(context);
             this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
             this.chatCommands = new ChatCommands(this.chatProvider);
+            this.inlineCompletionCommands = new InlineCompletionCommands();
 
             // Inicializar context-aware service de forma assíncrona
             this.initializeContextAwareFeatures();
@@ -79,8 +81,16 @@ export class ExtensionManager {
 
             // Registrar comandos
             this.chatCommands.registerCommands(context);
+            this.inlineCompletionCommands.registerCommands(context);
             this.refactoringService.registerCommands(context);
-            this.patternDetectionService.registerCommands(context);
+            
+            // Registrar Pattern Detection com proteção contra erros
+            try {
+                this.patternDetectionService.registerCommands(context);
+            } catch (error) {
+                Logger.warn('Pattern Detection Service disabled due to error:', error);
+            }
+            
             this.registerCodeExplanationCommands(context);
             this.registerContextAwareCommands(context);
 
@@ -196,26 +206,6 @@ export class ExtensionManager {
                 } else {
                     vscode.window.showWarningMessage('Selecione código para explicar no chat');
                 }
-            }),
-            vscode.commands.registerCommand('xcopilot.toggleInlineCompletion', () => {
-                const currentState = this.inlineCompletionService.isServiceEnabled();
-                this.inlineCompletionService.setEnabled(!currentState);
-                vscode.window.showInformationMessage(
-                    `Inline Completion ${!currentState ? 'habilitado' : 'desabilitado'}`
-                );
-            }),
-            vscode.commands.registerCommand('xcopilot.clearCompletionCache', () => {
-                this.inlineCompletionService.clearCache();
-                vscode.window.showInformationMessage('Cache de completions limpo');
-            }),
-            vscode.commands.registerCommand('xcopilot.showCompletionStats', () => {
-                const stats = this.inlineCompletionService.getStats();
-                const message = `Estatísticas de Completion:
-Requisições: ${stats.requestCount}
-Cache Hits: ${stats.cacheHits}
-Taxa de Cache: ${stats.cacheHitRate.toFixed(1)}%
-Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats.utilization.toFixed(1)}%)`;
-                vscode.window.showInformationMessage(message);
             })
         ];
 
@@ -273,7 +263,7 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
             vscode.commands.registerCommand('xcopilot.showContextStats', () => {
                 const stats = this.contextAwareService.getContextStats();
                 const cacheStats = this.semanticSearchService.getCacheStats();
-                
+
                 const message = `Estatísticas de Contexto:
 🧠 Inicializado: ${stats.isInitialized ? 'Sim' : 'Não'}
 📊 Análise disponível: ${stats.hasWorkspaceAnalysis ? 'Sim' : 'Não'}
@@ -302,15 +292,23 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
     private async initializeContextAwareFeatures(): Promise<void> {
         try {
             Logger.info('🧠 Initializing context-aware features...');
-            
+
             // Initialize context-aware service in background
             await this.contextAwareService.initialize();
-            
+
             Logger.info('✅ Context-aware features initialized successfully');
-            
+
         } catch (error) {
             Logger.error('Error initializing context-aware features:', error);
             // Don't show error to user as this is not critical for basic functionality
         }
+    }
+
+    /**
+     * Desativa a extensão
+     */
+    deactivate(): void {
+        Logger.info('🔄 xCopilot extension is being deactivated...');
+        this.outputChannel.dispose();
     }
 }

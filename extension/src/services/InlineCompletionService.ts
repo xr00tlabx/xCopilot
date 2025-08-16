@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as crypto from 'crypto';
 import { Logger } from '../utils/Logger';
 import { BackendService } from './BackendService';
 import { CodeContextService } from './CodeContextService';
@@ -296,33 +297,34 @@ Complete a linha atual:`;
      * Generate simple fallback completion when API fails
      */
     private generateFallbackCompletion(textBefore: string, language: string): string | null {
-        const trimmed = textBefore.trim();
+        // Don't trim for pattern matching since we need trailing spaces
+        const text = textBefore;
         
         // Simple pattern-based completions for common cases
         if (language === 'javascript' || language === 'typescript') {
-            if (trimmed.endsWith('console.')) {
+            if (text.endsWith('console.')) {
                 return 'log()';
             }
-            if (trimmed.endsWith('function ')) {
+            if (text.endsWith('function ')) {
                 return 'name() {\n    \n}';
             }
-            if (trimmed.endsWith('const ')) {
+            if (text.endsWith('const ')) {
                 return 'variable = ';
             }
-            if (trimmed.endsWith('if (')) {
+            if (text.endsWith('if (')) {
                 return 'condition) {\n    \n}';
             }
         }
 
         if (language === 'python') {
-            if (trimmed.endsWith('def ')) {
+            if (text.endsWith('def ')) {
                 return 'function_name():';
             }
-            if (trimmed.endsWith('if ')) {
+            if (text.endsWith('if ')) {
                 return 'condition:';
             }
-            if (trimmed.endsWith('print(')) {
-                return '"")"';
+            if (text.endsWith('print(')) {
+                return '"")';
             }
         }
 

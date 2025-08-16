@@ -58,6 +58,13 @@ export class LRUCache<K, V> {
     }
 
     /**
+     * Delete a specific key from cache
+     */
+    delete(key: K): boolean {
+        return this.cache.delete(key);
+    }
+
+    /**
      * Get current cache size
      */
     size(): number {
