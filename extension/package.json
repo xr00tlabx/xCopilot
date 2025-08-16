@@ -129,6 +129,10 @@
                 "title": "xCopilot: Mover Método"
             },
             {
+                "command": "xcopilot.refactorWorkspace",
+                "title": "xCopilot: Refatorar Workspace"
+            },
+            {
                 "command": "xcopilot.analyzePatterns",
                 "title": "xCopilot: Analisar Padrões"
             },
@@ -293,6 +297,10 @@
                     "group": "xcopilot-refactor@8"
                 },
                 {
+                    "command": "xcopilot.refactorWorkspace",
+                    "group": "xcopilot-workspace@1"
+                },
+                {
                     "command": "xcopilot.analyzePatterns",
                     "group": "xcopilot-analysis@1"
                 },
@@ -324,6 +332,11 @@
                     "command": "xcopilot.analyzeFile",
                     "when": "resourceExtname =~ /\\.(js|ts|py|java|cpp|c|cs|php|go|rs|rb|swift|kt)$/",
                     "group": "xcopilot@1"
+                },
+                {
+                    "command": "xcopilot.refactorWorkspace",
+                    "when": "explorerResourceIsFolder",
+                    "group": "xcopilot@2"
                 }
             ]
         },

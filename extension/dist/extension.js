@@ -8524,6 +8524,10 @@ var RefactoringService = class _RefactoringService {
       "xcopilot.moveMethod",
       () => this.moveMethod()
     );
+    const refactorWorkspaceCommand = vscode10.commands.registerCommand(
+      "xcopilot.refactorWorkspace",
+      () => this.refactorWorkspace()
+    );
     context.subscriptions.push(
       refactorCommand,
       extractFunctionCommand,
@@ -8536,7 +8540,8 @@ var RefactoringService = class _RefactoringService {
       convertToAsyncAwaitCommand,
       convertToArrowFunctionCommand,
       applyDestructuringCommand,
-      moveMethodCommand
+      moveMethodCommand,
+      refactorWorkspaceCommand
     );
   }
   /**
@@ -8920,22 +8925,320 @@ ${extraction.functionDefinition}
         vscode10.window.showWarningMessage("Selecione o m\xE9todo para mover");
         return;
       }
+      const availableFiles = await this.findAvailableFiles();
       const availableClasses = await this.findAvailableClasses(editor.document);
-      if (availableClasses.length === 0) {
+      if (availableClasses.length === 0 && availableFiles.length === 0) {
         vscode10.window.showWarningMessage("Nenhuma classe de destino encontrada");
         return;
       }
-      const targetClass = await vscode10.window.showQuickPick(availableClasses, {
-        placeHolder: "Selecione a classe de destino"
+      const moveOptions = ["Classe no mesmo arquivo", "Arquivo diferente"];
+      const moveType = await vscode10.window.showQuickPick(moveOptions, {
+        placeHolder: "Onde deseja mover o m\xE9todo?"
       });
-      if (!targetClass)
+      if (!moveType)
         return;
-      const selectedMethod = editor.document.getText(selection);
-      await this.performMethodMove(editor, selection, selectedMethod, targetClass);
+      if (moveType === "Classe no mesmo arquivo") {
+        await this.moveMethodToSameFile(editor, selection, availableClasses);
+      } else {
+        await this.moveMethodToOtherFile(editor, selection, availableFiles);
+      }
     } catch (error) {
       Logger.error("Error moving method:", error);
       vscode10.window.showErrorMessage("Erro ao mover m\xE9todo");
     }
+  }
+  /**
+   * Move método para classe no mesmo arquivo
+   */
+  async moveMethodToSameFile(editor, selection, availableClasses) {
+    const targetClass = await vscode10.window.showQuickPick(availableClasses, {
+      placeHolder: "Selecione a classe de destino"
+    });
+    if (!targetClass)
+      return;
+    const selectedMethod = editor.document.getText(selection);
+    await this.performMethodMove(editor, selection, selectedMethod, targetClass);
+  }
+  /**
+   * Move método para arquivo diferente
+   */
+  async moveMethodToOtherFile(editor, selection, availableFiles) {
+    const fileQuickPicks = availableFiles.map((uri) => ({
+      label: vscode10.workspace.asRelativePath(uri),
+      uri
+    }));
+    const selectedFile = await vscode10.window.showQuickPick(fileQuickPicks, {
+      placeHolder: "Selecione o arquivo de destino"
+    });
+    if (!selectedFile)
+      return;
+    const targetDocument = await vscode10.workspace.openTextDocument(selectedFile.uri);
+    const targetClasses = await this.findAvailableClasses(targetDocument);
+    if (targetClasses.length === 0) {
+      vscode10.window.showWarningMessage("Nenhuma classe encontrada no arquivo de destino");
+      return;
+    }
+    const targetClass = await vscode10.window.showQuickPick(targetClasses, {
+      placeHolder: "Selecione a classe de destino"
+    });
+    if (!targetClass)
+      return;
+    await this.performMultiFileMethodMove(editor, selection, targetDocument, targetClass);
+  }
+  /**
+   * Executa movimentação de método entre arquivos
+   */
+  async performMultiFileMethodMove(sourceEditor, methodRange, targetDocument, targetClass) {
+    const methodCode = sourceEditor.document.getText(methodRange);
+    const choice = await vscode10.window.showInformationMessage(
+      `Mover m\xE9todo para a classe "${targetClass}" no arquivo "${vscode10.workspace.asRelativePath(targetDocument.uri)}"?`,
+      "Mover",
+      "Cancelar"
+    );
+    if (choice !== "Mover")
+      return;
+    const targetEditor = await vscode10.window.showTextDocument(targetDocument);
+    const classPosition = this.findClassPosition(targetDocument, targetClass);
+    if (classPosition) {
+      await targetEditor.edit((editBuilder) => {
+        editBuilder.insert(classPosition, `
+    ${methodCode}
+`);
+      });
+    }
+    await sourceEditor.edit((editBuilder) => {
+      editBuilder.delete(methodRange);
+    });
+    vscode10.window.showInformationMessage(`\u2705 M\xE9todo movido para "${targetClass}" em ${vscode10.workspace.asRelativePath(targetDocument.uri)}!`);
+  }
+  /**
+   * Refatora workspace inteiro
+   */
+  async refactorWorkspace() {
+    try {
+      const files = await vscode10.workspace.findFiles(
+        "**/*.{ts,js,py,java,cs,cpp,c,php,rb,go,rs}",
+        "**/node_modules/**"
+      );
+      if (files.length === 0) {
+        vscode10.window.showInformationMessage("Nenhum arquivo de c\xF3digo encontrado no workspace");
+        return;
+      }
+      const choice = await vscode10.window.showInformationMessage(
+        `Encontrados ${files.length} arquivo(s) de c\xF3digo. Deseja prosseguir com a refatora\xE7\xE3o do workspace?`,
+        "Prosseguir",
+        "Cancelar"
+      );
+      if (choice !== "Prosseguir")
+        return;
+      const refactoringTypes = [
+        "Otimizar Imports",
+        "Converter para ES6+",
+        "Aplicar Padr\xF5es de Design",
+        "Extrair C\xF3digo Duplicado",
+        "Todas as Op\xE7\xF5es"
+      ];
+      const selectedTypes = await vscode10.window.showQuickPick(refactoringTypes, {
+        placeHolder: "Selecione os tipos de refatora\xE7\xE3o",
+        canPickMany: true
+      });
+      if (!selectedTypes || selectedTypes.length === 0)
+        return;
+      vscode10.window.showInformationMessage("\u{1F527} Iniciando refatora\xE7\xE3o do workspace...");
+      const results = await this.processWorkspaceFiles(files, selectedTypes);
+      await this.showWorkspaceRefactoringReport(results);
+    } catch (error) {
+      Logger.error("Error refactoring workspace:", error);
+      vscode10.window.showErrorMessage("Erro ao refatorar workspace");
+    }
+  }
+  /**
+   * Processa arquivos do workspace para refatoração
+   */
+  async processWorkspaceFiles(files, refactoringTypes) {
+    const results = [];
+    for (const fileUri of files) {
+      try {
+        const document = await vscode10.workspace.openTextDocument(fileUri);
+        const fileResults = await this.processFileForRefactoring(document, refactoringTypes);
+        results.push({
+          file: vscode10.workspace.asRelativePath(fileUri),
+          changes: fileResults.changes,
+          errors: fileResults.errors
+        });
+        vscode10.window.showInformationMessage(
+          `Processando: ${vscode10.workspace.asRelativePath(fileUri)}`
+        );
+      } catch (error) {
+        results.push({
+          file: vscode10.workspace.asRelativePath(fileUri),
+          changes: [],
+          errors: [`Erro ao processar arquivo: ${error}`]
+        });
+      }
+    }
+    return results;
+  }
+  /**
+   * Processa arquivo individual para refatoração
+   */
+  async processFileForRefactoring(document, refactoringTypes) {
+    const changes = [];
+    const errors = [];
+    try {
+      const content = document.getText();
+      let modifiedContent = content;
+      for (const refactoringType of refactoringTypes) {
+        try {
+          switch (refactoringType) {
+            case "Otimizar Imports":
+            case "Todas as Op\xE7\xF5es":
+              const optimizedImports = await this.generateOptimizedImports(
+                modifiedContent,
+                {},
+                document.languageId
+              );
+              if (optimizedImports !== modifiedContent) {
+                modifiedContent = optimizedImports;
+                changes.push("Imports otimizados");
+              }
+              break;
+            case "Converter para ES6+":
+              const modernizedCode = await this.modernizeCodeForFile(
+                modifiedContent,
+                document.languageId
+              );
+              if (modernizedCode !== modifiedContent) {
+                modifiedContent = modernizedCode;
+                changes.push("C\xF3digo modernizado para ES6+");
+              }
+              break;
+            case "Extrair C\xF3digo Duplicado":
+              const deduplicatedCode = await this.extractDuplicatesInFile(
+                modifiedContent,
+                document
+              );
+              if (deduplicatedCode !== modifiedContent) {
+                modifiedContent = deduplicatedCode;
+                changes.push("C\xF3digo duplicado extra\xEDdo");
+              }
+              break;
+          }
+        } catch (error) {
+          errors.push(`Erro em ${refactoringType}: ${error}`);
+        }
+      }
+      if (modifiedContent !== content && changes.length > 0) {
+        const editor = await vscode10.window.showTextDocument(document);
+        const fullRange = new vscode10.Range(
+          document.positionAt(0),
+          document.positionAt(content.length)
+        );
+        await editor.edit((editBuilder) => {
+          editBuilder.replace(fullRange, modifiedContent);
+        });
+      }
+    } catch (error) {
+      errors.push(`Erro geral: ${error}`);
+    }
+    return { changes, errors };
+  }
+  /**
+   * Moderniza código para ES6+
+   */
+  async modernizeCodeForFile(content, language) {
+    if (language !== "javascript" && language !== "typescript") {
+      return content;
+    }
+    const prompt = `
+Modernize o seguinte c\xF3digo ${language} para ES6+:
+
+\`\`\`${language}
+${content}
+\`\`\`
+
+Aplique:
+- Arrow functions onde apropriado
+- const/let ao inv\xE9s de var
+- Template literals
+- Destructuring
+- Async/await ao inv\xE9s de callbacks
+- Spread operator
+- Classes ao inv\xE9s de function constructors
+
+Retorne APENAS o c\xF3digo modernizado:
+`;
+    const response = await this.backendService.askQuestion(prompt);
+    return this.extractCodeFromResponse(response);
+  }
+  /**
+   * Extrai duplicatas em arquivo
+   */
+  async extractDuplicatesInFile(content, document) {
+    return content;
+  }
+  /**
+   * Mostra relatório de refatoração do workspace
+   */
+  async showWorkspaceRefactoringReport(results) {
+    const totalFiles = results.length;
+    const filesWithChanges = results.filter((r2) => r2.changes.length > 0).length;
+    const filesWithErrors = results.filter((r2) => r2.errors.length > 0).length;
+    let report = `# Relat\xF3rio de Refatora\xE7\xE3o do Workspace
+
+`;
+    report += `**Arquivos processados**: ${totalFiles}
+`;
+    report += `**Arquivos modificados**: ${filesWithChanges}
+`;
+    report += `**Arquivos com erros**: ${filesWithErrors}
+
+`;
+    report += `## Detalhes por Arquivo
+
+`;
+    for (const result of results) {
+      report += `### ${result.file}
+`;
+      if (result.changes.length > 0) {
+        report += `**Mudan\xE7as aplicadas**:
+`;
+        for (const change of result.changes) {
+          report += `- \u2705 ${change}
+`;
+        }
+      }
+      if (result.errors.length > 0) {
+        report += `**Erros encontrados**:
+`;
+        for (const error of result.errors) {
+          report += `- \u274C ${error}
+`;
+        }
+      }
+      if (result.changes.length === 0 && result.errors.length === 0) {
+        report += `- \u2139\uFE0F Nenhuma mudan\xE7a necess\xE1ria
+`;
+      }
+      report += `
+`;
+    }
+    const doc = await vscode10.workspace.openTextDocument({
+      content: report,
+      language: "markdown"
+    });
+    await vscode10.window.showTextDocument(doc);
+    vscode10.window.showInformationMessage(
+      `\u2705 Refatora\xE7\xE3o do workspace conclu\xEDda! ${filesWithChanges}/${totalFiles} arquivos modificados.`
+    );
+  }
+  async findAvailableFiles() {
+    const files = await vscode10.workspace.findFiles(
+      "**/*.{ts,js,py,java,cs,cpp,c,php,rb,go,rs}",
+      "**/node_modules/**"
+    );
+    const currentFile = vscode10.window.activeTextEditor?.document.uri;
+    return files.filter((file) => !currentFile || file.fsPath !== currentFile.fsPath);
   }
   async generateRefactoredCode(code, context, language) {
     const prompt = `
@@ -9049,15 +9352,78 @@ Retorne APENAS o c\xF3digo refatorado com o padr\xE3o aplicado:
    * Mostra preview da refatoração
    */
   async showRefactoringPreview(original, refactored) {
-    const doc = await vscode10.workspace.openTextDocument({
-      content: `// ORIGINAL:
-${original}
-
-// REFATORADO:
-${refactored}`,
+    await this.showEnhancedDiffPreview(original, refactored, "Refatora\xE7\xE3o");
+  }
+  /**
+   * Mostra preview aprimorado com diff view
+   */
+  async showEnhancedDiffPreview(original, modified, title) {
+    const originalDoc = await vscode10.workspace.openTextDocument({
+      content: original,
       language: "typescript"
     });
-    await vscode10.window.showTextDocument(doc);
+    const modifiedDoc = await vscode10.workspace.openTextDocument({
+      content: modified,
+      language: "typescript"
+    });
+    await vscode10.commands.executeCommand(
+      "vscode.diff",
+      originalDoc.uri,
+      modifiedDoc.uri,
+      `${title}: Original \u2194 Modificado`,
+      { preserveFocus: true }
+    );
+    const choice = await vscode10.window.showInformationMessage(
+      `${title} gerada! O que deseja fazer?`,
+      "Aplicar",
+      "Salvar como Arquivo",
+      "Fechar"
+    );
+    if (choice === "Aplicar") {
+      await this.applyRefactoringChanges(original, modified);
+    } else if (choice === "Salvar como Arquivo") {
+      await this.saveRefactoringAsFile(modified, title);
+    }
+  }
+  /**
+   * Aplica mudanças de refatoração
+   */
+  async applyRefactoringChanges(original, modified) {
+    const editor = vscode10.window.activeTextEditor;
+    if (!editor)
+      return;
+    const document = editor.document;
+    const content = document.getText();
+    const originalIndex = content.indexOf(original);
+    if (originalIndex !== -1) {
+      const startPos = document.positionAt(originalIndex);
+      const endPos = document.positionAt(originalIndex + original.length);
+      const range = new vscode10.Range(startPos, endPos);
+      await editor.edit((editBuilder) => {
+        editBuilder.replace(range, modified);
+      });
+      vscode10.window.showInformationMessage("\u2705 Refatora\xE7\xE3o aplicada com sucesso!");
+    } else {
+      vscode10.window.showWarningMessage("N\xE3o foi poss\xEDvel aplicar a refatora\xE7\xE3o automaticamente");
+    }
+  }
+  /**
+   * Salva refatoração como arquivo
+   */
+  async saveRefactoringAsFile(content, title) {
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+    const filename = `${title}-${timestamp}.txt`;
+    const uri = await vscode10.window.showSaveDialog({
+      defaultUri: vscode10.Uri.file(filename),
+      filters: {
+        "Text Files": ["txt"],
+        "All Files": ["*"]
+      }
+    });
+    if (uri) {
+      await vscode10.workspace.fs.writeFile(uri, Buffer.from(content, "utf8"));
+      vscode10.window.showInformationMessage(`\u{1F4C1} Refatora\xE7\xE3o salva em ${uri.fsPath}`);
+    }
   }
   /**
    * Mostra preview do padrão aplicado
