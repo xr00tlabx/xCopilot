@@ -57,7 +57,7 @@ export class RefactoringService {
             () => this.applyDesignPattern()
         );
 
-        // Novos comandos para Smart Refactoring Engine
+        // New commands for Smart Refactoring Engine
         const extractMethodCommand = vscode.commands.registerCommand(
             'xcopilot.extractMethod',
             (uri?: vscode.Uri, range?: vscode.Range) => this.extractMethod(uri, range)
