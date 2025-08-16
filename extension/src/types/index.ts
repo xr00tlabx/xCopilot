@@ -57,6 +57,8 @@ export interface ConversationEntry {
     fileName?: string;
     fileType?: string;
     context?: CodeContext;
+    relevantFiles?: string[];
+    embeddingScore?: number;
 }
 
 export interface ConversationHistory {

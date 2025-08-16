@@ -4,13 +4,13 @@ import {
     CodeExplanationService,
     CodeSuggestionsService,
     ConfigurationService,
+    ContextAwareService,
     GhostTextService,
     InlineCompletionService,
     PatternDetectionService,
     RefactoringService,
-    WorkspaceAnalysisService,
-    ContextAwareService,
-    SemanticSearchService
+    SemanticSearchService,
+    WorkspaceAnalysisService
 } from './services';
 import { Logger } from './utils';
 import { ChatWebviewProvider, SidebarChatProvider } from './views';
@@ -53,12 +53,7 @@ export class ExtensionManager {
         Logger.info('🚀 xCopilot extension is now active!');
 
         try {
-            // Inicializar providers com contexto
-            this.chatProvider = new ChatWebviewProvider(context);
-            this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
-            this.chatCommands = new ChatCommands(this.chatProvider);
-
-            // Inicializar todos os serviços IA
+            // PRIMEIRO: Inicializar todos os serviços básicos
             this.codeSuggestionsService = CodeSuggestionsService.getInstance();
             this.codeExplanationService = CodeExplanationService.getInstance();
             this.ghostTextService = GhostTextService.getInstance();
@@ -66,10 +61,15 @@ export class ExtensionManager {
             this.refactoringService = RefactoringService.getInstance();
             this.patternDetectionService = PatternDetectionService.getInstance();
 
-            // Inicializar novos serviços context-aware
+            // SEGUNDO: Inicializar novos serviços context-aware
             this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance(context);
             this.semanticSearchService = SemanticSearchService.getInstance(context);
             this.contextAwareService = ContextAwareService.getInstance(context);
+
+            // TERCEIRO: Inicializar providers que dependem dos serviços
+            this.chatProvider = new ChatWebviewProvider(context);
+            this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
+            this.chatCommands = new ChatCommands(this.chatProvider);
 
             // Inicializar context-aware service de forma assíncrona
             this.initializeContextAwareFeatures();
@@ -89,7 +89,7 @@ export class ExtensionManager {
             this.registerCodeProviders(context);
 
             // Configurar monitoramento de configuração
-            this.setupConfigurationWatcher(context);
+            // this.setupConfigurationWatcher(context); // TODO: implementar se necessário
 
             // Adicionar output channel aos subscriptions
             context.subscriptions.push(this.outputChannel);

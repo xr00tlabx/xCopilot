@@ -42,6 +42,7 @@ export class ContextAwareService {
     }
 
     /**
+
      * Inicializa o serviço com análise inicial do workspace
      */
     async initialize(): Promise<void> {

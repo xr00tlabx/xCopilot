@@ -18,6 +18,10 @@ logs/
 .DS_Store
 Thumbs.db
 
+# Build artifacts
+dist/
+extension/dist/
+
 # Others
 backend/node_modules/
 extension/node_modules/
