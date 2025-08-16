@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { BackendService } from '../services/BackendService';
-import { ContextAwareService } from '../services/ContextAwareService';
+import { WorkspaceAnalysisService } from '../services/WorkspaceAnalysisService';
+import { ConversationHistoryService } from '../services/ConversationHistoryService';
 import { ChatMessage } from '../types';
 import { Logger } from '../utils/Logger';
 import { getChatHtml } from './WebviewHtml';
@@ -11,20 +12,13 @@ import { getChatHtml } from './WebviewHtml';
 export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     private view: vscode.WebviewView | undefined;
     private backendService: BackendService;
-    private contextAwareService: ContextAwareService;
-    private context: vscode.ExtensionContext;
+    private workspaceAnalysisService: WorkspaceAnalysisService;
+    private conversationHistoryService: ConversationHistoryService;
 
-    constructor(context: vscode.ExtensionContext) {
-        this.context = context;
+    constructor() {
         this.backendService = BackendService.getInstance();
-        this.contextAwareService = ContextAwareService.getInstance(context);
-        
-        // Initialize the context-aware service
-        if (this.contextAwareService) {
-            this.contextAwareService.initialize().catch(error => {
-                Logger.error('Failed to initialize ContextAwareService:', error);
-            });
-        }
+        this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance();
+        this.conversationHistoryService = ConversationHistoryService.getInstance();
     }
 
     /**
@@ -59,74 +53,46 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
         Logger.debug('Received message:', message);
 
         if (message.type === 'ask' && message.prompt) {
-            Logger.info(`Processing context-aware ask request: ${message.prompt}`);
+            Logger.info(`Processing ask request: ${message.prompt}`);
 
             // Enviar resposta inicial
-            this.sendMessage({ type: 'answer', text: 'Analisando contexto e pensando...' });
+            this.sendMessage({ type: 'answer', text: 'Pensando...' });
 
             try {
-                // Get conversation context using ContextAwareService
-                const conversationContext = await this.contextAwareService.getConversationContext(message.prompt);
+                // Usar contexto do workspace para resposta mais inteligente
+                const contextualPrompt = this.workspaceAnalysisService.formatContextForPrompt(message.prompt);
                 
-                // Send context-aware request to backend
-                const answer = await this.sendContextAwareRequest(message.prompt, conversationContext);
+                // Adicionar contexto de conversas anteriores (últimas 5)
+                const recentConversations = this.conversationHistoryService.getRecentConversations(5);
+                let finalPrompt = contextualPrompt;
+                
+                if (recentConversations.length > 0) {
+                    const conversationContext = recentConversations.map(conv => 
+                        `Q: ${conv.prompt}\nA: ${conv.response.substring(0, 200)}...`
+                    ).join('\n\n');
+                    
+                    finalPrompt = `[CONVERSATION HISTORY]\n${conversationContext}\n\n${contextualPrompt}`;
+                }
+                
+                const answer = await this.backendService.askQuestion(finalPrompt);
+                
+                // Salvar conversa no histórico
+                this.conversationHistoryService.addConversation({
+                    id: Date.now().toString(),
+                    prompt: message.prompt,
+                    response: answer,
+                    timestamp: new Date(),
+                    context: 'chat'
+                });
                 
                 this.sendMessage({ type: 'answer', text: answer });
             } catch (error) {
-                Logger.error('Error calling context-aware backend:', error);
+                Logger.error('Error calling backend:', error);
                 this.sendMessage({
                     type: 'answer',
                     text: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
                 });
             }
-        }
-    }
-
-    /**
-     * Send context-aware request to backend
-     */
-    private async sendContextAwareRequest(userMessage: string, context: any): Promise<string> {
-        const backendUrl = this.backendService['configService'].getBackendUrl().replace('/openai', '/api/context-chat');
-        
-        Logger.info(`Sending context-aware request to: ${backendUrl}`);
-        
-        try {
-            const response = await fetch(backendUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ 
-                    userMessage,
-                    context 
-                })
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                Logger.error(`Backend error: ${response.status} - ${errorText}`);
-                return `Erro HTTP ${response.status}: ${errorText}`;
-            }
-
-            const data = await response.json();
-            Logger.debug('Context-aware response received successfully');
-
-            // Log context usage for debugging
-            if (data.contextUsed) {
-                Logger.info(`Context used - Current: ${data.contextUsed.hasCurrentContext}, Files: ${data.contextUsed.relevantFilesCount}, History: ${data.contextUsed.hasConversationHistory}, Workspace: ${data.contextUsed.hasWorkspaceContext}`);
-            }
-
-            return data.response || data.resposta || JSON.stringify(data);
-
-        } catch (error: any) {
-            Logger.error('Network error in context-aware request:', error);
-
-            if (error.code === 'ECONNREFUSED') {
-                return `Erro: Não foi possível conectar ao backend em ${backendUrl}. Verifique se o servidor está rodando.`;
-            }
-
-            return `Falha na requisição: ${error.message}`;
         }
     }
 
