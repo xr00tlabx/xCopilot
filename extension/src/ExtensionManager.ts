@@ -1,16 +1,31 @@
 import * as vscode from 'vscode';
 import { ChatCommands } from './commands';
-import { ConfigurationService } from './services';
+import {
+    CodeExplanationService,
+    CodeSuggestionsService,
+    ConfigurationService,
+    GhostTextService,
+    InlineCompletionService,
+    PatternDetectionService,
+    RefactoringService
+} from './services';
 import { Logger } from './utils';
-import { ChatWebviewProvider } from './views';
+import { ChatWebviewProvider, SidebarChatProvider } from './views';
 
 /**
  * Classe principal da extensão xCopilot
  */
 export class ExtensionManager {
-    private chatProvider: ChatWebviewProvider;
-    private chatCommands: ChatCommands;
+    private chatProvider!: ChatWebviewProvider;
+    private sidebarChatProvider!: SidebarChatProvider;
+    private chatCommands!: ChatCommands;
     private configService: ConfigurationService;
+    private codeSuggestionsService!: CodeSuggestionsService;
+    private codeExplanationService!: CodeExplanationService;
+    private ghostTextService!: GhostTextService;
+    private inlineCompletionService!: InlineCompletionService;
+    private refactoringService!: RefactoringService;
+    private patternDetectionService!: PatternDetectionService;
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
@@ -20,10 +35,6 @@ export class ExtensionManager {
 
         // Inicializar serviços
         this.configService = ConfigurationService.getInstance();
-        this.chatProvider = new ChatWebviewProvider();
-        this.chatCommands = new ChatCommands(this.chatProvider);
-
-        Logger.info('ExtensionManager initialized');
     }
 
     /**
@@ -33,11 +44,31 @@ export class ExtensionManager {
         Logger.info('🚀 xCopilot extension is now active!');
 
         try {
+            // Inicializar providers com contexto
+            this.chatProvider = new ChatWebviewProvider(context);
+            this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
+            this.chatCommands = new ChatCommands(this.chatProvider);
+
+            // Inicializar todos os serviços IA
+            this.codeSuggestionsService = CodeSuggestionsService.getInstance();
+            this.codeExplanationService = CodeExplanationService.getInstance();
+            this.ghostTextService = GhostTextService.getInstance();
+            this.inlineCompletionService = InlineCompletionService.getInstance();
+            this.refactoringService = RefactoringService.getInstance();
+            this.patternDetectionService = PatternDetectionService.getInstance();
+
             // Registrar o provider da webview
             this.registerWebviewProvider(context);
 
             // Registrar comandos
             this.chatCommands.registerCommands(context);
+            this.refactoringService.registerCommands(context);
+            this.patternDetectionService.registerCommands(context);
+            this.registerCodeExplanationCommands(context);
+
+            // Registrar providers de código
+            // Registrar providers de código
+            this.registerCodeProviders(context);
 
             // Configurar monitoramento de configuração
             this.setupConfigurationWatcher(context);
@@ -59,7 +90,8 @@ export class ExtensionManager {
     private registerWebviewProvider(context: vscode.ExtensionContext): void {
         Logger.info('📝 Registering WebviewViewProvider for xcopilotPanel...');
 
-        const disposable = vscode.window.registerWebviewViewProvider(
+        // Registrar provider principal (activity bar)
+        const mainDisposable = vscode.window.registerWebviewViewProvider(
             'xcopilotPanel',
             this.chatProvider,
             {
@@ -69,41 +101,84 @@ export class ExtensionManager {
             }
         );
 
-        context.subscriptions.push(disposable);
+        // Registrar provider do chat lateral
+        const sidebarDisposable = vscode.window.registerWebviewViewProvider(
+            'xcopilotChat',
+            this.sidebarChatProvider,
+            {
+                webviewOptions: {
+                    retainContextWhenHidden: true
+                }
+            }
+        );
+
+        context.subscriptions.push(mainDisposable, sidebarDisposable);
         Logger.info('✅ WebviewViewProvider registered successfully!');
     }
 
     /**
-     * Configura o monitoramento de mudanças na configuração
+     * Registra os providers de código (completion, diagnostics, etc.)
      */
-    private setupConfigurationWatcher(context: vscode.ExtensionContext): void {
-        const configWatcher = this.configService.onConfigurationChanged(() => {
-            vscode.window.showInformationMessage('URL do backend xCopilot atualizada.');
-        });
+    private registerCodeProviders(context: vscode.ExtensionContext): void {
+        Logger.info('🧠 Registering code providers...');
 
-        context.subscriptions.push(configWatcher);
-        Logger.info('Configuration watcher setup completed');
+        // Registrar disposables dos serviços de IA
+        const codeSuggestionsDisposables = this.codeSuggestionsService.getDisposables();
+        const patternDetectionDisposables = this.patternDetectionService.getDisposables();
+        const ghostTextDisposables = this.ghostTextService.getDisposables();
+        const inlineCompletionDisposables = this.inlineCompletionService.getDisposables();
+
+        context.subscriptions.push(
+            ...codeSuggestionsDisposables,
+            ...patternDetectionDisposables,
+            ...ghostTextDisposables,
+            ...inlineCompletionDisposables
+        );
+
+        Logger.info('✅ Code providers registered successfully!');
     }
 
     /**
-     * Desativa a extensão
+     * Registra comandos de explicação de código
      */
-    deactivate(): void {
-        Logger.info('🔄 xCopilot extension is being deactivated');
-        this.outputChannel.dispose();
-    }
+    private registerCodeExplanationCommands(context: vscode.ExtensionContext): void {
+        const commands = [
+            vscode.commands.registerCommand('xcopilot.explainSelected', () => {
+                this.codeExplanationService.explainSelectedCode();
+            }),
+            vscode.commands.registerCommand('xcopilot.explainFunction', () => {
+                this.codeExplanationService.explainCurrentFunction();
+            }),
+            vscode.commands.registerCommand('xcopilot.explainFile', () => {
+                this.codeExplanationService.explainEntireFile();
+            }),
+            vscode.commands.registerCommand('xcopilot.acceptGhostText', () => {
+                this.ghostTextService.acceptGhostText();
+            }),
+            vscode.commands.registerCommand('xcopilot.openChat', () => {
+                vscode.commands.executeCommand('workbench.view.extension.xcopilot-sidebar');
+                vscode.commands.executeCommand('setContext', 'xcopilot.chatVisible', true);
+            }),
+            vscode.commands.registerCommand('xcopilot.closeChat', () => {
+                vscode.commands.executeCommand('workbench.action.closePanel');
+                vscode.commands.executeCommand('setContext', 'xcopilot.chatVisible', false);
+            }),
+            vscode.commands.registerCommand('xcopilot.toggleChat', () => {
+                vscode.commands.executeCommand('workbench.view.extension.xcopilot-sidebar');
+            }),
+            vscode.commands.registerCommand('xcopilot.openChatWithCode', () => {
+                const editor = vscode.window.activeTextEditor;
+                if (editor && !editor.selection.isEmpty) {
+                    const selectedCode = editor.document.getText(editor.selection);
+                    vscode.commands.executeCommand('xcopilot.openChat');
+                    this.sidebarChatProvider.openWithSelectedCode(selectedCode);
+                } else {
+                    vscode.window.showWarningMessage('Selecione código para explicar no chat');
+                }
+            })
+        ];
 
-    /**
-     * Obtém a instância do provider do chat
-     */
-    getChatProvider(): ChatWebviewProvider {
-        return this.chatProvider;
-    }
-
-    /**
-     * Obtém o output channel
-     */
-    getOutputChannel(): vscode.OutputChannel {
-        return this.outputChannel;
+        context.subscriptions.push(...commands);
+        Logger.info('✅ Code explanation commands registered');
     }
 }

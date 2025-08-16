@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
+import { Logger } from '../utils/Logger';
 import { BackendService } from './BackendService';
 import { CodeContextService } from './CodeContextService';
-import { Logger } from '../utils/Logger';
 
 /**
  * Serviço para explicações detalhadas de código

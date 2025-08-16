@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { ChatWebviewProvider } from './ChatWebviewProvider';
 import { Logger } from '../utils/Logger';
+import { ChatWebviewProvider } from './ChatWebviewProvider';
 
 /**
  * Provider para o chat lateral do xCopilot (similar ao GitHub Copilot)
