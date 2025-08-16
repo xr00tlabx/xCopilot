@@ -1,440 +1,536 @@
-{
-    "name": "xcopilot-extension",
-    "displayName": "xCopilot",
-    "description": "Extensão VS Code para interação com o backend xCopilot - Assistente de AI para desenvolvimento",
-    "version": "0.1.0",
-    "publisher": "xr00tlabx",
-    "author": {
-        "name": "xr00tlabx",
-        "email": "contact@xr00tlabx.com"
-    },
-    "license": "MIT",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/xr00tlabx/xCopilot.git"
-    },
-    "bugs": {
-        "url": "https://github.com/xr00tlabx/xCopilot/issues"
-    },
-    "homepage": "https://github.com/xr00tlabx/xCopilot#readme",
-    "keywords": [
-        "ai",
-        "assistant",
-        "copilot",
-        "chat",
-        "openai",
-        "development"
-    ],
-    "engines": {
-        "vscode": "^1.85.0"
-    },
-    "categories": [
-        "Machine Learning",
-        "Other"
-    ],
-    "activationEvents": [],
-    "main": "dist/extension.js",
-    "contributes": {
-        "commands": [
-            {
-                "command": "xcopilot.ask",
-                "title": "xCopilot: Perguntar"
-            },
-            {
-                "command": "xcopilot.explainCode",
-                "title": "xCopilot: Explicar Código"
-            },
-            {
-                "command": "xcopilot.useTemplate",
-                "title": "xCopilot: Usar Template"
-            },
-            {
-                "command": "xcopilot.analyzeFile",
-                "title": "xCopilot: Analisar Arquivo"
-            },
-            {
-                "command": "xcopilot.findBugs",
-                "title": "xCopilot: Encontrar Bugs"
-            },
-            {
-                "command": "xcopilot.test",
-                "title": "xCopilot: Teste"
-            },
-            {
-                "command": "xcopilot.searchHistory",
-                "title": "xCopilot: Pesquisar Histórico"
-            },
-            {
-                "command": "xcopilot.exportHistory",
-                "title": "xCopilot: Exportar Histórico"
-            },
-            {
-                "command": "xcopilot.clearHistory",
-                "title": "xCopilot: Limpar Histórico"
-            },
-            {
-                "command": "xcopilot.generateCommit",
-                "title": "xCopilot: Gerar Commit"
-            },
-            {
-                "command": "xcopilot.analyzeDiff",
-                "title": "xCopilot: Analisar Diff"
-            },
-            {
-                "command": "xcopilot.refactorCode",
-                "title": "xCopilot: Refatorar Código"
-            },
-            {
-                "command": "xcopilot.extractFunction",
-                "title": "xCopilot: Extrair Função"
-            },
-            {
-                "command": "xcopilot.extractVariable",
-                "title": "xCopilot: Extrair Variável"
-            },
-            {
-                "command": "xcopilot.optimizeImports",
-                "title": "xCopilot: Otimizar Imports"
-            },
-            {
-                "command": "xcopilot.applyDesignPattern",
-                "title": "xCopilot: Aplicar Padrão de Design"
-            },
-            {
-                "command": "xcopilot.analyzePatterns",
-                "title": "xCopilot: Analisar Padrões"
-            },
-            {
-                "command": "xcopilot.analyzeWorkspacePatterns",
-                "title": "xCopilot: Analisar Padrões do Workspace"
-            },
-            {
-                "command": "xcopilot.togglePatternDetection",
-                "title": "xCopilot: Toggle Detecção de Padrões"
-            },
-            {
-                "command": "xcopilot.explainSelected",
-                "title": "xCopilot: Explicar Código Selecionado"
-            },
-            {
-                "command": "xcopilot.explainFunction",
-                "title": "xCopilot: Explicar Função Atual"
-            },
-            {
-                "command": "xcopilot.explainFile",
-                "title": "xCopilot: Explicar Arquivo Completo"
-            },
-            {
-                "command": "xcopilot.acceptGhostText",
-                "title": "xCopilot: Aceitar Sugestão Ghost Text"
-            },
-            {
-                "command": "xcopilot.openChat",
-                "title": "xCopilot: Abrir Chat Lateral",
-                "icon": "$(comment-discussion)"
-            },
-            {
-                "command": "xcopilot.closeChat",
-                "title": "xCopilot: Fechar Chat",
-                "icon": "$(close)"
-            },
-            {
-                "command": "xcopilot.toggleChat",
-                "title": "xCopilot: Toggle Chat",
-                "icon": "$(comment-discussion)"
-            },
-            {
-                "command": "xcopilot.openChatWithCode",
-                "title": "xCopilot: Abrir Chat com Código Selecionado",
-                "icon": "$(comment-discussion)"
-            },
-            {
-                "command": "xcopilot.toggleInlineCompletion",
-                "title": "xCopilot: Toggle Inline Completion"
-            },
-            {
-                "command": "xcopilot.clearCompletionCache",
-                "title": "xCopilot: Limpar Cache de Completions"
-            },
-            {
-                "command": "xcopilot.showCompletionStats",
-                "title": "xCopilot: Mostrar Estatísticas de Completion"
-            },
-            {
-                "command": "xcopilot.reviewCurrentFile",
-                "title": "xCopilot: Review do Arquivo Atual"
-            },
-            {
-                "command": "xcopilot.reviewChangedFiles", 
-                "title": "xCopilot: Review dos Arquivos Modificados"
-            },
-            {
-                "command": "xcopilot.reviewWorkspace",
-                "title": "xCopilot: Review do Workspace"
-            },
-            {
-                "command": "xcopilot.generateReviewSummary",
-                "title": "xCopilot: Gerar Summary de Review"
-            }
+    {
+        "name": "xcopilot-extension",
+        "displayName": "xCopilot",
+        "description": "Extensão VS Code para interação com o backend xCopilot - Assistente de AI para desenvolvimento",
+        "version": "0.1.0",
+        "publisher": "xr00tlabx",
+        "author": {
+            "name": "xr00tlabx",
+            "email": "contact@xr00tlabx.com"
+        },
+        "license": "MIT",
+        "repository": {
+            "type": "git",
+            "url": "https://github.com/xr00tlabx/xCopilot.git"
+        },
+        "engines": {
+            "vscode": "^1.85.0"
+        },
+        "categories": [
+            "Machine Learning",
+            "Other"
         ],
-        "viewsContainers": {
-            "activitybar": [
+        "main": "dist/extension.js",
+        "contributes": {
+            "commands": [
                 {
-                    "id": "xcopilot",
-                    "title": "xCopilot",
-                    "icon": "media/icon.svg"
-                }
-            ],
-            "panel": [
-                {
-                    "id": "xcopilot-sidebar",
-                    "title": "xCopilot Chat",
-                    "icon": "media/icon.svg"
-                }
-            ]
-        },
-        "views": {
-            "xcopilot": [
-                {
-                    "id": "xcopilotPanel",
-                    "name": "Assistente",
-                    "type": "webview"
-                }
-            ],
-            "xcopilot-sidebar": [
-                {
-                    "id": "xcopilotChat",
-                    "name": "Chat",
-                    "type": "webview",
-                    "when": "xcopilot.chatVisible"
-                }
-            ]
-        },
-        "menus": {
-            "editor/context": [
-                {
-                    "command": "xcopilot.explainCode",
-                    "when": "editorHasSelection",
-                    "group": "xcopilot@1"
+                    "command": "xcopilot.ask",
+                    "title": "xCopilot: Perguntar"
                 },
                 {
-                    "command": "xcopilot.findBugs",
-                    "when": "editorHasSelection",
-                    "group": "xcopilot@2"
+                    "command": "xcopilot.explainCode",
+                    "title": "xCopilot: Explicar Código"
                 },
                 {
                     "command": "xcopilot.useTemplate",
-                    "group": "xcopilot@3"
+                    "title": "xCopilot: Usar Template"
                 },
                 {
                     "command": "xcopilot.analyzeFile",
-                    "group": "xcopilot@4"
+                    "title": "xCopilot: Analisar Arquivo"
+                },
+                {
+                    "command": "xcopilot.findBugs",
+                    "title": "xCopilot: Encontrar Bugs"
+                },
+                {
+                    "command": "xcopilot.test",
+                    "title": "xCopilot: Teste"
+                },
+                {
+                    "command": "xcopilot.searchHistory",
+                    "title": "xCopilot: Pesquisar Histórico"
+                },
+                {
+                    "command": "xcopilot.exportHistory",
+                    "title": "xCopilot: Exportar Histórico"
+                },
+                {
+                    "command": "xcopilot.clearHistory",
+                    "title": "xCopilot: Limpar Histórico"
+                },
+                {
+                    "command": "xcopilot.generateCommit",
+                    "title": "xCopilot: Gerar Commit"
+                },
+                {
+                    "command": "xcopilot.analyzeDiff",
+                    "title": "xCopilot: Analisar Diff"
                 },
                 {
                     "command": "xcopilot.refactorCode",
-                    "when": "editorHasSelection",
-                    "group": "xcopilot-refactor@1"
+                    "title": "xCopilot: Refatorar Código"
                 },
                 {
                     "command": "xcopilot.extractFunction",
-                    "when": "editorHasSelection",
-                    "group": "xcopilot-refactor@2"
+                    "title": "xCopilot: Extrair Função"
                 },
                 {
                     "command": "xcopilot.extractVariable",
-                    "when": "editorHasSelection",
-                    "group": "xcopilot-refactor@3"
+                    "title": "xCopilot: Extrair Variável"
                 },
                 {
                     "command": "xcopilot.optimizeImports",
-                    "group": "xcopilot-refactor@4"
+                    "title": "xCopilot: Otimizar Imports"
                 },
                 {
                     "command": "xcopilot.applyDesignPattern",
-                    "group": "xcopilot-refactor@5"
+                    "title": "xCopilot: Aplicar Padrão de Design"
+                },
+                {
+                    "command": "xcopilot.extractMethod",
+                    "title": "xCopilot: Extrair Método"
+                },
+                {
+                    "command": "xcopilot.extractClass",
+                    "title": "xCopilot: Extrair Classe"
+                },
+                {
+                    "command": "xcopilot.extractDuplicatedCode",
+                    "title": "xCopilot: Extrair Código Duplicado"
+                },
+                {
+                    "command": "xcopilot.convertToAsyncAwait",
+                    "title": "xCopilot: Converter para Async/Await"
+                },
+                {
+                    "command": "xcopilot.convertToArrowFunction",
+                    "title": "xCopilot: Converter para Arrow Function"
+                },
+                {
+                    "command": "xcopilot.applyDestructuring",
+                    "title": "xCopilot: Aplicar Destructuring"
+                },
+                {
+                    "command": "xcopilot.moveMethod",
+                    "title": "xCopilot: Mover Método"
+                },
+                {
+                    "command": "xcopilot.refactorWorkspace",
+                    "title": "xCopilot: Refatorar Workspace"
                 },
                 {
                     "command": "xcopilot.analyzePatterns",
-                    "group": "xcopilot-analysis@1"
+                    "title": "xCopilot: Analisar Padrões"
+                },
+                {
+                    "command": "xcopilot.analyzeWorkspacePatterns",
+                    "title": "xCopilot: Analisar Padrões do Workspace"
+                },
+                {
+                    "command": "xcopilot.togglePatternDetection",
+                    "title": "xCopilot: Toggle Detecção de Padrões"
                 },
                 {
                     "command": "xcopilot.explainSelected",
-                    "when": "editorHasSelection",
-                    "group": "xcopilot-explain@1"
+                    "title": "xCopilot: Explicar Código Selecionado"
                 },
                 {
                     "command": "xcopilot.explainFunction",
-                    "group": "xcopilot-explain@2"
+                    "title": "xCopilot: Explicar Função Atual"
                 },
                 {
                     "command": "xcopilot.explainFile",
-                    "group": "xcopilot-explain@3"
+                    "title": "xCopilot: Explicar Arquivo Completo"
                 },
                 {
-                    "command": "xcopilot.openChatWithCode",
-                    "when": "editorHasSelection",
-                    "group": "xcopilot-chat@1"
+                    "command": "xcopilot.acceptGhostText",
+                    "title": "xCopilot: Aceitar Sugestão Ghost Text"
+                },
+                {
+                    "command": "xcopilot.dismissGhostText",
+                    "title": "xCopilot: Descartar Sugestão Ghost Text"
+                },
+                {
+                    "command": "xcopilot.openChat",
+                    "title": "xCopilot: Abrir Chat Lateral",
+                    "icon": "$(comment-discussion)"
+                },
+                {
+                    "command": "xcopilot.closeChat",
+                    "title": "xCopilot: Fechar Chat",
+                    "icon": "$(close)"
                 },
                 {
                     "command": "xcopilot.toggleChat",
-                    "group": "xcopilot-chat@2"
+                    "title": "xCopilot: Toggle Chat",
+                    "icon": "$(comment-discussion)"
+                },
+                {
+                    "command": "xcopilot.openChatWithCode",
+                    "title": "xCopilot: Abrir Chat com Código Selecionado",
+                    "icon": "$(comment-discussion)"
+                },
+                {
+                    "command": "xcopilot.toggleInlineCompletion",
+                    "title": "xCopilot: Toggle Inline Completion"
+                },
+                {
+                    "command": "xcopilot.clearCompletionCache",
+                    "title": "xCopilot: Limpar Cache de Completions"
+                },
+                {
+                    "command": "xcopilot.showCompletionStats",
+                    "title": "xCopilot: Mostrar Estatísticas de Completion"
+                },
+                {
+                    "command": "xcopilot.generateFromComments",
+                    "title": "xCopilot: Gerar a partir de Comentários"
+                },
+                {
+                    "command": "xcopilot.implementInterfaces",
+                    "title": "xCopilot: Implementar Interfaces"
+                },
+                {
+                    "command": "xcopilot.generateFunction",
+                    "title": "xCopilot: Gerar Função"
+                },
+                {
+                    "command": "xcopilot.generatePattern",
+                    "title": "xCopilot: Gerar Padrão"
+                },
+                {
+                    "command": "xcopilot.scanTodoComments",
+                    "title": "xCopilot: Escanear Comentários TODO"
                 },
                 {
                     "command": "xcopilot.reviewCurrentFile",
-                    "group": "xcopilot-review@1"
+                    "title": "xCopilot: Review do Arquivo Atual"
                 },
                 {
                     "command": "xcopilot.reviewChangedFiles",
-                    "group": "xcopilot-review@2"
+                    "title": "xCopilot: Review dos Arquivos Modificados"
+                },
+                {
+                    "command": "xcopilot.reviewWorkspace",
+                    "title": "xCopilot: Review do Workspace"
                 },
                 {
                     "command": "xcopilot.generateReviewSummary",
-                    "group": "xcopilot-review@3"
-                }
-            ],
-            "explorer/context": [
-                {
-                    "command": "xcopilot.analyzeFile",
-                    "when": "resourceExtname =~ /\\.(js|ts|py|java|cpp|c|cs|php|go|rs|rb|swift|kt)$/",
-                    "group": "xcopilot@1"
+                    "title": "xCopilot: Gerar Summary de Review"
                 },
                 {
-                    "command": "xcopilot.reviewCurrentFile", 
-                    "when": "resourceExtname =~ /\\.(js|ts|py|java|cpp|c|cs|php|go|rs|rb|swift|kt)$/",
-                    "group": "xcopilot-review@1"
+                    "command": "xcopilot.analyzeWorkspace",
+                    "title": "xCopilot: Analisar Workspace"
+                },
+                {
+                    "command": "xcopilot.refreshWorkspaceAnalysis",
+                    "title": "xCopilot: Atualizar Análise do Workspace"
+                },
+                {
+                    "command": "xcopilot.showWorkspaceStats",
+                    "title": "xCopilot: Mostrar Estatísticas do Workspace"
+                },
+                {
+                    "command": "xcopilot.showContextStats",
+                    "title": "xCopilot: Mostrar Estatísticas de Contexto"
+                },
+                {
+                    "command": "xcopilot.clearContextCache",
+                    "title": "xCopilot: Limpar Cache de Contexto"
+                }
+            ],
+            "viewsContainers": {
+                "activitybar": [
+                    {
+                        "id": "xcopilot",
+                        "title": "xCopilot",
+                        "icon": "media/icon.svg"
+                    }
+                ],
+                "panel": [
+                    {
+                        "id": "xcopilot-sidebar",
+                        "title": "xCopilot Chat",
+                        "icon": "media/icon.svg"
+                    }
+                ]
+            },
+            "views": {
+                "xcopilot": [
+                    {
+                        "id": "xcopilotPanel",
+                        "name": "Assistente",
+                        "type": "webview"
+                    }
+                ],
+                "xcopilot-sidebar": [
+                    {
+                        "id": "xcopilotChat",
+                        "name": "Chat",
+                        "type": "webview",
+                        "when": "xcopilot.chatVisible"
+                    }
+                ]
+            },
+            "menus": {
+                "editor/context": [
+                    {
+                        "command": "xcopilot.explainCode",
+                        "when": "editorHasSelection",
+                        "group": "xcopilot@1"
+                    },
+                    {
+                        "command": "xcopilot.findBugs",
+                        "when": "editorHasSelection",
+                        "group": "xcopilot@2"
+                    },
+                    {
+                        "command": "xcopilot.useTemplate",
+                        "group": "xcopilot@3"
+                    },
+                    {
+                        "command": "xcopilot.analyzeFile",
+                        "group": "xcopilot@4"
+                    },
+                    {
+                        "command": "xcopilot.refactorCode",
+                        "when": "editorHasSelection",
+                        "group": "xcopilot-refactor@1"
+                    },
+                    {
+                        "command": "xcopilot.extractFunction",
+                        "when": "editorHasSelection",
+                        "group": "xcopilot-refactor@2"
+                    },
+                    {
+                        "command": "xcopilot.extractVariable",
+                        "when": "editorHasSelection",
+                        "group": "xcopilot-refactor@3"
+                    },
+                    {
+                        "command": "xcopilot.optimizeImports",
+                        "group": "xcopilot-refactor@4"
+                    },
+                    {
+                        "command": "xcopilot.applyDesignPattern",
+                        "group": "xcopilot-refactor@5"
+                    },
+                    {
+                        "command": "xcopilot.extractMethod",
+                        "when": "editorHasSelection",
+                        "group": "xcopilot-refactor@6"
+                    },
+                    {
+                        "command": "xcopilot.extractClass",
+                        "when": "editorHasSelection",
+                        "group": "xcopilot-refactor@7"
+                    },
+                    {
+                        "command": "xcopilot.convertToAsyncAwait",
+                        "group": "xcopilot-modernize@1"
+                    },
+                    {
+                        "command": "xcopilot.convertToArrowFunction",
+                        "group": "xcopilot-modernize@2"
+                    },
+                    {
+                        "command": "xcopilot.applyDestructuring",
+                        "group": "xcopilot-modernize@3"
+                    },
+                    {
+                        "command": "xcopilot.moveMethod",
+                        "when": "editorHasSelection",
+                        "group": "xcopilot-refactor@8"
+                    },
+                    {
+                        "command": "xcopilot.refactorWorkspace",
+                        "group": "xcopilot-workspace@1"
+                    },
+                    {
+                        "command": "xcopilot.analyzePatterns",
+                        "group": "xcopilot-analysis@1"
+                    },
+                    {
+                        "command": "xcopilot.explainSelected",
+                        "when": "editorHasSelection",
+                        "group": "xcopilot-explain@1"
+                    },
+                    {
+                        "command": "xcopilot.explainFunction",
+                        "group": "xcopilot-explain@2"
+                    },
+                    {
+                        "command": "xcopilot.explainFile",
+                        "group": "xcopilot-explain@3"
+                    },
+                    {
+                        "command": "xcopilot.openChatWithCode",
+                        "when": "editorHasSelection",
+                        "group": "xcopilot-chat@1"
+                    },
+                    {
+                        "command": "xcopilot.toggleChat",
+                        "group": "xcopilot-chat@2"
+                    },
+                    {
+                        "command": "xcopilot.generateFromComments",
+                        "group": "xcopilot-generate@1"
+                    },
+                    {
+                        "command": "xcopilot.implementInterfaces",
+                        "group": "xcopilot-generate@2"
+                    },
+                    {
+                        "command": "xcopilot.generateFunction",
+                        "group": "xcopilot-generate@3"
+                    },
+                    {
+                        "command": "xcopilot.generatePattern",
+                        "group": "xcopilot-generate@4"
+                    }
+                ],
+                "explorer/context": [
+                    {
+                        "command": "xcopilot.analyzeFile",
+                        "when": "resourceExtname =~ /\\.(js|ts|py|java|cpp|c|cs|php|go|rs|rb|swift|kt)$/",
+                        "group": "xcopilot@1"
+                    },
+                    {
+                        "command": "xcopilot.refactorWorkspace",
+                        "when": "explorerResourceIsFolder",
+                        "group": "xcopilot@2"
+                    }
+                ]
+            },
+            "configuration": {
+                "title": "xCopilot",
+                "properties": {
+                    "xcopilot.backendUrl": {
+                        "type": "string",
+                        "default": "http://localhost:3000/openai",
+                        "description": "Endpoint do backend xCopilot para geração de respostas"
+                    },
+                    "xcopilot.inlineCompletion.enabled": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Habilita sugestões de código inline em tempo real"
+                    },
+                    "xcopilot.inlineCompletion.throttleMs": {
+                        "type": "number",
+                        "default": 300,
+                        "minimum": 100,
+                        "maximum": 2000,
+                        "description": "Tempo de espera mínimo entre solicitações (ms)"
+                    },
+                    "xcopilot.inlineCompletion.cacheSize": {
+                        "type": "number",
+                        "default": 100,
+                        "minimum": 10,
+                        "maximum": 500,
+                        "description": "Tamanho do cache para completions (número de itens)"
+                    },
+                    "xcopilot.inlineCompletion.maxContextLines": {
+                        "type": "number",
+                        "default": 15,
+                        "minimum": 5,
+                        "maximum": 50,
+                        "description": "Máximo de linhas de contexto para enviar à IA"
+                    },
+                    "xcopilot.codeReview.enabled": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Habilita funcionalidades de code review automatizado"
+                    },
+                    "xcopilot.codeReview.autoReviewOnSave": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Executa review automaticamente ao salvar arquivos"
+                    },
+                    "xcopilot.codeReview.minScore": {
+                        "type": "number",
+                        "default": 70,
+                        "minimum": 0,
+                        "maximum": 100,
+                        "description": "Score mínimo para aprovação automática"
+                    }
+                }
+            },
+            "keybindings": [
+                {
+                    "command": "xcopilot.dismissGhostText",
+                    "key": "escape",
+                    "when": "editorTextFocus && xcopilot.ghostTextVisible"
+                },
+                {
+                    "command": "xcopilot.refactorCode",
+                    "key": "ctrl+k ctrl+r",
+                    "when": "editorTextFocus && editorHasSelection"
+                },
+                {
+                    "command": "xcopilot.toggleChat",
+                    "key": "ctrl+k ctrl+c",
+                    "when": "editorTextFocus"
+                },
+                {
+                    "command": "xcopilot.openChat",
+                    "key": "ctrl+shift+x",
+                    "when": "editorTextFocus"
+                },
+                {
+                    "command": "xcopilot.toggleInlineCompletion",
+                    "key": "ctrl+alt+i",
+                    "when": "editorTextFocus"
+                },
+                {
+                    "command": "xcopilot.reviewCurrentFile",
+                    "key": "ctrl+k ctrl+v",
+                    "when": "editorTextFocus"
+                },
+                {
+                    "command": "xcopilot.reviewChangedFiles",
+                    "key": "ctrl+k ctrl+shift+v",
+                    "when": "editorTextFocus"
+                },
+                {
+                    "command": "xcopilot.extractMethod",
+                    "key": "ctrl+k ctrl+m",
+                    "when": "editorTextFocus && editorHasSelection"
+                },
+                {
+                    "command": "xcopilot.extractClass",
+                    "key": "ctrl+k ctrl+shift+c",
+                    "when": "editorTextFocus && editorHasSelection"
+                },
+                {
+                    "command": "xcopilot.convertToAsyncAwait",
+                    "key": "ctrl+k ctrl+a",
+                    "when": "editorTextFocus"
+                },
+                {
+                    "command": "xcopilot.convertToArrowFunction",
+                    "key": "ctrl+k ctrl+shift+a",
+                    "when": "editorTextFocus"
                 }
             ]
         },
-        "configuration": {
-            "title": "xCopilot",
-            "properties": {
-                "xcopilot.backendUrl": {
-                    "type": "string",
-                    "default": "http://localhost:3000/openai",
-                    "description": "Endpoint do backend xCopilot para geração de respostas"
-                },
-                "xcopilot.inlineCompletion.enabled": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Habilita sugestões de código inline em tempo real"
-                },
-                "xcopilot.inlineCompletion.throttleMs": {
-                    "type": "number",
-                    "default": 300,
-                    "minimum": 100,
-                    "maximum": 2000,
-                    "description": "Tempo de espera mínimo entre solicitações (ms)"
-                },
-                "xcopilot.inlineCompletion.cacheSize": {
-                    "type": "number",
-                    "default": 100,
-                    "minimum": 10,
-                    "maximum": 500,
-                    "description": "Tamanho do cache para completions (número de itens)"
-                },
-                "xcopilot.inlineCompletion.maxContextLines": {
-                    "type": "number",
-                    "default": 15,
-                    "minimum": 5,
-                    "maximum": 50,
-                    "description": "Máximo de linhas de contexto para enviar à IA"
-                },
-                "xcopilot.codeReview.enabled": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Habilita funcionalidades de code review automatizado"
-                },
-                "xcopilot.codeReview.autoReviewOnSave": {
-                    "type": "boolean", 
-                    "default": false,
-                    "description": "Executa review automaticamente ao salvar arquivos"
-                },
-                "xcopilot.codeReview.minScore": {
-                    "type": "number",
-                    "default": 70,
-                    "minimum": 0,
-                    "maximum": 100,
-                    "description": "Score mínimo para aprovação automática"
-                },
-                "xcopilot.codeReview.enabledChecks": {
-                    "type": "object",
-                    "default": {
-                        "codeSmells": true,
-                        "bestPractices": true,
-                        "testing": true,
-                        "documentation": true,
-                        "security": true,
-                        "performance": true
-                    },
-                    "description": "Tipos de verificações habilitadas no code review"
-                }
-            }
+        "scripts": {
+            "vscode:prepublish": "npm run build",
+            "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --platform=node --external:vscode --format=cjs",
+            "compile": "npm run build",
+            "watch": "npm run build -- --watch",
+            "dev": "npm run build -- --watch",
+            "package": "vsce package",
+            "package:zip": "vsce package --no-yarn"
         },
-        "keybindings": [
-            {
-                "command": "xcopilot.explainSelected",
-                "key": "ctrl+k ctrl+e",
-                "when": "editorTextFocus && editorHasSelection"
-            },
-            {
-                "command": "xcopilot.explainFunction",
-                "key": "ctrl+k ctrl+f",
-                "when": "editorTextFocus"
-            },
-            {
-                "command": "xcopilot.acceptGhostText",
-                "key": "tab",
-                "when": "editorTextFocus && xcopilot.ghostTextVisible"
-            },
-            {
-                "command": "xcopilot.refactorCode",
-                "key": "ctrl+k ctrl+r",
-                "when": "editorTextFocus && editorHasSelection"
-            },
-            {
-                "command": "xcopilot.toggleChat",
-                "key": "ctrl+k ctrl+c",
-                "when": "editorTextFocus"
-            },
-            {
-                "command": "xcopilot.openChat",
-                "key": "ctrl+shift+x",
-                "when": "editorTextFocus"
-            },
-            {
-                "command": "xcopilot.toggleInlineCompletion",
-                "key": "ctrl+alt+i",
-                "when": "editorTextFocus"
-            },
-            {
-                "command": "xcopilot.reviewCurrentFile",
-                "key": "ctrl+k ctrl+v",
-                "when": "editorTextFocus"
-            },
-            {
-                "command": "xcopilot.reviewChangedFiles",
-                "key": "ctrl+k ctrl+shift+v", 
-                "when": "editorTextFocus"
-            }
-        ]
-    },
-    "scripts": {
-        "vscode:prepublish": "npm run build",
-        "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --platform=node --external:vscode --format=cjs",
-        "compile": "npm run build",
-        "watch": "npm run build -- --watch",
-        "dev": "npm run build -- --watch",
-        "package": "vsce package",
-        "package:zip": "vsce package --no-yarn"
-    },
-    "devDependencies": {
-        "@types/node": "^20.0.0",
-        "@types/vscode": "^1.85.0",
-        "@vscode/vsce": "^3.0.0",
-        "esbuild": "^0.20.0",
-        "typescript": "^5.4.0"
-    },
-    "dependencies": {
-        "node-fetch": "^3.3.2"
+        "devDependencies": {
+            "@types/node": "^20.0.0",
+            "@types/vscode": "^1.85.0",
+            "@vscode/vsce": "^3.0.0",
+            "esbuild": "^0.20.0",
+            "typescript": "^5.4.0"
+        },
+        "dependencies": {
+            "node-fetch": "^3.3.2"
+        }
     }
-}

@@ -10,6 +10,10 @@ yarn-error.log*
 .vscode/*
 !.vscode/extensions.json
 
+# Build artifacts
+extension/dist/
+extension/*.vsix
+
 # Logs
 logs/
 *.log
@@ -17,6 +21,10 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Build artifacts
+dist/
+extension/dist/
 
 # Others
 backend/node_modules/

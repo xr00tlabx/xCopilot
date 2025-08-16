@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { BackendService } from '../services/BackendService';
+import { ConversationHistoryService } from '../services/ConversationHistoryService';
+import { WorkspaceAnalysisService } from '../services/WorkspaceAnalysisService';
 import { ChatMessage } from '../types';
 import { Logger } from '../utils/Logger';
 import { getChatHtml } from './WebviewHtml';
@@ -10,9 +12,13 @@ import { getChatHtml } from './WebviewHtml';
 export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     private view: vscode.WebviewView | undefined;
     private backendService: BackendService;
+    private workspaceAnalysisService: WorkspaceAnalysisService;
+    private conversationHistoryService: ConversationHistoryService;
 
     constructor() {
         this.backendService = BackendService.getInstance();
+        this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance();
+        this.conversationHistoryService = ConversationHistoryService.getInstance();
     }
 
     /**
@@ -53,7 +59,26 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
             this.sendMessage({ type: 'answer', text: 'Pensando...' });
 
             try {
-                const answer = await this.backendService.askQuestion(message.prompt);
+                // Usar contexto do workspace para resposta mais inteligente
+                const contextualPrompt = this.workspaceAnalysisService.formatContextForPrompt(message.prompt);
+                
+                // Adicionar contexto de conversas anteriores (últimas 5)
+                const recentConversations = this.conversationHistoryService.getRecentEntries(5);
+                let finalPrompt = contextualPrompt;
+                
+                if (recentConversations.length > 0) {
+                    const conversationContext = recentConversations.map(conv => 
+                        `Q: ${conv.userMessage}\nA: ${conv.aiResponse.substring(0, 200)}...`
+                    ).join('\n\n');
+                    
+                    finalPrompt = `[CONVERSATION HISTORY]\n${conversationContext}\n\n${contextualPrompt}`;
+                }
+                
+                const answer = await this.backendService.askQuestion(finalPrompt);
+                
+                // Salvar conversa no histórico
+                this.conversationHistoryService.addEntry(message.prompt, answer);
+                
                 this.sendMessage({ type: 'answer', text: answer });
             } catch (error) {
                 Logger.error('Error calling backend:', error);
