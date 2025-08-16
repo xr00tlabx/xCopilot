@@ -275,7 +275,7 @@ Complete a linha atual:`;
 
         // Check if expired
         if (Date.now() - cached.timestamp > this.cacheExpiryMs) {
-            this.cache.set(key, cached); // Remove expired entry
+            this.cache.delete(key); // Remove expired entry
             return null;
         }
 
