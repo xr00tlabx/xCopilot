@@ -426,7 +426,8 @@ export class ASTAnalysisService {
         // Determina se está dentro de uma classe
         for (const cls of analysis.classes) {
             if (cls.line <= line) {
-                // Verifica se ainda está dentro da classe (heurística simples)
+            if (cls.line <= line && line <= cls.endLine) {
+                // Verifica se ainda está dentro da classe (agora considerando o fim da classe)
                 context.insideClass = cls.name;
                 context.availableTypes.push(...cls.properties.map(p => p.type).filter(Boolean));
             }
