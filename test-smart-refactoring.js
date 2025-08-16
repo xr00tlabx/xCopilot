@@ -84,7 +84,7 @@ function destructuringTest(user) {
 }
 
 // Expected Results:
-// 1. longFunctionTest should show CodeLens: "💡 Extrair função - Função muito longa"
+// 1. longFunctionTest should show CodeLens: "💡 Extract function - Function too long"
 // 2. excessiveParametersTest should show CodeLens: "💡 Extrair para classe - Muitos parâmetros"
 // 3. duplicateCode1/2 should show CodeLens: "💡 Extrair método - Código duplicado"
 // 4. highComplexityTest should show warning in Problems panel
