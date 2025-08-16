@@ -92,6 +92,13 @@ export class ConversationHistoryService {
     }
 
     /**
+     * Obtém entradas recentes (alias for getRecent)
+     */
+    getRecentEntries(limit: number = 10): ConversationEntry[] {
+        return this.getRecent(limit);
+    }
+
+    /**
      * Obtém entrada por ID
      */
     getById(id: string): ConversationEntry | undefined {

@@ -124,4 +124,111 @@ export class BackendService {
             throw error;
         }
     }
+
+    /**
+     * Envia pergunta com contexto completo (context-aware)
+     */
+    async askQuestionWithContext(options: {
+        prompt: string;
+        workspaceContext?: any;
+        conversationHistory?: any[];
+        gitInfo?: any;
+        codeContext?: any;
+    }): Promise<{
+        response: string;
+        duration: number;
+        contextUsed: any;
+    }> {
+        const backendUrl = this.configService.getBackendUrl();
+        const contextEndpoint = backendUrl.replace('/openai', '/api/context-aware');
+        
+        Logger.info(`Sending context-aware request to: ${contextEndpoint}`);
+        Logger.debug('Context options:', JSON.stringify(options, null, 2));
+
+        try {
+            const response = await fetch(contextEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(options)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                Logger.error(`Context-aware API error: ${response.status} - ${errorText}`);
+                
+                // Fallback to regular API
+                Logger.info('Falling back to regular API');
+                const fallbackResponse = await this.askQuestion(options.prompt);
+                return {
+                    response: fallbackResponse,
+                    duration: 0,
+                    contextUsed: { fallback: true }
+                };
+            }
+
+            const data = await response.json() as any;
+            Logger.debug(`Context-aware response received in ${data.duration}ms`);
+
+            return {
+                response: data.response || '',
+                duration: data.duration || 0,
+                contextUsed: data.contextUsed || {}
+            };
+
+        } catch (error: any) {
+            Logger.error('Context-aware request error:', error);
+            
+            // Fallback to regular API
+            Logger.info('Falling back to regular API due to error');
+            const fallbackResponse = await this.askQuestion(options.prompt);
+            return {
+                response: fallbackResponse,
+                duration: 0,
+                contextUsed: { fallback: true, error: error.message }
+            };
+        }
+    }
+
+    /**
+     * Solicita análise de workspace
+     */
+    async analyzeWorkspace(workspaceData: {
+        projectStructure: any;
+        dependencies: any;
+        codePatterns: any;
+    }): Promise<string> {
+        const backendUrl = this.configService.getBackendUrl();
+        const analysisEndpoint = backendUrl.replace('/openai', '/api/analyze-workspace');
+        
+        Logger.info(`Requesting workspace analysis from: ${analysisEndpoint}`);
+
+        try {
+            const response = await fetch(analysisEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(workspaceData)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                Logger.error(`Workspace analysis API error: ${response.status} - ${errorText}`);
+                return `Erro na análise do workspace: ${errorText}`;
+            }
+
+            const data = await response.json() as any;
+            Logger.debug('Workspace analysis received successfully');
+
+            return data.insights || 'Análise não disponível';
+
+        } catch (error: any) {
+            Logger.error('Workspace analysis request error:', error);
+            return `Erro ao analisar workspace: ${error.message}`;
+        }
+    }
 }

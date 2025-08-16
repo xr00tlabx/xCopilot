@@ -129,6 +129,10 @@
                 "title": "xCopilot: Aceitar Sugestão Ghost Text"
             },
             {
+                "command": "xcopilot.dismissGhostText",
+                "title": "xCopilot: Descartar Sugestão Ghost Text"
+            },
+            {
                 "command": "xcopilot.openChat",
                 "title": "xCopilot: Abrir Chat Lateral",
                 "icon": "$(comment-discussion)"
@@ -159,6 +163,26 @@
             {
                 "command": "xcopilot.showCompletionStats",
                 "title": "xCopilot: Mostrar Estatísticas de Completion"
+            },
+            {
+                "command": "xcopilot.analyzeWorkspace",
+                "title": "xCopilot: Analisar Workspace"
+            },
+            {
+                "command": "xcopilot.refreshWorkspaceAnalysis",
+                "title": "xCopilot: Atualizar Análise do Workspace"
+            },
+            {
+                "command": "xcopilot.showWorkspaceStats",
+                "title": "xCopilot: Mostrar Estatísticas do Workspace"
+            },
+            {
+                "command": "xcopilot.showContextStats",
+                "title": "xCopilot: Mostrar Estatísticas de Contexto"
+            },
+            {
+                "command": "xcopilot.clearContextCache",
+                "title": "xCopilot: Limpar Cache de Contexto"
             }
         ],
         "viewsContainers": {
@@ -305,6 +329,53 @@
                     "minimum": 5,
                     "maximum": 50,
                     "description": "Máximo de linhas de contexto para enviar à IA"
+                },
+                "xcopilot.ghostText.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Habilita sugestões de Ghost Text em tempo real"
+                },
+                "xcopilot.ghostText.throttleMs": {
+                    "type": "number",
+                    "default": 300,
+                    "minimum": 100,
+                    "maximum": 1000,
+                    "description": "Tempo de espera entre solicitações de Ghost Text (ms)"
+                },
+                "xcopilot.contextAware.enableWorkspaceAnalysis": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Habilita análise completa do workspace para contexto"
+                },
+                "xcopilot.contextAware.enableSemanticSearch": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Habilita busca semântica em conversas anteriores"
+                },
+                "xcopilot.contextAware.maxContextSize": {
+                    "type": "number",
+                    "default": 4000,
+                    "minimum": 1000,
+                    "maximum": 8000,
+                    "description": "Tamanho máximo do contexto enviado para a IA (caracteres)"
+                },
+                "xcopilot.contextAware.analysisDepth": {
+                    "type": "string",
+                    "default": "medium",
+                    "enum": ["shallow", "medium", "deep"],
+                    "description": "Profundidade da análise do workspace"
+                },
+                "xcopilot.contextAware.memorySessions": {
+                    "type": "number",
+                    "default": 5,
+                    "minimum": 1,
+                    "maximum": 20,
+                    "description": "Número de conversas anteriores para incluir na memória"
+                },
+                "xcopilot.contextAware.autoSuggestions": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Habilita sugestões automáticas baseadas no contexto"
                 }
             }
         },
@@ -322,6 +393,11 @@
             {
                 "command": "xcopilot.acceptGhostText",
                 "key": "tab",
+                "when": "editorTextFocus && xcopilot.ghostTextVisible"
+            },
+            {
+                "command": "xcopilot.dismissGhostText",
+                "key": "escape",
                 "when": "editorTextFocus && xcopilot.ghostTextVisible"
             },
             {

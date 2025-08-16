@@ -4,10 +4,13 @@ import {
     CodeExplanationService,
     CodeSuggestionsService,
     ConfigurationService,
+    ContextAwareService,
     GhostTextService,
     InlineCompletionService,
     PatternDetectionService,
-    RefactoringService
+    RefactoringService,
+    SemanticSearchService,
+    WorkspaceAnalysisService
 } from './services';
 import { Logger } from './utils';
 import { ChatWebviewProvider, SidebarChatProvider } from './views';
@@ -27,6 +30,12 @@ export class ExtensionManager {
     private inlineCompletionService!: InlineCompletionService;
     private refactoringService!: RefactoringService;
     private patternDetectionService!: PatternDetectionService;
+    
+    // New context-aware services
+    private workspaceAnalysisService!: WorkspaceAnalysisService;
+    private contextAwareService!: ContextAwareService;
+    private semanticSearchService!: SemanticSearchService;
+    
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
@@ -45,19 +54,27 @@ export class ExtensionManager {
         Logger.info('🚀 xCopilot extension is now active!');
 
         try {
-            // Inicializar providers com contexto
-            this.chatProvider = new ChatWebviewProvider(context);
-            this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
-            this.chatCommands = new ChatCommands(this.chatProvider);
-            this.inlineCompletionCommands = new InlineCompletionCommands();
-
-            // Inicializar todos os serviços IA
+            // PRIMEIRO: Inicializar todos os serviços básicos
             this.codeSuggestionsService = CodeSuggestionsService.getInstance();
             this.codeExplanationService = CodeExplanationService.getInstance();
             this.ghostTextService = GhostTextService.getInstance();
             this.inlineCompletionService = InlineCompletionService.getInstance();
             this.refactoringService = RefactoringService.getInstance();
             this.patternDetectionService = PatternDetectionService.getInstance();
+
+            // SEGUNDO: Inicializar novos serviços context-aware
+            this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance(context);
+            this.semanticSearchService = SemanticSearchService.getInstance(context);
+            this.contextAwareService = ContextAwareService.getInstance(context);
+
+            // TERCEIRO: Inicializar providers que dependem dos serviços
+            this.chatProvider = new ChatWebviewProvider(context);
+            this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
+            this.chatCommands = new ChatCommands(this.chatProvider);
+            this.inlineCompletionCommands = new InlineCompletionCommands();
+
+            // Inicializar context-aware service de forma assíncrona
+            this.initializeContextAwareFeatures();
 
             // Registrar o provider da webview
             this.registerWebviewProvider(context);
@@ -68,13 +85,14 @@ export class ExtensionManager {
             this.refactoringService.registerCommands(context);
             this.patternDetectionService.registerCommands(context);
             this.registerCodeExplanationCommands(context);
+            this.registerContextAwareCommands(context);
 
             // Registrar providers de código
             // Registrar providers de código
             this.registerCodeProviders(context);
 
             // Configurar monitoramento de configuração
-            this.setupConfigurationWatcher(context);
+            // this.setupConfigurationWatcher(context); // TODO: implementar se necessário
 
             // Adicionar output channel aos subscriptions
             context.subscriptions.push(this.outputChannel);
@@ -158,6 +176,9 @@ export class ExtensionManager {
             vscode.commands.registerCommand('xcopilot.acceptGhostText', () => {
                 this.ghostTextService.acceptGhostText();
             }),
+            vscode.commands.registerCommand('xcopilot.dismissGhostText', () => {
+                this.ghostTextService.dismissGhostText();
+            }),
             vscode.commands.registerCommand('xcopilot.openChat', () => {
                 vscode.commands.executeCommand('workbench.view.extension.xcopilot-sidebar');
                 vscode.commands.executeCommand('setContext', 'xcopilot.chatVisible', true);
@@ -203,5 +224,96 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
 
         context.subscriptions.push(...commands);
         Logger.info('✅ Code explanation commands registered');
+    }
+
+    /**
+     * Registra comandos context-aware
+     */
+    private registerContextAwareCommands(context: vscode.ExtensionContext): void {
+        const commands = [
+            // Analyze workspace
+            vscode.commands.registerCommand('xcopilot.analyzeWorkspace', async () => {
+                try {
+                    await vscode.window.withProgress({
+                        location: vscode.ProgressLocation.Notification,
+                        title: "Analisando workspace...",
+                        cancellable: false
+                    }, async () => {
+                        await this.workspaceAnalysisService.analyzeWorkspace(true);
+                    });
+                    vscode.window.showInformationMessage('Análise do workspace concluída!');
+                } catch (error) {
+                    vscode.window.showErrorMessage('Erro ao analisar workspace');
+                }
+            }),
+
+            // Refresh workspace analysis
+            vscode.commands.registerCommand('xcopilot.refreshWorkspaceAnalysis', async () => {
+                await this.contextAwareService.refreshWorkspaceAnalysis();
+            }),
+
+            // Show workspace stats
+            vscode.commands.registerCommand('xcopilot.showWorkspaceStats', () => {
+                const analysis = this.workspaceAnalysisService.getCurrentAnalysis();
+                if (!analysis) {
+                    vscode.window.showWarningMessage('Nenhuma análise do workspace disponível. Execute "Analisar Workspace" primeiro.');
+                    return;
+                }
+
+                const message = `Estatísticas do Workspace:
+📁 Arquivos: ${analysis.projectStructure.totalFiles}
+📝 Linhas de código: ${analysis.projectStructure.totalLines.toLocaleString()}
+🏗️ Linguagem: ${analysis.architecture.language}
+🔧 Frameworks: ${analysis.architecture.frameworks.join(', ') || 'Nenhum detectado'}
+📦 Dependências: ${analysis.dependencies.dependencies.length}
+🗂️ Diretórios: ${analysis.projectStructure.directories.length}
+📅 Última análise: ${analysis.lastAnalyzed.toLocaleString()}`;
+
+                vscode.window.showInformationMessage(message);
+            }),
+
+            // Show context stats
+            vscode.commands.registerCommand('xcopilot.showContextStats', () => {
+                const stats = this.contextAwareService.getContextStats();
+                const cacheStats = this.semanticSearchService.getCacheStats();
+                
+                const message = `Estatísticas de Contexto:
+🧠 Inicializado: ${stats.isInitialized ? 'Sim' : 'Não'}
+📊 Análise disponível: ${stats.hasWorkspaceAnalysis ? 'Sim' : 'Não'}
+💬 Conversas: ${stats.conversationCount}
+🔍 Cache semântico: ${cacheStats.size} itens (${Math.round(cacheStats.memory / 1024)}KB)
+📅 Última análise: ${stats.lastAnalysis?.toLocaleString() || 'Nunca'}`;
+
+                vscode.window.showInformationMessage(message);
+            }),
+
+            // Clear context cache
+            vscode.commands.registerCommand('xcopilot.clearContextCache', () => {
+                this.workspaceAnalysisService.clearCache();
+                this.semanticSearchService.clearCache();
+                vscode.window.showInformationMessage('Cache de contexto limpo');
+            })
+        ];
+
+        context.subscriptions.push(...commands);
+        Logger.info('✅ Context-aware commands registered');
+    }
+
+    /**
+     * Inicializa funcionalidades context-aware de forma assíncrona
+     */
+    private async initializeContextAwareFeatures(): Promise<void> {
+        try {
+            Logger.info('🧠 Initializing context-aware features...');
+            
+            // Initialize context-aware service in background
+            await this.contextAwareService.initialize();
+            
+            Logger.info('✅ Context-aware features initialized successfully');
+            
+        } catch (error) {
+            Logger.error('Error initializing context-aware features:', error);
+            // Don't show error to user as this is not critical for basic functionality
+        }
     }
 }
