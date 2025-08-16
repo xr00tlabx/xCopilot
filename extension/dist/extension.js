@@ -6813,10 +6813,6 @@ var CodeGenerationCommands = class {
       "xcopilot.generatePattern",
       () => this.multilineService.generateFromPattern()
     );
-    const analyzePatterns = vscode4.commands.registerCommand(
-      "xcopilot.analyzePatterns",
-      () => this.multilineService.analyzeCodePatterns()
-    );
     const scanTodoComments = vscode4.commands.registerCommand(
       "xcopilot.scanTodoComments",
       () => this.multilineService.scanWorkspaceForComments()
@@ -6826,7 +6822,6 @@ var CodeGenerationCommands = class {
       implementInterfaces,
       generateFunction,
       generatePattern,
-      analyzePatterns,
       scanTodoComments
     );
     console.log("xCopilot Multi-line Code Generation commands registered");

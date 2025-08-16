@@ -40,11 +40,7 @@ export class CodeGenerationCommands {
             () => this.multilineService.generateFromPattern()
         );
 
-        // Comando para analisar padrões do código
-        const analyzePatterns = vscode.commands.registerCommand(
-            'xcopilot.analyzePatterns',
-            () => this.multilineService.analyzeCodePatterns()
-        );
+        // Note: `xcopilot.analyzePatterns` is registered by PatternDetectionService to avoid duplicate registrations.
 
         // Comando para escanear comentários TODO/FIXME
         const scanTodoComments = vscode.commands.registerCommand(
@@ -53,12 +49,12 @@ export class CodeGenerationCommands {
         );
 
         // Adiciona os comandos ao contexto
+        // Push the other static command disposables. `analyzePatterns` is pushed conditionally above.
         context.subscriptions.push(
             generateFromComments,
             implementInterfaces,
             generateFunction,
             generatePattern,
-            analyzePatterns,
             scanTodoComments
         );
 
