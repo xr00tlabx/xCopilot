@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ChatCommands } from './commands';
+import { ChatCommands, InlineCompletionCommands } from './commands';
 import {
     CodeExplanationService,
     CodeSuggestionsService,
@@ -19,6 +19,7 @@ export class ExtensionManager {
     private chatProvider!: ChatWebviewProvider;
     private sidebarChatProvider!: SidebarChatProvider;
     private chatCommands!: ChatCommands;
+    private inlineCompletionCommands!: InlineCompletionCommands;
     private configService: ConfigurationService;
     private codeSuggestionsService!: CodeSuggestionsService;
     private codeExplanationService!: CodeExplanationService;
@@ -48,6 +49,7 @@ export class ExtensionManager {
             this.chatProvider = new ChatWebviewProvider(context);
             this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
             this.chatCommands = new ChatCommands(this.chatProvider);
+            this.inlineCompletionCommands = new InlineCompletionCommands();
 
             // Inicializar todos os serviços IA
             this.codeSuggestionsService = CodeSuggestionsService.getInstance();
@@ -62,6 +64,7 @@ export class ExtensionManager {
 
             // Registrar comandos
             this.chatCommands.registerCommands(context);
+            this.inlineCompletionCommands.registerCommands(context);
             this.refactoringService.registerCommands(context);
             this.patternDetectionService.registerCommands(context);
             this.registerCodeExplanationCommands(context);
