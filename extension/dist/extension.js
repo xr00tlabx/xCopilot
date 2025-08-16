@@ -7412,10 +7412,15 @@ var GhostTextService = class _GhostTextService {
   constructor() {
     this.isEnabled = true;
     this.disposables = [];
+    this.currentSuggestion = null;
+    this.lastRequestTime = 0;
+    this.debounceMs = 500;
     this.backendService = BackendService.getInstance();
     this.contextService = CodeContextService.getInstance();
-    this.setupDecorations();
+    this.configService = ConfigurationService.getInstance();
+    this.updateFromConfig();
     this.setupEventListeners();
+    this.registerProvider();
   }
   static getInstance() {
     if (!_GhostTextService.instance) {
@@ -7424,15 +7429,85 @@ var GhostTextService = class _GhostTextService {
     return _GhostTextService.instance;
   }
   /**
-   * Configura as decorações para ghost text
+   * Update settings from configuration
    */
-  setupDecorations() {
-    this.decorationType = vscode6.window.createTextEditorDecorationType({
-      after: {
-        color: new vscode6.ThemeColor("editorGhostText.foreground"),
-        fontStyle: "italic"
+  updateFromConfig() {
+    const config = vscode6.workspace.getConfiguration("xcopilot");
+    this.isEnabled = config.get("ghostText.enabled", true);
+    this.debounceMs = config.get("ghostText.debounceMs", 500);
+    Logger.info(`Ghost text config updated: enabled=${this.isEnabled}, debounce=${this.debounceMs}ms`);
+  }
+  /**
+   * Register the inline completion provider
+   */
+  registerProvider() {
+    const selector = [
+      "typescript",
+      "javascript",
+      "python",
+      "java",
+      "csharp",
+      "cpp",
+      "c",
+      "go",
+      "rust",
+      "php",
+      "ruby",
+      "swift",
+      "kotlin"
+    ];
+    const provider = vscode6.languages.registerInlineCompletionItemProvider(
+      selector,
+      this
+    );
+    this.disposables.push(provider);
+    Logger.info("Ghost text inline completion provider registered");
+  }
+  /**
+   * VS Code InlineCompletionItemProvider implementation
+   */
+  async provideInlineCompletionItems(document, position, context, token) {
+    try {
+      if (!this.isEnabled || token.isCancellationRequested) {
+        return null;
       }
-    });
+      const now = Date.now();
+      if (now - this.lastRequestTime < this.debounceMs) {
+        return null;
+      }
+      this.lastRequestTime = now;
+      const line = document.lineAt(position);
+      const textBefore = line.text.substring(0, position.character);
+      const textAfter = line.text.substring(position.character);
+      if (position.character < line.text.length && textAfter.trim().length > 0) {
+        return null;
+      }
+      if (this.isInCommentOrString(textBefore)) {
+        return null;
+      }
+      const suggestion = await this.generateGhostTextSuggestion(document, position);
+      if (!suggestion || token.isCancellationRequested) {
+        return null;
+      }
+      this.currentSuggestion = suggestion;
+      vscode6.commands.executeCommand("setContext", "xcopilot.ghostTextVisible", true);
+      const item = new vscode6.InlineCompletionItem(
+        suggestion.text,
+        new vscode6.Range(position, position)
+      );
+      const config = vscode6.workspace.getConfiguration("xcopilot");
+      if (config.get("ghostText.showPreview", true) && suggestion.explanation) {
+        item.command = {
+          command: "xcopilot.showGhostTextPreview",
+          title: "Preview Ghost Text",
+          arguments: [suggestion.explanation]
+        };
+      }
+      return [item];
+    } catch (error) {
+      Logger.error("Error in provideInlineCompletionItems:", error);
+      return null;
+    }
   }
   /**
    * Configura os event listeners
@@ -7441,213 +7516,306 @@ var GhostTextService = class _GhostTextService {
     this.disposables.push(
       vscode6.window.onDidChangeActiveTextEditor((editor) => {
         this.activeEditor = editor;
-        this.clearGhostText();
+        this.clearGhostTextContext();
       })
     );
     this.disposables.push(
-      vscode6.workspace.onDidChangeTextDocument((event) => {
-        if (this.activeEditor && event.document === this.activeEditor.document) {
-          this.scheduleGhostText();
-        }
-      })
-    );
-    this.disposables.push(
-      vscode6.window.onDidChangeTextEditorSelection((event) => {
-        if (event.textEditor === this.activeEditor) {
-          this.scheduleGhostText();
+      vscode6.workspace.onDidChangeConfiguration((e2) => {
+        if (e2.affectsConfiguration("xcopilot.ghostText")) {
+          this.updateFromConfig();
         }
       })
     );
     Logger.info("Ghost text event listeners setup completed");
   }
   /**
-   * Agenda a geração de ghost text com debounce
+   * Clear ghost text context
    */
-  scheduleGhostText() {
-    if (!this.isEnabled || !this.activeEditor) {
-      return;
-    }
-    if (this.ghostTextTimeout) {
-      clearTimeout(this.ghostTextTimeout);
-    }
-    this.ghostTextTimeout = setTimeout(() => {
-      this.generateGhostText();
-    }, 800);
+  clearGhostTextContext() {
+    this.currentSuggestion = null;
+    vscode6.commands.executeCommand("setContext", "xcopilot.ghostTextVisible", false);
   }
   /**
-   * Gera e mostra ghost text
+   * Generate ghost text suggestion with ranking and context analysis
    */
-  async generateGhostText() {
-    if (!this.isEnabled || !this.activeEditor) {
-      return;
-    }
-    try {
-      const editor = this.activeEditor;
-      const document = editor.document;
-      const position = editor.selection.active;
-      const line = document.lineAt(position);
-      this.clearGhostText();
-      if (position.character < line.text.length) {
-        return;
-      }
-      const currentLineText = line.text.trim();
-      if (currentLineText.length < 3) {
-        return;
-      }
-      if (this.isCommentOrString(currentLineText)) {
-        return;
-      }
-      const suggestion = await this.generateCodeSuggestion(document, position);
-      if (suggestion && suggestion.trim().length > 0) {
-        this.showGhostText(position, suggestion);
-      }
-    } catch (error) {
-      Logger.error("Error generating ghost text:", error);
-    }
-  }
-  /**
-   * Gera sugestão de código
-   */
-  async generateCodeSuggestion(document, position) {
+  async generateGhostTextSuggestion(document, position) {
     try {
       const context = this.contextService.getCurrentContext();
-      const startLine = Math.max(0, position.line - 8);
-      const endLine = Math.min(document.lineCount - 1, position.line + 3);
-      const contextCode = document.getText(
+      const config = vscode6.workspace.getConfiguration("xcopilot");
+      const contextLines = 10;
+      const startLine = Math.max(0, position.line - contextLines);
+      const endLine = Math.min(document.lineCount - 1, position.line + contextLines);
+      const surroundingCode = document.getText(
         new vscode6.Range(startLine, 0, endLine, 0)
       );
       const currentLine = document.lineAt(position).text;
-      const prompt = `
-Sugira uma continua\xE7\xE3o inteligente para o c\xF3digo seguinte:
-
-Linguagem: ${document.languageId}
-Arquivo: ${context?.fileName || "unknown"}
-
-Contexto:
-\`\`\`${document.languageId}
-${contextCode}
-\`\`\`
-
-Linha atual: "${currentLine}"
-
-REGRAS:
-1. Sugira apenas 1-2 linhas de c\xF3digo
-2. Mantenha o estilo do c\xF3digo existente
-3. Complete de forma l\xF3gica e \xFAtil
-4. Se for declara\xE7\xE3o de fun\xE7\xE3o, sugira o corpo b\xE1sico
-5. Se for condicional, sugira o bloco
-6. Retorne APENAS o c\xF3digo sugerido, sem explica\xE7\xF5es
-7. Use indenta\xE7\xE3o correta
-8. Se n\xE3o tiver certeza, n\xE3o sugira nada
-
-Sugest\xE3o:`;
+      const currentLineText = currentLine.substring(0, position.character);
+      const suggestionType = this.determineSuggestionType(currentLineText, document.languageId);
+      const maxLines = config.get("ghostText.maxLines", 5);
+      const multiLineEnabled = config.get("ghostText.multiLine", true);
+      const prompt = this.buildGhostTextPrompt(
+        document.languageId,
+        context?.fileName || "unknown",
+        surroundingCode,
+        currentLineText,
+        suggestionType,
+        multiLineEnabled ? maxLines : 1
+      );
       const response = await this.backendService.askQuestion(prompt);
       if (!response) {
         return null;
       }
-      let suggestion = response.trim();
-      suggestion = suggestion.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
-      const lines = suggestion.split("\n").slice(0, 2);
-      suggestion = lines.join("\n");
-      if (suggestion.length < 3 || suggestion === currentLine.trim()) {
+      let suggestionText = this.processSuggestionResponse(response, maxLines);
+      if (!suggestionText || suggestionText.length < 2) {
         return null;
       }
-      return suggestion;
+      let explanation = "";
+      if (config.get("ghostText.showPreview", true)) {
+        explanation = await this.generateSuggestionExplanation(suggestionText, suggestionType);
+      }
+      const confidence = this.calculateConfidence(suggestionText, currentLineText, suggestionType);
+      const rank = this.calculateRank(suggestionText, confidence, suggestionType);
+      return {
+        text: suggestionText,
+        explanation,
+        confidence,
+        type: suggestionType,
+        rank
+      };
     } catch (error) {
-      Logger.error("Error generating code suggestion:", error);
+      Logger.error("Error generating ghost text suggestion:", error);
       return null;
     }
   }
   /**
-   * Mostra ghost text na posição especificada
+   * Determine the type of suggestion needed based on context
    */
-  showGhostText(position, suggestion) {
-    if (!this.activeEditor) {
-      return;
+  determineSuggestionType(currentText, language) {
+    const trimmed = currentText.trim();
+    if (trimmed.includes("class ") || trimmed.includes("interface ") || trimmed.includes("struct ") || trimmed.includes("enum ")) {
+      return "multi-line";
     }
-    const decoration = {
-      range: new vscode6.Range(position, position),
-      renderOptions: {
-        after: {
-          contentText: ` // ${suggestion}`,
-          color: new vscode6.ThemeColor("editorGhostText.foreground")
-        }
+    if (trimmed.includes("if ") || trimmed.includes("for ") || trimmed.includes("while ") || trimmed.includes("try ") || trimmed.includes("{") && !trimmed.includes("function ") && !trimmed.includes("class ")) {
+      return "block";
+    }
+    if (language === "javascript" || language === "typescript") {
+      if (trimmed.includes("function ") || trimmed.includes("=> {") || trimmed.endsWith(") {") && trimmed.includes("function")) {
+        return "function";
       }
-    };
-    this.activeEditor.setDecorations(this.decorationType, [decoration]);
+    }
+    if (language === "python") {
+      if (trimmed.startsWith("def ") && trimmed.endsWith(":")) {
+        return "function";
+      }
+    }
+    if (trimmed.endsWith("{") || trimmed.endsWith(":")) {
+      return "block";
+    }
+    return "single-line";
   }
   /**
-   * Limpa ghost text ativo
+   * Build optimized prompt for ghost text generation
    */
-  clearGhostText() {
-    if (this.activeEditor) {
-      this.activeEditor.setDecorations(this.decorationType, []);
+  buildGhostTextPrompt(language, fileName, context, currentLine, type, maxLines) {
+    const typeDescription = {
+      "single-line": "uma \xFAnica linha de c\xF3digo",
+      "multi-line": `at\xE9 ${maxLines} linhas de c\xF3digo`,
+      "function": `o corpo de uma fun\xE7\xE3o (m\xE1ximo ${maxLines} linhas)`,
+      "block": `um bloco de c\xF3digo (m\xE1ximo ${maxLines} linhas)`
+    };
+    return `
+Gere uma sugest\xE3o de ghost text contextual para ${typeDescription[type]}:
+
+Linguagem: ${language}
+Arquivo: ${fileName}
+Tipo: ${type}
+
+Contexto do c\xF3digo:
+\`\`\`${language}
+${context}
+\`\`\`
+
+Linha atual: "${currentLine}"
+
+REGRAS IMPORTANTES:
+1. Sugerir ${typeDescription[type]} que complete logicamente o c\xF3digo
+2. Manter o estilo de c\xF3digo existente (indenta\xE7\xE3o, conven\xE7\xF5es)
+3. Ser contextualmente relevante e \xFAtil
+4. Para fun\xE7\xF5es/blocos, incluir estrutura b\xE1sica mas n\xE3o implementa\xE7\xE3o completa
+5. Para linha \xFAnica, completar a declara\xE7\xE3o/chamada atual
+6. N\xC3O incluir explica\xE7\xF5es, apenas o c\xF3digo
+7. N\xC3O repetir c\xF3digo j\xE1 existente
+8. Usar indenta\xE7\xE3o adequada para o contexto
+
+Sugest\xE3o:`;
+  }
+  /**
+   * Process and clean the suggestion response
+   */
+  processSuggestionResponse(response, maxLines) {
+    let suggestion = response.trim();
+    suggestion = suggestion.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "");
+    const lines = suggestion.split("\n");
+    const limitedLines = lines.slice(0, maxLines);
+    const cleanLines = limitedLines.map((line) => line.trimEnd());
+    return cleanLines.join("\n");
+  }
+  /**
+   * Generate explanation for the suggestion
+   */
+  async generateSuggestionExplanation(suggestion, type) {
+    try {
+      const prompt = `
+Explique brevemente (m\xE1ximo 50 palavras) o que faz esta sugest\xE3o de c\xF3digo:
+
+Tipo: ${type}
+C\xF3digo:
+\`\`\`
+${suggestion}
+\`\`\`
+
+Explica\xE7\xE3o concisa:`;
+      const response = await this.backendService.askQuestion(prompt);
+      return response?.trim() || "";
+    } catch (error) {
+      Logger.error("Error generating explanation:", error);
+      return "";
     }
   }
   /**
-   * Verifica se é comentário ou string
+   * Calculate confidence score for the suggestion
    */
-  isCommentOrString(text) {
-    const trimmed = text.trim();
-    return trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("#") || trimmed.startsWith('"') || trimmed.startsWith("'") || trimmed.startsWith("`");
+  calculateConfidence(suggestion, currentText, type) {
+    let confidence = 0.5;
+    if (type === "function")
+      confidence += 0.2;
+    if (type === "block")
+      confidence += 0.15;
+    if (suggestion.length > 10)
+      confidence += 0.1;
+    if (suggestion.includes("\n"))
+      confidence += 0.05;
+    if (suggestion.toLowerCase().includes(currentText.toLowerCase())) {
+      confidence -= 0.2;
+    }
+    return Math.max(0.1, Math.min(1, confidence));
   }
   /**
-   * Aceita a sugestão de ghost text atual
+   * Calculate ranking score for suggestion ordering
+   */
+  calculateRank(suggestion, confidence, type) {
+    let rank = confidence * 100;
+    if (type === "function")
+      rank += 20;
+    if (type === "block")
+      rank += 15;
+    if (suggestion.includes("\n"))
+      rank += 10;
+    return Math.round(rank);
+  }
+  /**
+   * Check if position is in comment or string
+   */
+  isInCommentOrString(text) {
+    const inString = (text.match(/"/g) || []).length % 2 === 1 || (text.match(/'/g) || []).length % 2 === 1 || (text.match(/`/g) || []).length % 2 === 1;
+    const inComment = text.includes("//") || text.includes("/*") || text.includes("#");
+    return inString || inComment;
+  }
+  /**
+   * Accept the current ghost text suggestion
    */
   async acceptGhostText() {
-    if (!this.activeEditor) {
+    if (!this.activeEditor || !this.currentSuggestion) {
       return;
     }
     try {
       const editor = this.activeEditor;
       const position = editor.selection.active;
-      const suggestion = await this.generateCodeSuggestion(editor.document, position);
-      if (suggestion) {
-        await editor.edit((editBuilder) => {
-          editBuilder.insert(position, `
-${suggestion}`);
-        });
-        this.clearGhostText();
-      }
+      await editor.edit((editBuilder) => {
+        editBuilder.insert(position, this.currentSuggestion.text);
+      });
+      this.clearGhostTextContext();
+      Logger.info("Ghost text suggestion accepted");
     } catch (error) {
       Logger.error("Error accepting ghost text:", error);
     }
   }
   /**
-   * Habilita/desabilita o serviço
+   * Reject the current ghost text suggestion
+   */
+  async rejectGhostText() {
+    this.clearGhostTextContext();
+    Logger.info("Ghost text suggestion rejected");
+  }
+  /**
+   * Show preview/explanation of current suggestion
+   */
+  async showGhostTextPreview(explanation) {
+    if (explanation) {
+      vscode6.window.showInformationMessage(
+        `Ghost Text Preview: ${explanation}`,
+        "Accept (Tab)",
+        "Reject (Esc)"
+      ).then((selection) => {
+        if (selection === "Accept (Tab)") {
+          this.acceptGhostText();
+        } else if (selection === "Reject (Esc)") {
+          this.rejectGhostText();
+        }
+      });
+    }
+  }
+  /**
+   * Toggle ghost text service
+   */
+  toggleGhostText() {
+    this.setEnabled(!this.isEnabled);
+    vscode6.window.showInformationMessage(
+      `Ghost Text ${this.isEnabled ? "habilitado" : "desabilitado"}`
+    );
+  }
+  /**
+   * Enable/disable the service
    */
   setEnabled(enabled) {
     this.isEnabled = enabled;
     if (!enabled) {
-      this.clearGhostText();
+      this.clearGhostTextContext();
     }
     Logger.info(`Ghost text ${enabled ? "enabled" : "disabled"}`);
   }
   /**
-   * Verifica se está habilitado
+   * Check if service is enabled
    */
   isServiceEnabled() {
     return this.isEnabled;
   }
   /**
-   * Obtém disposables para cleanup
+   * Get service statistics
+   */
+  getStats() {
+    return {
+      enabled: this.isEnabled,
+      hasCurrentSuggestion: this.currentSuggestion !== null,
+      suggestionType: this.currentSuggestion?.type
+    };
+  }
+  /**
+   * Get disposables for cleanup
    */
   getDisposables() {
     return this.disposables;
   }
   /**
-   * Limpa recursos
+   * Clean up resources
    */
   dispose() {
-    this.clearGhostText();
+    this.clearGhostTextContext();
     if (this.ghostTextTimeout) {
       clearTimeout(this.ghostTextTimeout);
     }
     this.disposables.forEach((d) => d.dispose());
     this.disposables = [];
-    if (this.decorationType) {
-      this.decorationType.dispose();
-    }
     Logger.info("Ghost text service disposed");
   }
 };
@@ -10223,7 +10391,7 @@ var ExtensionManager = class {
    * Registra comandos de explicação de código
    */
   registerCodeExplanationCommands(context) {
-    const commands5 = [
+    const commands6 = [
       vscode12.commands.registerCommand("xcopilot.explainSelected", () => {
         this.codeExplanationService.explainSelectedCode();
       }),
@@ -10235,6 +10403,15 @@ var ExtensionManager = class {
       }),
       vscode12.commands.registerCommand("xcopilot.acceptGhostText", () => {
         this.ghostTextService.acceptGhostText();
+      }),
+      vscode12.commands.registerCommand("xcopilot.rejectGhostText", () => {
+        this.ghostTextService.rejectGhostText();
+      }),
+      vscode12.commands.registerCommand("xcopilot.toggleGhostText", () => {
+        this.ghostTextService.toggleGhostText();
+      }),
+      vscode12.commands.registerCommand("xcopilot.showGhostTextPreview", (explanation) => {
+        this.ghostTextService.showGhostTextPreview(explanation);
       }),
       vscode12.commands.registerCommand("xcopilot.openChat", () => {
         vscode12.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
@@ -10278,7 +10455,7 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
         vscode12.window.showInformationMessage(message);
       })
     ];
-    context.subscriptions.push(...commands5);
+    context.subscriptions.push(...commands6);
     Logger.info("\u2705 Code explanation commands registered");
   }
 };
