@@ -25,7 +25,7 @@ Current File Context:`;
         systemPrompt += `
 File: ${currentContext.fileName} (${currentContext.fileType})
 ${currentContext.selectedText ? `Selected Code:\n${currentContext.selectedText}` : ''}
-${currentContext.fullFileContent ? `\nFile Content (excerpt):\n${currentContext.fullFileContent.substring(0, 1000)}...` : ''}`;
+${currentContext.fullFileContent ? `\nFile Content (excerpt):\n${currentContext.fullFileContent.substring(0, FILE_EXCERPT_CHAR_LIMIT)}...` : ''}`;
     } else {
         systemPrompt += ' No active file';
     }
