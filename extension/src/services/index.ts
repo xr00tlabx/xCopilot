@@ -11,3 +11,8 @@ export { PatternDetectionService } from './PatternDetectionService';
 export { PromptTemplateService } from './PromptTemplateService';
 export { RefactoringService } from './RefactoringService';
 
+// New context-aware services
+export { WorkspaceAnalysisService } from './WorkspaceAnalysisService';
+export { ContextAwareService } from './ContextAwareService';
+export { SemanticSearchService } from './SemanticSearchService';
+
