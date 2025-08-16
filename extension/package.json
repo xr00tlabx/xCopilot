@@ -101,6 +101,38 @@
                 "title": "xCopilot: Aplicar Padrão de Design"
             },
             {
+                "command": "xcopilot.extractMethod",
+                "title": "xCopilot: Extrair Método"
+            },
+            {
+                "command": "xcopilot.extractClass",
+                "title": "xCopilot: Extrair Classe"
+            },
+            {
+                "command": "xcopilot.extractDuplicatedCode",
+                "title": "xCopilot: Extrair Código Duplicado"
+            },
+            {
+                "command": "xcopilot.convertToAsyncAwait",
+                "title": "xCopilot: Converter para Async/Await"
+            },
+            {
+                "command": "xcopilot.convertToArrowFunction",
+                "title": "xCopilot: Converter para Arrow Function"
+            },
+            {
+                "command": "xcopilot.applyDestructuring",
+                "title": "xCopilot: Aplicar Destructuring"
+            },
+            {
+                "command": "xcopilot.moveMethod",
+                "title": "xCopilot: Mover Método"
+            },
+            {
+                "command": "xcopilot.refactorWorkspace",
+                "title": "xCopilot: Refatorar Workspace"
+            },
+            {
                 "command": "xcopilot.analyzePatterns",
                 "title": "xCopilot: Analisar Padrões"
             },
@@ -262,6 +294,37 @@
                     "group": "xcopilot-refactor@5"
                 },
                 {
+                    "command": "xcopilot.extractMethod",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-refactor@6"
+                },
+                {
+                    "command": "xcopilot.extractClass",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-refactor@7"
+                },
+                {
+                    "command": "xcopilot.convertToAsyncAwait",
+                    "group": "xcopilot-modernize@1"
+                },
+                {
+                    "command": "xcopilot.convertToArrowFunction",
+                    "group": "xcopilot-modernize@2"
+                },
+                {
+                    "command": "xcopilot.applyDestructuring",
+                    "group": "xcopilot-modernize@3"
+                },
+                {
+                    "command": "xcopilot.moveMethod",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-refactor@8"
+                },
+                {
+                    "command": "xcopilot.refactorWorkspace",
+                    "group": "xcopilot-workspace@1"
+                },
+                {
                     "command": "xcopilot.analyzePatterns",
                     "group": "xcopilot-analysis@1"
                 },
@@ -293,6 +356,11 @@
                     "command": "xcopilot.analyzeFile",
                     "when": "resourceExtname =~ /\\.(js|ts|py|java|cpp|c|cs|php|go|rs|rb|swift|kt)$/",
                     "group": "xcopilot@1"
+                },
+                {
+                    "command": "xcopilot.refactorWorkspace",
+                    "when": "explorerResourceIsFolder",
+                    "group": "xcopilot@2"
                 }
             ]
         },
@@ -418,6 +486,26 @@
             {
                 "command": "xcopilot.toggleInlineCompletion",
                 "key": "ctrl+alt+i",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.extractMethod",
+                "key": "ctrl+k ctrl+m",
+                "when": "editorTextFocus && editorHasSelection"
+            },
+            {
+                "command": "xcopilot.extractClass",
+                "key": "ctrl+k ctrl+shift+c",
+                "when": "editorTextFocus && editorHasSelection"
+            },
+            {
+                "command": "xcopilot.convertToAsyncAwait",
+                "key": "ctrl+k ctrl+a",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.convertToArrowFunction",
+                "key": "ctrl+k ctrl+shift+a",
                 "when": "editorTextFocus"
             }
         ]
