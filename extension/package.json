@@ -129,6 +129,14 @@
                 "title": "xCopilot: Aceitar Sugestão Ghost Text"
             },
             {
+                "command": "xcopilot.rejectGhostText", 
+                "title": "xCopilot: Rejeitar Sugestão Ghost Text"
+            },
+            {
+                "command": "xcopilot.toggleGhostText",
+                "title": "xCopilot: Toggle Ghost Text"
+            },
+            {
                 "command": "xcopilot.openChat",
                 "title": "xCopilot: Abrir Chat Lateral",
                 "icon": "$(comment-discussion)"
@@ -305,6 +313,47 @@
                     "minimum": 5,
                     "maximum": 50,
                     "description": "Máximo de linhas de contexto para enviar à IA"
+                },
+                "xcopilot.ghostText.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Habilita sugestões de ghost text contextuais"
+                },
+                "xcopilot.ghostText.debounceMs": {
+                    "type": "number",
+                    "default": 500,
+                    "minimum": 100,
+                    "maximum": 2000,
+                    "description": "Tempo de espera antes de mostrar ghost text (ms)"
+                },
+                "xcopilot.ghostText.opacity": {
+                    "type": "number",
+                    "default": 0.4,
+                    "minimum": 0.1,
+                    "maximum": 1.0,
+                    "description": "Opacidade do ghost text (0.1 = muito transparente, 1.0 = opaco)"
+                },
+                "xcopilot.ghostText.multiLine": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Permite sugestões de múltiplas linhas para funções completas"
+                },
+                "xcopilot.ghostText.maxLines": {
+                    "type": "number",
+                    "default": 5,
+                    "minimum": 1,
+                    "maximum": 20,
+                    "description": "Máximo de linhas para sugestões multi-linha"
+                },
+                "xcopilot.ghostText.showPreview": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Mostra preview com explicação da sugestão no hover"
+                },
+                "xcopilot.ghostText.ranking": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Habilita sistema de ranking para melhores sugestões"
                 }
             }
         },
@@ -322,6 +371,11 @@
             {
                 "command": "xcopilot.acceptGhostText",
                 "key": "tab",
+                "when": "editorTextFocus && xcopilot.ghostTextVisible && !suggestWidgetVisible && !inSnippetMode && !hasOtherSuggestions"
+            },
+            {
+                "command": "xcopilot.rejectGhostText",
+                "key": "escape",
                 "when": "editorTextFocus && xcopilot.ghostTextVisible"
             },
             {
@@ -342,6 +396,11 @@
             {
                 "command": "xcopilot.toggleInlineCompletion",
                 "key": "ctrl+alt+i",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.toggleGhostText",
+                "key": "ctrl+alt+g",
                 "when": "editorTextFocus"
             }
         ]
