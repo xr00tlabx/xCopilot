@@ -5102,7 +5102,7 @@ __export(extension_exports, {
 module.exports = __toCommonJS(extension_exports);
 
 // src/ExtensionManager.ts
-var vscode12 = __toESM(require("vscode"));
+var vscode14 = __toESM(require("vscode"));
 
 // src/commands/ChatCommands.ts
 var vscode = __toESM(require("vscode"));
@@ -6630,6 +6630,81 @@ var BackendService = class _BackendService {
       throw error;
     }
   }
+  /**
+   * Envia pergunta com contexto completo (context-aware)
+   */
+  async askQuestionWithContext(options) {
+    const backendUrl = this.configService.getBackendUrl();
+    const contextEndpoint = backendUrl.replace("/openai", "/api/context-aware");
+    Logger.info(`Sending context-aware request to: ${contextEndpoint}`);
+    Logger.debug("Context options:", JSON.stringify(options, null, 2));
+    try {
+      const response = await fetch(contextEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify(options)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        Logger.error(`Context-aware API error: ${response.status} - ${errorText}`);
+        Logger.info("Falling back to regular API");
+        const fallbackResponse = await this.askQuestion(options.prompt);
+        return {
+          response: fallbackResponse,
+          duration: 0,
+          contextUsed: { fallback: true }
+        };
+      }
+      const data = await response.json();
+      Logger.debug(`Context-aware response received in ${data.duration}ms`);
+      return {
+        response: data.response || "",
+        duration: data.duration || 0,
+        contextUsed: data.contextUsed || {}
+      };
+    } catch (error) {
+      Logger.error("Context-aware request error:", error);
+      Logger.info("Falling back to regular API due to error");
+      const fallbackResponse = await this.askQuestion(options.prompt);
+      return {
+        response: fallbackResponse,
+        duration: 0,
+        contextUsed: { fallback: true, error: error.message }
+      };
+    }
+  }
+  /**
+   * Solicita análise de workspace
+   */
+  async analyzeWorkspace(workspaceData) {
+    const backendUrl = this.configService.getBackendUrl();
+    const analysisEndpoint = backendUrl.replace("/openai", "/api/analyze-workspace");
+    Logger.info(`Requesting workspace analysis from: ${analysisEndpoint}`);
+    try {
+      const response = await fetch(analysisEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify(workspaceData)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        Logger.error(`Workspace analysis API error: ${response.status} - ${errorText}`);
+        return `Erro na an\xE1lise do workspace: ${errorText}`;
+      }
+      const data = await response.json();
+      Logger.debug("Workspace analysis received successfully");
+      return data.insights || "An\xE1lise n\xE3o dispon\xEDvel";
+    } catch (error) {
+      Logger.error("Workspace analysis request error:", error);
+      return `Erro ao analisar workspace: ${error.message}`;
+    }
+  }
 };
 
 // src/services/CodeContextService.ts
@@ -6712,8 +6787,8 @@ var CodeContextService = class _CodeContextService {
     if (document.isUntitled) {
       return `Untitled-${document.languageId}`;
     }
-    const path = document.fileName;
-    const segments = path.split(/[\\\/]/);
+    const path2 = document.fileName;
+    const segments = path2.split(/[\\\/]/);
     return segments[segments.length - 1];
   }
   /**
@@ -7406,6 +7481,208 @@ Retorne apenas uma lista de sugest\xF5es claras e objetivas.
   }
 };
 
+// src/services/ConversationHistoryService.ts
+var ConversationHistoryService = class _ConversationHistoryService {
+  constructor(context) {
+    this.storageKey = "xcopilot.conversationHistory";
+    this.maxEntries = 100;
+    this.context = context;
+    this.history = this.loadHistory();
+  }
+  static getInstance(context) {
+    if (!_ConversationHistoryService.instance && context) {
+      _ConversationHistoryService.instance = new _ConversationHistoryService(context);
+    }
+    return _ConversationHistoryService.instance;
+  }
+  /**
+   * Adiciona nova entrada ao histórico
+   */
+  addEntry(userMessage, aiResponse, context) {
+    const entry = {
+      id: this.generateId(),
+      timestamp: /* @__PURE__ */ new Date(),
+      userMessage,
+      aiResponse,
+      context,
+      fileName: context?.fileName,
+      fileType: context?.fileType
+    };
+    this.history.entries.unshift(entry);
+    if (this.history.entries.length > this.maxEntries) {
+      this.history.entries = this.history.entries.slice(0, this.maxEntries);
+    }
+    this.history.lastUpdated = /* @__PURE__ */ new Date();
+    this.saveHistory();
+    Logger.info(`Added conversation entry: ${entry.id}`);
+  }
+  /**
+   * Busca no histórico por texto
+   */
+  search(query, limit = 20) {
+    const lowerQuery = query.toLowerCase();
+    return this.history.entries.filter(
+      (entry) => entry.userMessage.toLowerCase().includes(lowerQuery) || entry.aiResponse.toLowerCase().includes(lowerQuery) || entry.fileName?.toLowerCase().includes(lowerQuery)
+    ).slice(0, limit);
+  }
+  /**
+   * Busca por tipo de arquivo
+   */
+  searchByFileType(fileType, limit = 20) {
+    return this.history.entries.filter((entry) => entry.fileType === fileType).slice(0, limit);
+  }
+  /**
+   * Busca por arquivo específico
+   */
+  searchByFileName(fileName, limit = 20) {
+    return this.history.entries.filter((entry) => entry.fileName === fileName).slice(0, limit);
+  }
+  /**
+   * Obtém entradas recentes
+   */
+  getRecent(limit = 10) {
+    return this.history.entries.slice(0, limit);
+  }
+  /**
+   * Obtém entrada por ID
+   */
+  getById(id) {
+    return this.history.entries.find((entry) => entry.id === id);
+  }
+  /**
+   * Remove entrada do histórico
+   */
+  removeEntry(id) {
+    const index = this.history.entries.findIndex((entry) => entry.id === id);
+    if (index > -1) {
+      this.history.entries.splice(index, 1);
+      this.saveHistory();
+      Logger.info(`Removed conversation entry: ${id}`);
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Limpa todo o histórico
+   */
+  clearHistory() {
+    this.history = {
+      entries: [],
+      lastUpdated: /* @__PURE__ */ new Date()
+    };
+    this.saveHistory();
+    Logger.info("Conversation history cleared");
+  }
+  /**
+   * Exporta histórico para JSON
+   */
+  exportToJson() {
+    return JSON.stringify(this.history, null, 2);
+  }
+  /**
+   * Exporta histórico formatado em Markdown
+   */
+  exportToMarkdown() {
+    let markdown = "# Hist\xF3rico de Conversas xCopilot\n\n";
+    markdown += `*Exportado em: ${(/* @__PURE__ */ new Date()).toLocaleString()}*
+
+`;
+    this.history.entries.forEach((entry, index) => {
+      markdown += `## Conversa ${index + 1}
+
+`;
+      markdown += `**Data:** ${entry.timestamp.toLocaleString()}
+
+`;
+      if (entry.fileName) {
+        markdown += `**Arquivo:** ${entry.fileName}
+
+`;
+      }
+      markdown += `**Pergunta:**
+${entry.userMessage}
+
+`;
+      markdown += `**Resposta:**
+${entry.aiResponse}
+
+`;
+      if (entry.context?.selectedText) {
+        markdown += `**C\xF3digo analisado:**
+\`\`\`${entry.fileType || ""}
+${entry.context.selectedText}
+\`\`\`
+
+`;
+      }
+      markdown += "---\n\n";
+    });
+    return markdown;
+  }
+  /**
+   * Obtém estatísticas do histórico
+   */
+  getStats() {
+    const byFileType = {};
+    const byFileName = {};
+    this.history.entries.forEach((entry) => {
+      if (entry.fileType) {
+        byFileType[entry.fileType] = (byFileType[entry.fileType] || 0) + 1;
+      }
+      if (entry.fileName) {
+        byFileName[entry.fileName] = (byFileName[entry.fileName] || 0) + 1;
+      }
+    });
+    const timestamps = this.history.entries.map((e2) => e2.timestamp);
+    return {
+      totalEntries: this.history.entries.length,
+      byFileType,
+      byFileName,
+      oldestEntry: timestamps.length > 0 ? new Date(Math.min(...timestamps.map((t2) => t2.getTime()))) : void 0,
+      newestEntry: timestamps.length > 0 ? new Date(Math.max(...timestamps.map((t2) => t2.getTime()))) : void 0
+    };
+  }
+  /**
+   * Carrega histórico do storage
+   */
+  loadHistory() {
+    try {
+      const stored = this.context.globalState.get(this.storageKey);
+      if (stored) {
+        stored.entries = stored.entries.map((entry) => ({
+          ...entry,
+          timestamp: new Date(entry.timestamp)
+        }));
+        stored.lastUpdated = new Date(stored.lastUpdated);
+        Logger.info(`Loaded ${stored.entries.length} conversation entries`);
+        return stored;
+      }
+    } catch (error) {
+      Logger.error("Error loading conversation history:", error);
+    }
+    return {
+      entries: [],
+      lastUpdated: /* @__PURE__ */ new Date()
+    };
+  }
+  /**
+   * Salva histórico no storage
+   */
+  saveHistory() {
+    try {
+      this.context.globalState.update(this.storageKey, this.history);
+    } catch (error) {
+      Logger.error("Error saving conversation history:", error);
+    }
+  }
+  /**
+   * Gera ID único para entrada
+   */
+  generateId() {
+    return `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+};
+
 // src/services/GhostTextService.ts
 var vscode6 = __toESM(require("vscode"));
 var GhostTextService = class _GhostTextService {
@@ -7654,6 +7931,165 @@ ${suggestion}`);
 
 // src/services/GitIntegrationService.ts
 var vscode7 = __toESM(require("vscode"));
+var GitIntegrationService = class _GitIntegrationService {
+  constructor() {
+    this.isInitialized = false;
+    this.initializeGitExtension();
+  }
+  static getInstance() {
+    if (!_GitIntegrationService.instance) {
+      _GitIntegrationService.instance = new _GitIntegrationService();
+    }
+    return _GitIntegrationService.instance;
+  }
+  /**
+   * Inicializa a extensão do Git (sem throw de erro)
+   */
+  async initializeGitExtension() {
+    try {
+      const gitExtension = vscode7.extensions.getExtension("vscode.git");
+      if (gitExtension) {
+        if (!gitExtension.isActive) {
+          await gitExtension.activate();
+        }
+        this.gitExtension = gitExtension.exports?.getAPI?.(1);
+        if (this.gitExtension) {
+          this.isInitialized = true;
+          Logger.info("Git extension initialized successfully");
+        } else {
+          Logger.warn("Git API not available - Git features will be disabled");
+        }
+      } else {
+        Logger.warn("Git extension not found - Git features will be disabled");
+      }
+    } catch (error) {
+      Logger.warn("Git extension not available - Git features will be disabled");
+      this.gitExtension = void 0;
+    }
+  }
+  /**
+   * Verifica se o Git está disponível
+   */
+  isGitAvailable() {
+    try {
+      return this.isInitialized && !!this.gitExtension;
+    } catch (error) {
+      return false;
+    }
+  }
+  /**
+   * Obtém informações do Git para o workspace atual
+   */
+  async getGitInfo() {
+    if (!this.isGitAvailable()) {
+      return null;
+    }
+    try {
+      const workspaceFolders = vscode7.workspace.workspaceFolders;
+      if (!workspaceFolders?.length) {
+        return null;
+      }
+      const repository = this.gitExtension.getRepository(workspaceFolders[0].uri);
+      if (!repository) {
+        return null;
+      }
+      const gitInfo = {
+        currentBranch: repository.state.HEAD?.name || "unknown",
+        hasUncommittedChanges: (repository.state.workingTreeChanges?.length || 0) > 0 || (repository.state.indexChanges?.length || 0) > 0,
+        lastCommitMessage: repository.state.HEAD?.commit?.message || "",
+        changedFiles: [
+          ...repository.state.workingTreeChanges?.map((c) => c.uri.fsPath) || [],
+          ...repository.state.indexChanges?.map((c) => c.uri.fsPath) || []
+        ],
+        diff: void 0
+        // Simplificado por enquanto
+      };
+      return gitInfo;
+    } catch (error) {
+      Logger.error("Error getting Git info:", error);
+      return null;
+    }
+  }
+  /**
+   * Obtém diff do arquivo atual (versão simplificada)
+   */
+  async getCurrentFileDiff() {
+    if (!this.isGitAvailable()) {
+      return null;
+    }
+    try {
+      const editor = vscode7.window.activeTextEditor;
+      if (!editor) {
+        return null;
+      }
+      const fileName = editor.document.fileName;
+      const isModified = editor.document.isDirty;
+      return isModified ? `File modified: ${fileName}` : null;
+    } catch (error) {
+      Logger.error("Error getting file diff:", error);
+      return null;
+    }
+  }
+  /**
+   * Gera sugestão de mensagem de commit baseada nas mudanças
+   */
+  async generateCommitMessage(changedFiles, diff) {
+    try {
+      const fileTypes = this.analyzeFileTypes(changedFiles);
+      const changeScope = this.analyzeChangeScope(changedFiles);
+      let type = "feat";
+      if (changedFiles.some((f3) => f3.includes("test") || f3.includes("spec"))) {
+        type = "test";
+      } else if (changedFiles.some((f3) => f3.includes("doc") || f3.includes("README"))) {
+        type = "docs";
+      } else if (changedFiles.some((f3) => f3.includes("fix") || f3.includes("bug"))) {
+        type = "fix";
+      } else if (changedFiles.some((f3) => f3.includes("style") || f3.includes("css"))) {
+        type = "style";
+      }
+      const scope = changeScope.length > 0 ? `(${changeScope.join(", ")})` : "";
+      const fileTypesList = fileTypes.length > 0 ? ` - ${fileTypes.join(", ")}` : "";
+      return `${type}${scope}: update ${changedFiles.length} file(s)${fileTypesList}`;
+    } catch (error) {
+      Logger.error("Error generating commit message:", error);
+      return "feat: update files";
+    }
+  }
+  /**
+   * Analisa tipos de arquivos modificados
+   */
+  analyzeFileTypes(files) {
+    try {
+      const types3 = /* @__PURE__ */ new Set();
+      files.forEach((file) => {
+        const ext = file.split(".").pop()?.toLowerCase();
+        if (ext) {
+          types3.add(ext);
+        }
+      });
+      return Array.from(types3).slice(0, 3);
+    } catch (error) {
+      return [];
+    }
+  }
+  /**
+   * Analisa escopo das mudanças
+   */
+  analyzeChangeScope(files) {
+    try {
+      const scopes = /* @__PURE__ */ new Set();
+      files.forEach((file) => {
+        const parts = file.split("/");
+        if (parts.length > 1) {
+          scopes.add(parts[parts.length - 2]);
+        }
+      });
+      return Array.from(scopes).slice(0, 2);
+    } catch (error) {
+      return [];
+    }
+  }
+};
 
 // src/services/InlineCompletionService.ts
 var vscode8 = __toESM(require("vscode"));
@@ -8848,6 +9284,1279 @@ ${pattern}`,
   }
 };
 
+// src/services/WorkspaceAnalysisService.ts
+var vscode11 = __toESM(require("vscode"));
+var path = __toESM(require("path"));
+var fs2 = __toESM(require("fs"));
+var WorkspaceAnalysisService = class _WorkspaceAnalysisService {
+  constructor(context) {
+    this.analysis = null;
+    this.analyzing = false;
+    this.cacheKey = "xcopilot.workspaceAnalysis";
+    this.context = context;
+    this.loadCachedAnalysis();
+  }
+  static getInstance(context) {
+    if (!_WorkspaceAnalysisService.instance && context) {
+      _WorkspaceAnalysisService.instance = new _WorkspaceAnalysisService(context);
+    }
+    return _WorkspaceAnalysisService.instance;
+  }
+  /**
+   * Inicia análise completa do workspace
+   */
+  async analyzeWorkspace(force = false) {
+    if (this.analyzing) {
+      Logger.info("Workspace analysis already in progress");
+      return this.analysis;
+    }
+    if (!force && this.analysis && this.isAnalysisRecent()) {
+      Logger.info("Using cached workspace analysis");
+      return this.analysis;
+    }
+    const workspaceFolders = vscode11.workspace.workspaceFolders;
+    if (!workspaceFolders?.length) {
+      Logger.warn("No workspace folders found for analysis");
+      return null;
+    }
+    this.analyzing = true;
+    Logger.info("Starting workspace analysis...");
+    try {
+      const workspaceRoot = workspaceFolders[0].uri.fsPath;
+      const [
+        projectStructure,
+        dependencies,
+        codePatterns,
+        architecture,
+        fileTypes
+      ] = await Promise.all([
+        this.analyzeProjectStructure(workspaceRoot),
+        this.analyzeDependencies(workspaceRoot),
+        this.analyzeCodePatterns(workspaceRoot),
+        this.analyzeArchitecture(workspaceRoot),
+        this.analyzeFileTypes(workspaceRoot)
+      ]);
+      this.analysis = {
+        projectStructure,
+        dependencies,
+        codePatterns,
+        architecture,
+        fileTypes,
+        lastAnalyzed: /* @__PURE__ */ new Date()
+      };
+      this.saveAnalysis();
+      Logger.info("Workspace analysis completed successfully");
+      vscode11.commands.executeCommand("setContext", "xcopilot.workspaceAnalyzed", true);
+      return this.analysis;
+    } catch (error) {
+      Logger.error("Error during workspace analysis:", error);
+      return null;
+    } finally {
+      this.analyzing = false;
+    }
+  }
+  /**
+   * Obtém análise atual (pode ser null se não feita ainda)
+   */
+  getCurrentAnalysis() {
+    return this.analysis;
+  }
+  /**
+   * Verifica se a análise precisa ser atualizada
+   */
+  needsUpdate() {
+    return !this.analysis || !this.isAnalysisRecent();
+  }
+  /**
+   * Analisa estrutura do projeto
+   */
+  async analyzeProjectStructure(workspaceRoot) {
+    const structure = {
+      totalFiles: 0,
+      totalLines: 0,
+      directories: [],
+      mainFiles: [],
+      configFiles: [],
+      testFiles: []
+    };
+    const excludePatterns = [
+      /node_modules/,
+      /\.git/,
+      /dist/,
+      /build/,
+      /\.vscode/,
+      /coverage/,
+      /\.next/,
+      /\.nuxt/,
+      /target/,
+      /bin/,
+      /obj/
+    ];
+    await this.walkDirectory(workspaceRoot, workspaceRoot, structure, excludePatterns);
+    return structure;
+  }
+  /**
+   * Percorre diretório recursivamente
+   */
+  async walkDirectory(dirPath, rootPath, structure, excludePatterns) {
+    try {
+      const entries = await fs2.promises.readdir(dirPath, { withFileTypes: true });
+      const relativePath = path.relative(rootPath, dirPath);
+      if (excludePatterns.some((pattern) => pattern.test(relativePath))) {
+        return;
+      }
+      const directoryInfo = {
+        path: relativePath || ".",
+        fileCount: 0,
+        subDirectories: [],
+        purpose: this.inferDirectoryPurpose(relativePath)
+      };
+      for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name);
+        const relativeFilePath = path.relative(rootPath, fullPath);
+        if (excludePatterns.some((pattern) => pattern.test(relativeFilePath))) {
+          continue;
+        }
+        if (entry.isDirectory()) {
+          directoryInfo.subDirectories.push(entry.name);
+          await this.walkDirectory(fullPath, rootPath, structure, excludePatterns);
+        } else if (entry.isFile()) {
+          directoryInfo.fileCount++;
+          structure.totalFiles++;
+          try {
+            const content = await fs2.promises.readFile(fullPath, "utf8");
+            structure.totalLines += content.split("\n").length;
+          } catch (error) {
+          }
+          this.categorizeFile(relativeFilePath, structure);
+        }
+      }
+      if (directoryInfo.fileCount > 0 || directoryInfo.subDirectories.length > 0) {
+        structure.directories.push(directoryInfo);
+      }
+    } catch (error) {
+      Logger.warn(`Error reading directory ${dirPath}:`, error);
+    }
+  }
+  /**
+   * Infere propósito do diretório baseado no nome
+   */
+  inferDirectoryPurpose(relativePath) {
+    const dirName = path.basename(relativePath).toLowerCase();
+    if (["src", "source", "lib"].includes(dirName))
+      return "source";
+    if (["test", "tests", "__tests__", "spec"].includes(dirName))
+      return "test";
+    if (["config", "configurations", "settings"].includes(dirName))
+      return "config";
+    if (["docs", "documentation", "doc"].includes(dirName))
+      return "documentation";
+    if (["public", "static", "assets", "media"].includes(dirName))
+      return "assets";
+    if (["components", "component"].includes(dirName))
+      return "components";
+    if (["utils", "utilities", "helpers", "tools"].includes(dirName))
+      return "utilities";
+    if (["services", "service", "api"].includes(dirName))
+      return "services";
+    if (["types", "typings", "interfaces"].includes(dirName))
+      return "types";
+    return void 0;
+  }
+  /**
+   * Categoriza arquivo baseado no nome e extensão
+   */
+  categorizeFile(filePath, structure) {
+    const fileName = path.basename(filePath).toLowerCase();
+    const ext = path.extname(fileName);
+    if ([
+      "index.js",
+      "index.ts",
+      "main.js",
+      "main.ts",
+      "app.js",
+      "app.ts",
+      "server.js",
+      "server.ts",
+      "index.html"
+    ].includes(fileName)) {
+      structure.mainFiles.push(filePath);
+    }
+    if ([
+      "package.json",
+      "tsconfig.json",
+      "webpack.config.js",
+      "vite.config.js",
+      ".eslintrc.js",
+      ".prettierrc",
+      "jest.config.js",
+      "babel.config.js",
+      "tailwind.config.js",
+      "next.config.js",
+      "nuxt.config.js",
+      "vue.config.js",
+      "angular.json",
+      "pom.xml",
+      "build.gradle",
+      "Cargo.toml",
+      "requirements.txt",
+      "setup.py",
+      "Dockerfile",
+      "docker-compose.yml",
+      ".env",
+      ".env.example"
+    ].includes(fileName)) {
+      structure.configFiles.push(filePath);
+    }
+    if (fileName.includes("test") || fileName.includes("spec") || filePath.includes("/test/") || filePath.includes("/__tests__/") || [".test.js", ".test.ts", ".spec.js", ".spec.ts"].some((suffix) => fileName.endsWith(suffix))) {
+      structure.testFiles.push(filePath);
+    }
+  }
+  /**
+   * Analisa dependências do projeto
+   */
+  async analyzeDependencies(workspaceRoot) {
+    const info = {
+      dependencies: [],
+      devDependencies: [],
+      frameworks: [],
+      languages: []
+    };
+    try {
+      const packageJsonPath = path.join(workspaceRoot, "package.json");
+      if (fs2.existsSync(packageJsonPath)) {
+        const packageJson = JSON.parse(await fs2.promises.readFile(packageJsonPath, "utf8"));
+        info.packageJson = packageJson;
+        if (packageJson.dependencies) {
+          info.dependencies = Object.keys(packageJson.dependencies);
+        }
+        if (packageJson.devDependencies) {
+          info.devDependencies = Object.keys(packageJson.devDependencies);
+        }
+        info.frameworks = this.detectFrameworks([...info.dependencies, ...info.devDependencies]);
+      }
+    } catch (error) {
+      Logger.warn("Error analyzing package.json:", error);
+    }
+    info.languages = await this.detectLanguages(workspaceRoot);
+    return info;
+  }
+  /**
+   * Detecta frameworks baseado nas dependências
+   */
+  detectFrameworks(dependencies) {
+    const frameworks = [];
+    const frameworkMap = {
+      "react": "React",
+      "vue": "Vue.js",
+      "angular": "Angular",
+      "svelte": "Svelte",
+      "express": "Express.js",
+      "fastify": "Fastify",
+      "koa": "Koa.js",
+      "nest": "NestJS",
+      "next": "Next.js",
+      "nuxt": "Nuxt.js",
+      "gatsby": "Gatsby",
+      "vite": "Vite",
+      "webpack": "Webpack",
+      "rollup": "Rollup",
+      "parcel": "Parcel",
+      "electron": "Electron",
+      "ionic": "Ionic",
+      "material-ui": "Material-UI",
+      "antd": "Ant Design",
+      "bootstrap": "Bootstrap",
+      "tailwindcss": "Tailwind CSS",
+      "styled-components": "Styled Components",
+      "emotion": "Emotion",
+      "jest": "Jest",
+      "mocha": "Mocha",
+      "cypress": "Cypress",
+      "playwright": "Playwright",
+      "storybook": "Storybook"
+    };
+    for (const dep of dependencies) {
+      for (const [key, framework] of Object.entries(frameworkMap)) {
+        if (dep.includes(key) && !frameworks.includes(framework)) {
+          frameworks.push(framework);
+        }
+      }
+    }
+    return frameworks;
+  }
+  /**
+   * Detecta linguagens baseado nos arquivos
+   */
+  async detectLanguages(workspaceRoot) {
+    const languages4 = /* @__PURE__ */ new Set();
+    const extensionMap = {
+      ".js": "JavaScript",
+      ".jsx": "JavaScript (React)",
+      ".ts": "TypeScript",
+      ".tsx": "TypeScript (React)",
+      ".vue": "Vue.js",
+      ".py": "Python",
+      ".java": "Java",
+      ".kt": "Kotlin",
+      ".cs": "C#",
+      ".cpp": "C++",
+      ".c": "C",
+      ".h": "C/C++ Header",
+      ".go": "Go",
+      ".rs": "Rust",
+      ".php": "PHP",
+      ".rb": "Ruby",
+      ".swift": "Swift",
+      ".dart": "Dart",
+      ".scss": "SCSS",
+      ".sass": "Sass",
+      ".css": "CSS",
+      ".html": "HTML",
+      ".xml": "XML",
+      ".json": "JSON",
+      ".yaml": "YAML",
+      ".yml": "YAML",
+      ".toml": "TOML",
+      ".md": "Markdown"
+    };
+    try {
+      const files = await this.getAllFiles(workspaceRoot);
+      for (const file of files) {
+        const ext = path.extname(file);
+        if (extensionMap[ext]) {
+          languages4.add(extensionMap[ext]);
+        }
+      }
+    } catch (error) {
+      Logger.warn("Error detecting languages:", error);
+    }
+    return Array.from(languages4);
+  }
+  /**
+   * Obtém todos os arquivos recursivamente
+   */
+  async getAllFiles(dirPath) {
+    const files = [];
+    const excludePatterns = [/node_modules/, /\.git/, /dist/, /build/];
+    async function walk(currentPath) {
+      try {
+        const entries = await fs2.promises.readdir(currentPath, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path.join(currentPath, entry.name);
+          if (excludePatterns.some((pattern) => pattern.test(fullPath))) {
+            continue;
+          }
+          if (entry.isDirectory()) {
+            await walk(fullPath);
+          } else {
+            files.push(fullPath);
+          }
+        }
+      } catch (error) {
+      }
+    }
+    await walk(dirPath);
+    return files;
+  }
+  /**
+   * Analisa padrões de código
+   */
+  async analyzeCodePatterns(workspaceRoot) {
+    const patterns = [];
+    try {
+      const files = await this.getAllFiles(workspaceRoot);
+      const codeFiles = files.filter(
+        (file) => [".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".cs"].includes(path.extname(file))
+      );
+      const sampleFiles = codeFiles.slice(0, Math.min(50, codeFiles.length));
+      for (const file of sampleFiles) {
+        try {
+          const content = await fs2.promises.readFile(file, "utf8");
+          this.extractPatterns(content, file, patterns);
+        } catch (error) {
+        }
+      }
+    } catch (error) {
+      Logger.warn("Error analyzing code patterns:", error);
+    }
+    return patterns;
+  }
+  /**
+   * Extrai padrões básicos do código
+   */
+  extractPatterns(content, filePath, patterns) {
+    const lines = content.split("\n");
+    const importRegex = /^import\s+.+\s+from\s+['"`](.+)['"`]/;
+    const classRegex = /^(?:export\s+)?class\s+(\w+)/;
+    const functionRegex = /^(?:export\s+)?(?:async\s+)?function\s+(\w+)/;
+    const constRegex = /^(?:export\s+)?const\s+(\w+)/;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (importRegex.test(trimmed)) {
+        this.addOrUpdatePattern(patterns, "import", trimmed, filePath);
+      } else if (classRegex.test(trimmed)) {
+        this.addOrUpdatePattern(patterns, "class", trimmed, filePath);
+      } else if (functionRegex.test(trimmed)) {
+        this.addOrUpdatePattern(patterns, "function", trimmed, filePath);
+      } else if (constRegex.test(trimmed)) {
+        this.addOrUpdatePattern(patterns, "constant", trimmed, filePath);
+      }
+    }
+  }
+  /**
+   * Adiciona ou atualiza padrão
+   */
+  addOrUpdatePattern(patterns, type, pattern, filePath) {
+    const existing = patterns.find((p) => p.type === type && p.pattern === pattern);
+    if (existing) {
+      existing.frequency++;
+      if (!existing.files.includes(filePath)) {
+        existing.files.push(filePath);
+      }
+    } else {
+      patterns.push({
+        type,
+        pattern,
+        frequency: 1,
+        files: [filePath],
+        examples: [pattern]
+      });
+    }
+  }
+  /**
+   * Analisa arquitetura do projeto
+   */
+  async analyzeArchitecture(workspaceRoot) {
+    const info = {
+      frameworks: [],
+      language: "Unknown",
+      styleGuide: this.analyzeCodeStyle(workspaceRoot)
+    };
+    try {
+      const packageJsonPath = path.join(workspaceRoot, "package.json");
+      if (fs2.existsSync(packageJsonPath)) {
+        const packageJson = JSON.parse(await fs2.promises.readFile(packageJsonPath, "utf8"));
+        const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+        info.frameworks = this.detectFrameworks(Object.keys(deps));
+        info.language = this.detectPrimaryLanguage(workspaceRoot);
+        info.buildTool = this.detectBuildTool(Object.keys(deps));
+        info.pattern = this.detectArchitecturePattern(workspaceRoot);
+      }
+    } catch (error) {
+      Logger.warn("Error analyzing architecture:", error);
+    }
+    return info;
+  }
+  /**
+   * Detecta linguagem principal
+   */
+  detectPrimaryLanguage(workspaceRoot) {
+    if (fs2.existsSync(path.join(workspaceRoot, "tsconfig.json")))
+      return "TypeScript";
+    if (fs2.existsSync(path.join(workspaceRoot, "package.json")))
+      return "JavaScript";
+    if (fs2.existsSync(path.join(workspaceRoot, "pom.xml")))
+      return "Java";
+    if (fs2.existsSync(path.join(workspaceRoot, "requirements.txt")))
+      return "Python";
+    if (fs2.existsSync(path.join(workspaceRoot, "Cargo.toml")))
+      return "Rust";
+    if (fs2.existsSync(path.join(workspaceRoot, "go.mod")))
+      return "Go";
+    return "Unknown";
+  }
+  /**
+   * Detecta ferramenta de build
+   */
+  detectBuildTool(dependencies) {
+    if (dependencies.includes("vite"))
+      return "Vite";
+    if (dependencies.includes("webpack"))
+      return "Webpack";
+    if (dependencies.includes("rollup"))
+      return "Rollup";
+    if (dependencies.includes("parcel"))
+      return "Parcel";
+    if (dependencies.includes("esbuild"))
+      return "esbuild";
+    return void 0;
+  }
+  /**
+   * Detecta padrão arquitetural
+   */
+  detectArchitecturePattern(workspaceRoot) {
+    const dirs = fs2.readdirSync(workspaceRoot, { withFileTypes: true }).filter((dirent) => dirent.isDirectory()).map((dirent) => dirent.name);
+    if (dirs.includes("models") && dirs.includes("views") && dirs.includes("controllers")) {
+      return "MVC";
+    }
+    if (dirs.includes("components") && dirs.includes("pages")) {
+      return "Component-Based";
+    }
+    if (dirs.includes("domain") && dirs.includes("infrastructure") && dirs.includes("application")) {
+      return "Clean Architecture";
+    }
+    return void 0;
+  }
+  /**
+   * Analisa estilo de código
+   */
+  analyzeCodeStyle(workspaceRoot) {
+    return {
+      indentation: "spaces",
+      indentSize: 2,
+      quotes: "single",
+      semicolons: true,
+      namingConvention: "camelCase",
+      commonPatterns: []
+    };
+  }
+  /**
+   * Analisa tipos de arquivo
+   */
+  async analyzeFileTypes(workspaceRoot) {
+    const stats = {};
+    try {
+      const files = await this.getAllFiles(workspaceRoot);
+      for (const file of files) {
+        const ext = path.extname(file);
+        if (!ext)
+          continue;
+        if (!stats[ext]) {
+          stats[ext] = {
+            count: 0,
+            totalLines: 0,
+            avgLinesPerFile: 0
+          };
+        }
+        stats[ext].count++;
+        try {
+          const content = await fs2.promises.readFile(file, "utf8");
+          const lines = content.split("\n").length;
+          stats[ext].totalLines += lines;
+        } catch (error) {
+        }
+      }
+      for (const ext in stats) {
+        const stat2 = stats[ext];
+        stat2.avgLinesPerFile = Math.round(stat2.totalLines / stat2.count);
+      }
+    } catch (error) {
+      Logger.warn("Error analyzing file types:", error);
+    }
+    return stats;
+  }
+  /**
+   * Verifica se análise é recente (< 1 hora)
+   */
+  isAnalysisRecent() {
+    if (!this.analysis?.lastAnalyzed)
+      return false;
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1e3);
+    return this.analysis.lastAnalyzed > hourAgo;
+  }
+  /**
+   * Carrega análise do cache
+   */
+  loadCachedAnalysis() {
+    try {
+      const cached = this.context.globalState.get(this.cacheKey);
+      if (cached) {
+        cached.lastAnalyzed = new Date(cached.lastAnalyzed);
+        this.analysis = cached;
+        Logger.info("Loaded cached workspace analysis");
+      }
+    } catch (error) {
+      Logger.warn("Error loading cached analysis:", error);
+    }
+  }
+  /**
+   * Salva análise no cache
+   */
+  saveAnalysis() {
+    try {
+      this.context.globalState.update(this.cacheKey, this.analysis);
+    } catch (error) {
+      Logger.error("Error saving workspace analysis:", error);
+    }
+  }
+  /**
+   * Limpa cache da análise
+   */
+  clearCache() {
+    this.analysis = null;
+    this.context.globalState.update(this.cacheKey, void 0);
+    Logger.info("Workspace analysis cache cleared");
+  }
+};
+
+// src/services/ContextAwareService.ts
+var vscode12 = __toESM(require("vscode"));
+var ContextAwareService = class _ContextAwareService {
+  constructor(context) {
+    this.isInitialized = false;
+    this.context = context;
+    this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance(context);
+    this.conversationHistoryService = ConversationHistoryService.getInstance(context);
+    this.codeContextService = CodeContextService.getInstance();
+    this.gitIntegrationService = GitIntegrationService.getInstance();
+  }
+  static getInstance(context) {
+    if (!_ContextAwareService.instance && context) {
+      _ContextAwareService.instance = new _ContextAwareService(context);
+    }
+    return _ContextAwareService.instance;
+  }
+  /**
+   * Inicializa o serviço com análise inicial do workspace
+   */
+  async initialize() {
+    if (this.isInitialized) {
+      return;
+    }
+    Logger.info("Initializing Context-Aware Service...");
+    try {
+      await vscode12.window.withProgress({
+        location: vscode12.ProgressLocation.Notification,
+        title: "xCopilot: Analisando workspace...",
+        cancellable: false
+      }, async (progress) => {
+        progress.report({ increment: 20, message: "Carregando configura\xE7\xF5es..." });
+        progress.report({ increment: 40, message: "Analisando estrutura do projeto..." });
+        await this.workspaceAnalysisService.analyzeWorkspace();
+        progress.report({ increment: 80, message: "Configurando contexto..." });
+        await this.setupContextWatchers();
+        progress.report({ increment: 100, message: "Pronto!" });
+      });
+      this.isInitialized = true;
+      vscode12.commands.executeCommand("setContext", "xcopilot.contextAware", true);
+      Logger.info("Context-Aware Service initialized successfully");
+    } catch (error) {
+      Logger.error("Error initializing Context-Aware Service:", error);
+      vscode12.window.showErrorMessage("Erro ao inicializar an\xE1lise de contexto do xCopilot");
+    }
+  }
+  /**
+   * Obtém contexto completo para uma conversa
+   */
+  async getConversationContext(userMessage) {
+    const context = {
+      recentConversations: [],
+      relevantCode: [],
+      suggestions: []
+    };
+    try {
+      const workspaceAnalysis = this.workspaceAnalysisService.getCurrentAnalysis();
+      if (workspaceAnalysis) {
+        context.workspaceAnalysis = workspaceAnalysis;
+      }
+      const currentFile = this.codeContextService.getCurrentContext(true);
+      if (currentFile) {
+        context.currentFile = currentFile;
+      }
+      const gitInfo = await this.gitIntegrationService.getGitInfo();
+      if (gitInfo) {
+        context.gitInfo = gitInfo;
+      }
+      context.recentConversations = this.getRelevantConversations(userMessage, currentFile);
+      context.relevantCode = await this.getRelevantCode(userMessage, currentFile);
+      context.suggestions = await this.generateSuggestions(context);
+      context.memoryContext = this.getMemoryContext(userMessage, context);
+      Logger.debug("Generated conversation context", {
+        hasWorkspace: !!context.workspaceAnalysis,
+        hasCurrentFile: !!context.currentFile,
+        hasGit: !!context.gitInfo,
+        conversationCount: context.recentConversations.length,
+        suggestionCount: context.suggestions.length
+      });
+      return context;
+    } catch (error) {
+      Logger.error("Error getting conversation context:", error);
+      return context;
+    }
+  }
+  /**
+   * Obtém conversas relevantes baseadas no contexto atual
+   */
+  getRelevantConversations(userMessage, currentFile) {
+    const allEntries = this.conversationHistoryService.getRecentEntries(20);
+    const relevant = [];
+    if (currentFile?.fileName) {
+      const sameFileConversations = allEntries.filter(
+        (entry) => entry.fileName === currentFile.fileName
+      ).slice(0, 3);
+      relevant.push(...sameFileConversations);
+    }
+    const keywords = this.extractKeywords(userMessage);
+    const topicRelevant = allEntries.filter((entry) => {
+      const entryKeywords = this.extractKeywords(entry.userMessage + " " + entry.aiResponse);
+      return keywords.some((keyword) => entryKeywords.includes(keyword));
+    }).slice(0, 3);
+    for (const entry of topicRelevant) {
+      if (!relevant.some((r2) => r2.id === entry.id)) {
+        relevant.push(entry);
+      }
+    }
+    return relevant.slice(0, 5);
+  }
+  /**
+   * Extrai palavras-chave simples de um texto
+   */
+  extractKeywords(text) {
+    const stopWords = /* @__PURE__ */ new Set(["the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by"]);
+    return text.toLowerCase().split(/\W+/).filter((word) => word.length > 2 && !stopWords.has(word)).slice(0, 10);
+  }
+  /**
+   * Obtém código relevante para o contexto
+   */
+  async getRelevantCode(userMessage, currentFile) {
+    const relevantCode = [];
+    try {
+      if (currentFile?.selectedText) {
+        relevantCode.push(`Current selection in ${currentFile.fileName}:
+${currentFile.selectedText}`);
+      } else if (currentFile?.fullFileContent && currentFile.fullFileContent.length < 2e3) {
+        relevantCode.push(`Current file ${currentFile.fileName}:
+${currentFile.fullFileContent}`);
+      }
+      if (currentFile?.fileName) {
+        const relatedFiles = await this.findRelatedFiles(currentFile.fileName);
+        for (const file of relatedFiles.slice(0, 2)) {
+          try {
+            const uri = vscode12.Uri.file(file);
+            const document = await vscode12.workspace.openTextDocument(uri);
+            if (document.getText().length < 1e3) {
+              relevantCode.push(`Related file ${file}:
+${document.getText()}`);
+            }
+          } catch (error) {
+          }
+        }
+      }
+    } catch (error) {
+      Logger.warn("Error getting relevant code:", error);
+    }
+    return relevantCode;
+  }
+  /**
+   * Encontra arquivos relacionados (simplificado)
+   */
+  async findRelatedFiles(fileName) {
+    const workspaceFolders = vscode12.workspace.workspaceFolders;
+    if (!workspaceFolders)
+      return [];
+    const related = [];
+    const baseName = fileName.replace(/\.[^/.]+$/, "");
+    const baseNameWithoutPath = baseName.split("/").pop() || "";
+    try {
+      const pattern = `**/${baseNameWithoutPath}.*`;
+      const files = await vscode12.workspace.findFiles(pattern, "**/node_modules/**", 10);
+      for (const file of files) {
+        const filePath = file.fsPath;
+        if (filePath !== fileName) {
+          related.push(filePath);
+        }
+      }
+    } catch (error) {
+      Logger.warn("Error finding related files:", error);
+    }
+    return related;
+  }
+  /**
+   * Gera sugestões contextuais
+   */
+  async generateSuggestions(context) {
+    const suggestions = [];
+    try {
+      if (context.currentFile) {
+        suggestions.push(...this.generateFileBasedSuggestions(context.currentFile));
+      }
+      if (context.workspaceAnalysis) {
+        suggestions.push(...this.generateWorkspaceBasedSuggestions(context.workspaceAnalysis));
+      }
+      if (context.gitInfo) {
+        suggestions.push(...this.generateGitBasedSuggestions(context.gitInfo));
+      }
+      suggestions.sort((a, b) => b.relevance - a.relevance);
+    } catch (error) {
+      Logger.warn("Error generating suggestions:", error);
+    }
+    return suggestions.slice(0, 5);
+  }
+  /**
+   * Gera sugestões baseadas no arquivo atual
+   */
+  generateFileBasedSuggestions(fileContext) {
+    const suggestions = [];
+    if (fileContext.selectedText) {
+      suggestions.push({
+        id: "explain-selection",
+        type: "documentation",
+        title: "Explicar c\xF3digo selecionado",
+        description: "Obter explica\xE7\xE3o detalhada do c\xF3digo selecionado",
+        relevance: 0.9,
+        context: "C\xF3digo selecionado dispon\xEDvel",
+        action: "xcopilot.explainSelected"
+      });
+      suggestions.push({
+        id: "refactor-selection",
+        type: "refactor",
+        title: "Refatorar c\xF3digo selecionado",
+        description: "Sugerir melhorias para o c\xF3digo selecionado",
+        relevance: 0.8,
+        context: "C\xF3digo selecionado dispon\xEDvel",
+        action: "xcopilot.refactorCode"
+      });
+    }
+    if (fileContext.fileType === "typescript" || fileContext.fileType === "javascript") {
+      suggestions.push({
+        id: "generate-tests",
+        type: "test",
+        title: "Gerar testes unit\xE1rios",
+        description: "Criar testes para este arquivo",
+        relevance: 0.7,
+        context: "Arquivo JS/TS detectado",
+        action: "xcopilot.generateTests"
+      });
+    }
+    return suggestions;
+  }
+  /**
+   * Gera sugestões baseadas na análise do workspace
+   */
+  generateWorkspaceBasedSuggestions(analysis) {
+    const suggestions = [];
+    if (analysis.projectStructure.totalFiles > 50) {
+      suggestions.push({
+        id: "document-architecture",
+        type: "documentation",
+        title: "Documentar arquitetura",
+        description: "Gerar documenta\xE7\xE3o da arquitetura do projeto",
+        relevance: 0.6,
+        context: `Projeto com ${analysis.projectStructure.totalFiles} arquivos`,
+        action: "xcopilot.generateArchitectureDoc"
+      });
+    }
+    if (analysis.dependencies.dependencies.length > 20) {
+      suggestions.push({
+        id: "optimize-deps",
+        type: "optimize",
+        title: "Otimizar depend\xEAncias",
+        description: "Analisar e otimizar depend\xEAncias do projeto",
+        relevance: 0.5,
+        context: `${analysis.dependencies.dependencies.length} depend\xEAncias encontradas`
+      });
+    }
+    return suggestions;
+  }
+  /**
+   * Gera sugestões baseadas no status do Git
+   */
+  generateGitBasedSuggestions(gitInfo) {
+    const suggestions = [];
+    if (gitInfo.hasUncommittedChanges) {
+      suggestions.push({
+        id: "generate-commit",
+        type: "documentation",
+        title: "Gerar mensagem de commit",
+        description: "Criar mensagem de commit baseada nas mudan\xE7as",
+        relevance: 0.8,
+        context: "Mudan\xE7as n\xE3o commitadas detectadas",
+        action: "xcopilot.generateCommit"
+      });
+      suggestions.push({
+        id: "review-changes",
+        type: "documentation",
+        title: "Revisar mudan\xE7as",
+        description: "Analisar mudan\xE7as antes do commit",
+        relevance: 0.7,
+        context: "Mudan\xE7as n\xE3o commitadas detectadas",
+        action: "xcopilot.analyzeDiff"
+      });
+    }
+    return suggestions;
+  }
+  /**
+   * Obtém contexto de memória (RAG simplificado)
+   */
+  getMemoryContext(userMessage, context) {
+    const memoryParts = [];
+    if (context.recentConversations.length > 0) {
+      memoryParts.push("Conversas recentes relevantes:");
+      for (const conv of context.recentConversations.slice(0, 2)) {
+        memoryParts.push(`- ${conv.userMessage} -> ${conv.aiResponse.substring(0, 100)}...`);
+      }
+    }
+    if (context.workspaceAnalysis) {
+      const analysis = context.workspaceAnalysis;
+      memoryParts.push(`
+Contexto do projeto:`);
+      memoryParts.push(`- Linguagem: ${analysis.architecture.language}`);
+      memoryParts.push(`- Frameworks: ${analysis.architecture.frameworks.join(", ")}`);
+      memoryParts.push(`- ${analysis.projectStructure.totalFiles} arquivos, ${analysis.projectStructure.totalLines} linhas`);
+    }
+    if (context.currentFile) {
+      memoryParts.push(`
+Arquivo atual: ${context.currentFile.fileName} (${context.currentFile.fileType})`);
+    }
+    return memoryParts.join("\n");
+  }
+  /**
+   * Formata contexto para envio ao backend
+   */
+  formatContextForPrompt(userMessage, context) {
+    let formattedPrompt = userMessage;
+    if (context.memoryContext) {
+      formattedPrompt += `
+
+**Contexto do projeto:**
+${context.memoryContext}`;
+    }
+    if (context.currentFile?.selectedText) {
+      formattedPrompt += `
+
+**C\xF3digo selecionado:**
+\`\`\`${context.currentFile.fileType}
+${context.currentFile.selectedText}
+\`\`\``;
+    }
+    if (context.relevantCode.length > 0) {
+      formattedPrompt += `
+
+**C\xF3digo relacionado:**
+${context.relevantCode.join("\n\n")}`;
+    }
+    return formattedPrompt;
+  }
+  /**
+   * Configura watchers para mudanças de contexto
+   */
+  async setupContextWatchers() {
+    vscode12.workspace.onDidChangeTextDocument((event) => {
+    });
+    vscode12.workspace.onDidCreateFiles((event) => {
+    });
+    vscode12.workspace.onDidDeleteFiles((event) => {
+    });
+    vscode12.window.onDidChangeActiveTextEditor((editor) => {
+    });
+  }
+  /**
+   * Obtém configuração do context-aware
+   */
+  getConfig() {
+    const config = vscode12.workspace.getConfiguration("xcopilot.contextAware");
+    return {
+      enableWorkspaceAnalysis: config.get("enableWorkspaceAnalysis", true),
+      enableSemanticSearch: config.get("enableSemanticSearch", true),
+      maxContextSize: config.get("maxContextSize", 4e3),
+      analysisDepth: config.get("analysisDepth", "medium"),
+      memorySessions: config.get("memorySessions", 5),
+      autoSuggestions: config.get("autoSuggestions", true)
+    };
+  }
+  /**
+   * Força re-análise do workspace
+   */
+  async refreshWorkspaceAnalysis() {
+    Logger.info("Refreshing workspace analysis...");
+    await this.workspaceAnalysisService.analyzeWorkspace(true);
+    vscode12.window.showInformationMessage("An\xE1lise do workspace atualizada!");
+  }
+  /**
+   * Obtém estatísticas do contexto
+   */
+  getContextStats() {
+    const analysis = this.workspaceAnalysisService.getCurrentAnalysis();
+    const conversationCount = this.conversationHistoryService.getRecentEntries(100).length;
+    return {
+      isInitialized: this.isInitialized,
+      hasWorkspaceAnalysis: !!analysis,
+      conversationCount,
+      lastAnalysis: analysis?.lastAnalyzed
+    };
+  }
+};
+
+// src/services/SemanticSearchService.ts
+var SemanticSearchService = class _SemanticSearchService {
+  constructor(context) {
+    this.vectorCache = /* @__PURE__ */ new Map();
+    this.context = context;
+  }
+  static getInstance(context) {
+    if (!_SemanticSearchService.instance && context) {
+      _SemanticSearchService.instance = new _SemanticSearchService(context);
+    }
+    return _SemanticSearchService.instance;
+  }
+  /**
+   * Busca semântica em conversas anteriores
+   */
+  async searchConversations(query, conversations, limit = 5) {
+    const results = [];
+    try {
+      const queryVector = this.generateSimpleVector(query);
+      for (const conversation of conversations) {
+        const text = `${conversation.userMessage} ${conversation.aiResponse}`;
+        const textVector = this.generateSimpleVector(text);
+        const similarity = this.calculateCosineSimilarity(queryVector, textVector);
+        if (similarity > 0.3) {
+          results.push({
+            content: text,
+            similarity,
+            source: "conversation",
+            metadata: {
+              id: conversation.id,
+              timestamp: conversation.timestamp,
+              fileName: conversation.fileName
+            }
+          });
+        }
+      }
+      results.sort((a, b) => b.similarity - a.similarity);
+      return results.slice(0, limit);
+    } catch (error) {
+      Logger.error("Error in semantic search:", error);
+      return [];
+    }
+  }
+  /**
+   * Busca semântica em código
+   */
+  async searchCode(query, codeSnippets, limit = 3) {
+    const results = [];
+    try {
+      const queryVector = this.generateSimpleVector(query);
+      for (let i2 = 0; i2 < codeSnippets.length; i2++) {
+        const code = codeSnippets[i2];
+        const codeVector = this.generateSimpleVector(code);
+        const similarity = this.calculateCosineSimilarity(queryVector, codeVector);
+        if (similarity > 0.2) {
+          results.push({
+            content: code,
+            similarity,
+            source: "code",
+            metadata: { index: i2 }
+          });
+        }
+      }
+      results.sort((a, b) => b.similarity - a.similarity);
+      return results.slice(0, limit);
+    } catch (error) {
+      Logger.error("Error searching code:", error);
+      return [];
+    }
+  }
+  /**
+   * Extrai context relevante usando RAG simplificado
+   */
+  async extractRelevantContext(query, conversations, codeSnippets = []) {
+    const contextParts = [];
+    try {
+      const conversationResults = await this.searchConversations(query, conversations, 3);
+      if (conversationResults.length > 0) {
+        contextParts.push("**Conversas relevantes:**");
+        for (const result of conversationResults) {
+          const summary = this.summarizeConversation(result.content);
+          contextParts.push(`- ${summary} (relev\xE2ncia: ${Math.round(result.similarity * 100)}%)`);
+        }
+      }
+      if (codeSnippets.length > 0) {
+        const codeResults = await this.searchCode(query, codeSnippets, 2);
+        if (codeResults.length > 0) {
+          contextParts.push("\n**C\xF3digo relevante:**");
+          for (const result of codeResults) {
+            const codePreview = result.content.substring(0, 200) + "...";
+            contextParts.push(`\`\`\`
+${codePreview}
+\`\`\``);
+          }
+        }
+      }
+      return contextParts.join("\n");
+    } catch (error) {
+      Logger.error("Error extracting relevant context:", error);
+      return "";
+    }
+  }
+  /**
+   * Gera vetor simples baseado em palavras-chave (TF-IDF simplificado)
+   * Em implementação real, usaria embeddings do OpenAI ou similar
+   */
+  generateSimpleVector(text) {
+    const cacheKey = this.hashString(text);
+    if (this.vectorCache.has(cacheKey)) {
+      return this.vectorCache.get(cacheKey);
+    }
+    const keywords = [
+      "function",
+      "class",
+      "variable",
+      "method",
+      "property",
+      "component",
+      "service",
+      "api",
+      "database",
+      "server",
+      "frontend",
+      "backend",
+      "authentication",
+      "security",
+      "performance",
+      "optimization",
+      "bug",
+      "error",
+      "fix",
+      "test",
+      "testing",
+      "unit",
+      "integration",
+      "deploy",
+      "git",
+      "commit",
+      "branch",
+      "merge",
+      "pull",
+      "request",
+      "react",
+      "vue",
+      "angular",
+      "node",
+      "express",
+      "typescript",
+      "javascript",
+      "python",
+      "java",
+      "docker",
+      "kubernetes",
+      "refactor",
+      "clean",
+      "architecture",
+      "pattern",
+      "design",
+      "async",
+      "await",
+      "promise",
+      "callback",
+      "event",
+      "state",
+      "props",
+      "context",
+      "hook",
+      "reducer",
+      "crud",
+      "rest",
+      "graphql",
+      "websocket",
+      "http",
+      "json",
+      "xml",
+      "csv",
+      "sql",
+      "mongodb",
+      "redis"
+    ];
+    const words = text.toLowerCase().split(/\W+/);
+    const vector = new Array(keywords.length).fill(0);
+    const wordCount = /* @__PURE__ */ new Map();
+    for (const word of words) {
+      wordCount.set(word, (wordCount.get(word) || 0) + 1);
+    }
+    for (let i2 = 0; i2 < keywords.length; i2++) {
+      const keyword = keywords[i2];
+      const tf = wordCount.get(keyword) || 0;
+      vector[i2] = tf / words.length;
+    }
+    this.vectorCache.set(cacheKey, vector);
+    return vector;
+  }
+  /**
+   * Calcula similaridade do cosseno entre dois vetores
+   */
+  calculateCosineSimilarity(vectorA, vectorB) {
+    if (vectorA.length !== vectorB.length) {
+      return 0;
+    }
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    for (let i2 = 0; i2 < vectorA.length; i2++) {
+      dotProduct += vectorA[i2] * vectorB[i2];
+      normA += vectorA[i2] * vectorA[i2];
+      normB += vectorB[i2] * vectorB[i2];
+    }
+    if (normA === 0 || normB === 0) {
+      return 0;
+    }
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+  }
+  /**
+   * Hash simples para cache
+   */
+  hashString(str) {
+    let hash = 0;
+    for (let i2 = 0; i2 < str.length; i2++) {
+      const char = str.charCodeAt(i2);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash;
+    }
+    return hash.toString();
+  }
+  /**
+   * Sumariza conversa para contexto
+   */
+  summarizeConversation(conversationText) {
+    const sentences = conversationText.split(/[.!?]+/).filter((s2) => s2.trim().length > 0);
+    if (sentences.length <= 2) {
+      return conversationText.substring(0, 150);
+    }
+    const summary = `${sentences[0].trim()}. ${sentences[sentences.length - 1].trim()}.`;
+    return summary.length > 200 ? summary.substring(0, 200) + "..." : summary;
+  }
+  /**
+   * Encontra temas similares em conversas
+   */
+  async findSimilarTopics(query, conversations) {
+    const topics = /* @__PURE__ */ new Set();
+    try {
+      const results = await this.searchConversations(query, conversations, 10);
+      for (const result of results) {
+        const keywords = this.extractTopicKeywords(result.content);
+        keywords.forEach((keyword) => topics.add(keyword));
+      }
+      return Array.from(topics).slice(0, 10);
+    } catch (error) {
+      Logger.error("Error finding similar topics:", error);
+      return [];
+    }
+  }
+  /**
+   * Extrai palavras-chave de tópicos
+   */
+  extractTopicKeywords(text) {
+    const words = text.toLowerCase().split(/\W+/);
+    const stopWords = /* @__PURE__ */ new Set(["the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by"]);
+    return words.filter((word) => word.length > 3 && !stopWords.has(word)).filter((word, index, arr) => arr.indexOf(word) === index).slice(0, 5);
+  }
+  /**
+   * Limpa cache de vetores
+   */
+  clearCache() {
+    this.vectorCache.clear();
+    Logger.info("Semantic search cache cleared");
+  }
+  /**
+   * Obtém estatísticas do cache
+   */
+  getCacheStats() {
+    const size = this.vectorCache.size;
+    const memory = size * 50 * 8;
+    return { size, memory };
+  }
+};
+
 // src/views/WebviewHtml.ts
 function getChatHtml() {
   return `<!DOCTYPE html>
@@ -9536,11 +11245,13 @@ var ChatWebviewProvider = class {
 };
 
 // src/views/SidebarChatProvider.ts
-var vscode11 = __toESM(require("vscode"));
+var vscode13 = __toESM(require("vscode"));
 var SidebarChatProvider = class {
   constructor(context, chatProvider) {
     this.context = context;
     this.chatProvider = chatProvider;
+    this.contextAwareService = ContextAwareService.getInstance(context);
+    this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance(context);
   }
   static {
     this.viewType = "xcopilotChat";
@@ -9553,8 +11264,8 @@ var SidebarChatProvider = class {
     this.webview.options = {
       enableScripts: true,
       localResourceRoots: [
-        vscode11.Uri.joinPath(this.context.extensionUri, "media"),
-        vscode11.Uri.joinPath(this.context.extensionUri, "dist")
+        vscode13.Uri.joinPath(this.context.extensionUri, "media"),
+        vscode13.Uri.joinPath(this.context.extensionUri, "dist")
       ]
     };
     this.webview.html = this.getWebviewContent(this.webview);
@@ -9580,10 +11291,13 @@ var SidebarChatProvider = class {
             this.clearChat();
             break;
           case "ready":
-            this.sendMessage({
-              type: "initialize",
-              data: { ready: true }
-            });
+            await this.handleReady();
+            break;
+          case "refreshContext":
+            await this.handleRefreshContext();
+            break;
+          case "executeSuggestion":
+            await this.handleExecuteSuggestion(message.suggestionId);
             break;
         }
       } catch (error) {
@@ -9596,7 +11310,7 @@ var SidebarChatProvider = class {
     });
   }
   /**
-   * Processa pergunta do usuário
+   * Processa pergunta do usuário com context-aware features
    */
   async handleAskQuestion(prompt, includeContext) {
     try {
@@ -9604,21 +11318,52 @@ var SidebarChatProvider = class {
         type: "loading",
         loading: true
       });
-      const backendService = this.chatProvider["backendService"];
-      const contextService = this.chatProvider["contextService"];
-      let finalPrompt = prompt;
+      let conversationContext = null;
+      let finalResponse;
+      let contextUsed = {};
       if (includeContext) {
-        const context = contextService.getContextWithFallback(10);
-        if (context && contextService.hasUsefulContext()) {
-          finalPrompt = contextService.formatContextForPrompt(context, prompt);
-        }
+        conversationContext = await this.contextAwareService.getConversationContext(prompt);
+        this.sendContextUpdate(conversationContext);
+        const backendService = this.chatProvider["backendService"];
+        const result = await backendService.askQuestionWithContext({
+          prompt,
+          workspaceContext: conversationContext.workspaceAnalysis ? {
+            language: conversationContext.workspaceAnalysis.architecture.language,
+            frameworks: conversationContext.workspaceAnalysis.architecture.frameworks,
+            totalFiles: conversationContext.workspaceAnalysis.projectStructure.totalFiles,
+            architecturePattern: conversationContext.workspaceAnalysis.architecture.pattern
+          } : null,
+          conversationHistory: conversationContext.recentConversations,
+          gitInfo: conversationContext.gitInfo,
+          codeContext: {
+            currentFile: conversationContext.currentFile,
+            relevantCode: conversationContext.relevantCode
+          }
+        });
+        finalResponse = result.response;
+        contextUsed = result.contextUsed;
+      } else {
+        const backendService = this.chatProvider["backendService"];
+        finalResponse = await backendService.askQuestion(prompt);
       }
-      const response = await backendService.askQuestion(finalPrompt);
       this.sendMessage({
         type: "response",
-        response,
-        prompt
+        response: finalResponse,
+        prompt,
+        context: conversationContext ? {
+          hasWorkspaceAnalysis: !!conversationContext.workspaceAnalysis,
+          hasGitInfo: !!conversationContext.gitInfo,
+          suggestionCount: conversationContext.suggestions.length,
+          memoryItems: conversationContext.recentConversations.length,
+          contextUsed
+        } : void 0
       });
+      if (conversationContext?.suggestions && conversationContext.suggestions.length > 0) {
+        this.sendMessage({
+          type: "suggestions",
+          suggestions: conversationContext.suggestions.slice(0, 3)
+        });
+      }
     } catch (error) {
       Logger.error("Error processing question:", error);
       this.sendMessage({
@@ -9666,6 +11411,100 @@ ${code}
     }
   }
   /**
+   * Manipula evento ready do webview
+   */
+  async handleReady() {
+    const contextStats = this.contextAwareService.getContextStats();
+    const analysis = this.workspaceAnalysisService.getCurrentAnalysis();
+    this.sendMessage({
+      type: "initialize",
+      data: {
+        ready: true,
+        contextStats,
+        hasWorkspaceAnalysis: !!analysis,
+        projectInfo: analysis ? {
+          language: analysis.architecture.language,
+          frameworks: analysis.architecture.frameworks,
+          totalFiles: analysis.projectStructure.totalFiles
+        } : null
+      }
+    });
+  }
+  /**
+   * Atualiza contexto do workspace
+   */
+  async handleRefreshContext() {
+    try {
+      this.sendMessage({
+        type: "loading",
+        loading: true
+      });
+      await this.contextAwareService.refreshWorkspaceAnalysis();
+      const analysis = this.workspaceAnalysisService.getCurrentAnalysis();
+      this.sendMessage({
+        type: "contextRefreshed",
+        data: {
+          hasWorkspaceAnalysis: !!analysis,
+          projectInfo: analysis ? {
+            language: analysis.architecture.language,
+            frameworks: analysis.architecture.frameworks,
+            totalFiles: analysis.projectStructure.totalFiles,
+            lastAnalyzed: analysis.lastAnalyzed
+          } : null
+        }
+      });
+    } catch (error) {
+      Logger.error("Error refreshing context:", error);
+      this.sendMessage({
+        type: "error",
+        message: "Erro ao atualizar contexto"
+      });
+    } finally {
+      this.sendMessage({
+        type: "loading",
+        loading: false
+      });
+    }
+  }
+  /**
+   * Executa sugestão contextual
+   */
+  async handleExecuteSuggestion(suggestionId) {
+    try {
+      const context = await this.contextAwareService.getConversationContext("");
+      const suggestion = context.suggestions.find((s2) => s2.id === suggestionId);
+      if (suggestion?.action) {
+        await vscode13.commands.executeCommand(suggestion.action);
+        this.sendMessage({
+          type: "suggestionExecuted",
+          suggestionId
+        });
+      }
+    } catch (error) {
+      Logger.error("Error executing suggestion:", error);
+      this.sendMessage({
+        type: "error",
+        message: "Erro ao executar sugest\xE3o"
+      });
+    }
+  }
+  /**
+   * Envia atualizações de contexto para o UI
+   */
+  sendContextUpdate(context) {
+    this.sendMessage({
+      type: "contextUpdate",
+      data: {
+        hasWorkspace: !!context.workspaceAnalysis,
+        hasGit: !!context.gitInfo,
+        memoryItems: context.recentConversations.length,
+        codeItems: context.relevantCode.length,
+        currentFile: context.currentFile?.fileName || null,
+        projectLanguage: context.workspaceAnalysis?.architecture.language || null
+      }
+    });
+  }
+  /**
    * Limpa o chat
    */
   clearChat() {
@@ -9703,7 +11542,7 @@ ${code}
     });
   }
   /**
-   * Gera o conteúdo HTML da webview
+   * Gera o conteúdo HTML da webview com context indicators
    */
   getWebviewContent(webview) {
     return `<!DOCTYPE html>
@@ -9711,7 +11550,7 @@ ${code}
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>xCopilot Chat</title>
+    <title>xCopilot Context-Aware Chat</title>
     <style>
         * {
             margin: 0;
@@ -9733,18 +11572,56 @@ ${code}
         .header {
             padding: 10px;
             border-bottom: 1px solid var(--vscode-panel-border);
+            background-color: var(--vscode-sideBar-background);
+        }
+
+        .header-top {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background-color: var(--vscode-sideBar-background);
         }
 
         .header h3 {
             margin: 0;
             color: var(--vscode-sideBarTitle-foreground);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .clear-btn {
+        .context-indicators {
+            margin-top: 8px;
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .context-indicator {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .context-indicator.active {
+            background-color: var(--vscode-charts-green);
+            color: var(--vscode-button-foreground);
+        }
+
+        .context-indicator.inactive {
+            background-color: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            opacity: 0.6;
+        }
+
+        .context-indicator.loading {
+            background-color: var(--vscode-charts-orange);
+            color: var(--vscode-button-foreground);
+        }
+
+        .clear-btn, .refresh-btn {
             background: none;
             border: none;
             color: var(--vscode-button-foreground);
@@ -9752,9 +11629,10 @@ ${code}
             padding: 4px 8px;
             border-radius: 3px;
             font-size: 12px;
+            margin-left: 4px;
         }
 
-        .clear-btn:hover {
+        .clear-btn:hover, .refresh-btn:hover {
             background-color: var(--vscode-button-hoverBackground);
         }
 
@@ -9797,6 +11675,22 @@ ${code}
             max-width: 95%;
         }
 
+        .message-context {
+            font-size: 11px;
+            color: var(--vscode-descriptionForeground);
+            margin-top: 4px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .context-badge {
+            background-color: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            padding: 1px 4px;
+            border-radius: 3px;
+        }
+
         .message pre {
             background-color: var(--vscode-textCodeBlock-background);
             padding: 8px;
@@ -9812,6 +11706,49 @@ ${code}
             padding: 2px 4px;
             border-radius: 3px;
             font-family: var(--vscode-editor-font-family);
+        }
+
+        .suggestions-container {
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px solid var(--vscode-panel-border);
+        }
+
+        .suggestions-title {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            margin-bottom: 6px;
+        }
+
+        .contextual-suggestions {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .contextual-suggestion {
+            padding: 6px 8px;
+            background-color: var(--vscode-button-secondaryBackground);
+            border: 1px solid var(--vscode-button-border);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+
+        .contextual-suggestion:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+
+        .suggestion-relevance {
+            background-color: var(--vscode-charts-blue);
+            color: white;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-size: 9px;
         }
 
         .input-container {
@@ -9888,16 +11825,22 @@ ${code}
             100% { transform: rotate(360deg); }
         }
 
-        .context-checkbox {
+        .context-options {
             margin-top: 8px;
             display: flex;
-            align-items: center;
-            gap: 6px;
+            flex-direction: column;
+            gap: 4px;
             font-size: 12px;
             color: var(--vscode-descriptionForeground);
         }
 
-        .context-checkbox input {
+        .context-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .context-option input {
             margin: 0;
         }
 
@@ -9915,6 +11858,20 @@ ${code}
         .empty-state h4 {
             margin-bottom: 8px;
             color: var(--vscode-foreground);
+        }
+
+        .project-info {
+            margin-top: 8px;
+            padding: 8px;
+            background-color: var(--vscode-input-background);
+            border-radius: 4px;
+            font-size: 11px;
+            border: 1px solid var(--vscode-input-border);
+        }
+
+        .project-info-title {
+            font-weight: bold;
+            margin-bottom: 4px;
         }
 
         .suggestions {
@@ -9943,26 +11900,49 @@ ${code}
 </head>
 <body>
     <div class="header">
-        <h3>\u{1F4AC} xCopilot Chat</h3>
-        <button class="clear-btn" onclick="clearChat()">\u{1F5D1}\uFE0F Limpar</button>
+        <div class="header-top">
+            <h3>\u{1F9E0} xCopilot Context-Aware</h3>
+            <div>
+                <button class="refresh-btn" onclick="refreshContext()" title="Atualizar contexto">\u{1F504}</button>
+                <button class="clear-btn" onclick="clearChat()">\u{1F5D1}\uFE0F</button>
+            </div>
+        </div>
+        <div class="context-indicators" id="contextIndicators">
+            <div class="context-indicator inactive">
+                <span>\u{1F3D7}\uFE0F</span> Workspace
+            </div>
+            <div class="context-indicator inactive">
+                <span>\u{1F500}</span> Git
+            </div>
+            <div class="context-indicator inactive">
+                <span>\u{1F4AD}</span> Memory
+            </div>
+            <div class="context-indicator inactive">
+                <span>\u{1F4C1}</span> File
+            </div>
+        </div>
     </div>
     
     <div class="chat-container">
         <div class="messages" id="messages">
             <div class="empty-state">
-                <h4>\u{1F916} Como posso ajudar?</h4>
-                <p>Fa\xE7a uma pergunta sobre programa\xE7\xE3o ou selecione c\xF3digo para explicar.</p>
+                <h4>\u{1F916} Context-Aware Assistant</h4>
+                <p>Agora com consci\xEAncia total do seu projeto!</p>
+                <div class="project-info" id="projectInfo" style="display: none;">
+                    <div class="project-info-title">\u{1F4CA} Projeto</div>
+                    <div id="projectDetails">Carregando informa\xE7\xF5es...</div>
+                </div>
                 <div class="suggestions">
-                    <div class="suggestion" onclick="askSuggestion('Como criar uma fun\xE7\xE3o em Python?')">
-                        Como criar uma fun\xE7\xE3o?
+                    <div class="suggestion" onclick="askSuggestion('Como a arquitetura deste projeto est\xE1 organizada?')">
+                        Arquitetura do projeto
                     </div>
-                    <div class="suggestion" onclick="askSuggestion('Explique esse padr\xE3o de design')">
-                        Explicar padr\xE3o de design
+                    <div class="suggestion" onclick="askSuggestion('Quais s\xE3o as principais depend\xEAncias do projeto?')">
+                        Depend\xEAncias
                     </div>
-                    <div class="suggestion" onclick="askSuggestion('Como otimizar este c\xF3digo?')">
-                        Otimizar c\xF3digo
+                    <div class="suggestion" onclick="askSuggestion('Como posso melhorar este c\xF3digo baseado no padr\xE3o do projeto?')">
+                        Melhorar c\xF3digo
                     </div>
-                    <div class="suggestion" onclick="askSuggestion('Gerar testes unit\xE1rios')">
+                    <div class="suggestion" onclick="askSuggestion('Gerar testes seguindo o padr\xE3o do projeto')">
                         Gerar testes
                     </div>
                 </div>
@@ -9974,14 +11954,20 @@ ${code}
                 <textarea 
                     id="messageInput" 
                     class="input-area" 
-                    placeholder="Fa\xE7a uma pergunta sobre programa\xE7\xE3o..."
+                    placeholder="Pergunte qualquer coisa sobre o projeto..."
                     rows="1"
                 ></textarea>
                 <button id="sendBtn" class="send-btn" onclick="sendMessage()">\u{1F4E4}</button>
             </div>
-            <div class="context-checkbox">
-                <input type="checkbox" id="includeContext" checked>
-                <label for="includeContext">Incluir contexto do arquivo atual</label>
+            <div class="context-options">
+                <div class="context-option">
+                    <input type="checkbox" id="includeContext" checked>
+                    <label for="includeContext">Usar contexto do projeto</label>
+                </div>
+                <div class="context-option">
+                    <input type="checkbox" id="includeMemory" checked>
+                    <label for="includeMemory">Incluir mem\xF3ria de conversas</label>
+                </div>
             </div>
         </div>
     </div>
@@ -9989,6 +11975,7 @@ ${code}
     <script>
         const vscode = acquireVsCodeApi();
         let isLoading = false;
+        let currentSuggestions = [];
 
         // Auto-resize textarea
         const messageInput = document.getElementById('messageInput');
@@ -10010,9 +11997,21 @@ ${code}
             const message = event.data;
             
             switch (message.type) {
+                case 'initialize':
+                    handleInitialize(message.data);
+                    break;
                 case 'response':
                     addMessage('user', message.prompt);
-                    addMessage('assistant', message.response);
+                    addMessage('assistant', message.response, message.context);
+                    break;
+                case 'suggestions':
+                    showContextualSuggestions(message.suggestions);
+                    break;
+                case 'contextUpdate':
+                    updateContextIndicators(message.data);
+                    break;
+                case 'contextRefreshed':
+                    handleContextRefreshed(message.data);
                     break;
                 case 'loading':
                     handleLoading(message.loading);
@@ -10029,8 +12028,127 @@ ${code}
                     messageInput.style.height = Math.min(messageInput.scrollHeight, 100) + 'px';
                     messageInput.focus();
                     break;
+                case 'suggestionExecuted':
+                    highlightExecutedSuggestion(message.suggestionId);
+                    break;
             }
         });
+
+        function handleInitialize(data) {
+            if (data.projectInfo) {
+                showProjectInfo(data.projectInfo);
+            }
+            if (data.contextStats) {
+                updateInitialContextIndicators(data.contextStats);
+            }
+        }
+
+        function showProjectInfo(projectInfo) {
+            const projectInfoDiv = document.getElementById('projectInfo');
+            const projectDetails = document.getElementById('projectDetails');
+            
+            projectDetails.innerHTML = \`
+                <strong>\${projectInfo.language}</strong><br>
+                \${projectInfo.frameworks.join(', ') || 'Nenhum framework detectado'}<br>
+                <small>\${projectInfo.totalFiles} arquivos</small>
+            \`;
+            
+            projectInfoDiv.style.display = 'block';
+        }
+
+        function updateInitialContextIndicators(contextStats) {
+            const indicators = document.getElementById('contextIndicators');
+            const children = indicators.children;
+            
+            // Update workspace indicator
+            if (contextStats.hasWorkspaceAnalysis) {
+                children[0].className = 'context-indicator active';
+            }
+            
+            // Update memory indicator
+            if (contextStats.conversationCount > 0) {
+                children[2].className = 'context-indicator active';
+                children[2].innerHTML = '<span>\u{1F4AD}</span> Memory (' + contextStats.conversationCount + ')';
+            }
+        }
+
+        function updateContextIndicators(contextData) {
+            const indicators = document.getElementById('contextIndicators');
+            const children = indicators.children;
+            
+            // Workspace indicator
+            children[0].className = contextData.hasWorkspace ? 'context-indicator active' : 'context-indicator inactive';
+            
+            // Git indicator
+            children[1].className = contextData.hasGit ? 'context-indicator active' : 'context-indicator inactive';
+            
+            // Memory indicator
+            children[2].className = contextData.memoryItems > 0 ? 'context-indicator active' : 'context-indicator inactive';
+            if (contextData.memoryItems > 0) {
+                children[2].innerHTML = '<span>\u{1F4AD}</span> Memory (' + contextData.memoryItems + ')';
+            }
+            
+            // File indicator
+            children[3].className = contextData.currentFile ? 'context-indicator active' : 'context-indicator inactive';
+            if (contextData.currentFile) {
+                const fileName = contextData.currentFile.split('/').pop();
+                children[3].innerHTML = '<span>\u{1F4C1}</span> ' + fileName;
+            }
+        }
+
+        function handleContextRefreshed(data) {
+            if (data.projectInfo) {
+                showProjectInfo(data.projectInfo);
+            }
+            addMessage('assistant', '\u2705 Contexto do projeto atualizado!');
+        }
+
+        function showContextualSuggestions(suggestions) {
+            currentSuggestions = suggestions;
+            const messagesContainer = document.getElementById('messages');
+            
+            const suggestionsContainer = document.createElement('div');
+            suggestionsContainer.className = 'suggestions-container';
+            suggestionsContainer.innerHTML = \`
+                <div class="suggestions-title">\u{1F4A1} Sugest\xF5es contextuais:</div>
+                <div class="contextual-suggestions">
+                    \${suggestions.map(suggestion => \`
+                        <div class="contextual-suggestion" onclick="executeSuggestion('\${suggestion.id}')">
+                            <div>
+                                <strong>\${suggestion.title}</strong><br>
+                                <small>\${suggestion.description}</small>
+                            </div>
+                            <div class="suggestion-relevance">\${Math.round(suggestion.relevance * 100)}%</div>
+                        </div>
+                    \`).join('')}
+                </div>
+            \`;
+            
+            messagesContainer.appendChild(suggestionsContainer);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function executeSuggestion(suggestionId) {
+            vscode.postMessage({
+                type: 'executeSuggestion',
+                suggestionId: suggestionId
+            });
+        }
+
+        function highlightExecutedSuggestion(suggestionId) {
+            // Find and highlight the executed suggestion
+            const suggestionElements = document.querySelectorAll('.contextual-suggestion');
+            suggestionElements.forEach(el => {
+                if (el.onclick.toString().includes(suggestionId)) {
+                    el.style.backgroundColor = 'var(--vscode-charts-green)';
+                    el.style.color = 'white';
+                    setTimeout(() => {
+                        el.style.backgroundColor = '';
+                        el.style.color = '';
+                    }, 2000);
+                }
+            });
+        }
 
         function sendMessage() {
             if (isLoading) return;
@@ -10056,12 +12174,16 @@ ${code}
             vscode.postMessage({ type: 'clearChat' });
         }
 
+        function refreshContext() {
+            vscode.postMessage({ type: 'refreshContext' });
+        }
+
         function askSuggestion(question) {
             document.getElementById('messageInput').value = question;
             sendMessage();
         }
 
-        function addMessage(type, content) {
+        function addMessage(type, content, context) {
             const messagesContainer = document.getElementById('messages');
             const emptyState = messagesContainer.querySelector('.empty-state');
             
@@ -10079,6 +12201,22 @@ ${code}
                 .replace(/\\n/g, '<br>');
             
             messageDiv.innerHTML = processedContent;
+            
+            // Add context information for assistant messages
+            if (type === 'assistant' && context) {
+                const contextDiv = document.createElement('div');
+                contextDiv.className = 'message-context';
+                
+                const badges = [];
+                if (context.hasWorkspaceAnalysis) badges.push('<span class="context-badge">\u{1F3D7}\uFE0F Workspace</span>');
+                if (context.hasGitInfo) badges.push('<span class="context-badge">\u{1F500} Git</span>');
+                if (context.memoryItems > 0) badges.push('<span class="context-badge">\u{1F4AD} ' + context.memoryItems + ' memories</span>');
+                if (context.suggestionCount > 0) badges.push('<span class="context-badge">\u{1F4A1} ' + context.suggestionCount + ' suggestions</span>');
+                
+                contextDiv.innerHTML = badges.join('');
+                messageDiv.appendChild(contextDiv);
+            }
+            
             messagesContainer.appendChild(messageDiv);
             
             // Scroll to bottom
@@ -10089,19 +12227,23 @@ ${code}
             const messagesContainer = document.getElementById('messages');
             messagesContainer.innerHTML = \`
                 <div class="empty-state">
-                    <h4>\u{1F916} Como posso ajudar?</h4>
-                    <p>Fa\xE7a uma pergunta sobre programa\xE7\xE3o ou selecione c\xF3digo para explicar.</p>
+                    <h4>\u{1F916} Context-Aware Assistant</h4>
+                    <p>Agora com consci\xEAncia total do seu projeto!</p>
+                    <div class="project-info" id="projectInfo" style="display: none;">
+                        <div class="project-info-title">\u{1F4CA} Projeto</div>
+                        <div id="projectDetails">Carregando informa\xE7\xF5es...</div>
+                    </div>
                     <div class="suggestions">
-                        <div class="suggestion" onclick="askSuggestion('Como criar uma fun\xE7\xE3o em Python?')">
-                            Como criar uma fun\xE7\xE3o?
+                        <div class="suggestion" onclick="askSuggestion('Como a arquitetura deste projeto est\xE1 organizada?')">
+                            Arquitetura do projeto
                         </div>
-                        <div class="suggestion" onclick="askSuggestion('Explique esse padr\xE3o de design')">
-                            Explicar padr\xE3o de design
+                        <div class="suggestion" onclick="askSuggestion('Quais s\xE3o as principais depend\xEAncias do projeto?')">
+                            Depend\xEAncias
                         </div>
-                        <div class="suggestion" onclick="askSuggestion('Como otimizar este c\xF3digo?')">
-                            Otimizar c\xF3digo
+                        <div class="suggestion" onclick="askSuggestion('Como posso melhorar este c\xF3digo baseado no padr\xE3o do projeto?')">
+                            Melhorar c\xF3digo
                         </div>
-                        <div class="suggestion" onclick="askSuggestion('Gerar testes unit\xE1rios')">
+                        <div class="suggestion" onclick="askSuggestion('Gerar testes seguindo o padr\xE3o do projeto')">
                             Gerar testes
                         </div>
                     </div>
@@ -10117,14 +12259,33 @@ ${code}
             if (loading) {
                 sendBtn.disabled = true;
                 
+                // Update context indicators to show loading
+                const indicators = document.getElementById('contextIndicators');
+                const children = indicators.children;
+                for (let i = 0; i < children.length; i++) {
+                    if (children[i].className.includes('active')) {
+                        children[i].className = 'context-indicator loading';
+                    }
+                }
+                
                 const loadingDiv = document.createElement('div');
                 loadingDiv.className = 'loading';
-                loadingDiv.innerHTML = '<div class="spinner"></div> Pensando...';
+                loadingDiv.innerHTML = '<div class="spinner"></div> Analisando contexto...';
                 loadingDiv.id = 'loading-indicator';
                 messagesContainer.appendChild(loadingDiv);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             } else {
                 sendBtn.disabled = false;
+                
+                // Restore context indicators
+                const indicators = document.getElementById('contextIndicators');
+                const children = indicators.children;
+                for (let i = 0; i < children.length; i++) {
+                    if (children[i].className.includes('loading')) {
+                        children[i].className = 'context-indicator active';
+                    }
+                }
+                
                 const loadingIndicator = document.getElementById('loading-indicator');
                 if (loadingIndicator) {
                     loadingIndicator.remove();
@@ -10143,7 +12304,7 @@ ${code}
 // src/ExtensionManager.ts
 var ExtensionManager = class {
   constructor() {
-    this.outputChannel = vscode12.window.createOutputChannel("xCopilot");
+    this.outputChannel = vscode14.window.createOutputChannel("xCopilot");
     Logger.init(this.outputChannel);
     this.configService = ConfigurationService.getInstance();
   }
@@ -10162,18 +12323,23 @@ var ExtensionManager = class {
       this.inlineCompletionService = InlineCompletionService.getInstance();
       this.refactoringService = RefactoringService.getInstance();
       this.patternDetectionService = PatternDetectionService.getInstance();
+      this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance(context);
+      this.semanticSearchService = SemanticSearchService.getInstance(context);
+      this.contextAwareService = ContextAwareService.getInstance(context);
+      this.initializeContextAwareFeatures();
       this.registerWebviewProvider(context);
       this.chatCommands.registerCommands(context);
       this.refactoringService.registerCommands(context);
       this.patternDetectionService.registerCommands(context);
       this.registerCodeExplanationCommands(context);
+      this.registerContextAwareCommands(context);
       this.registerCodeProviders(context);
       this.setupConfigurationWatcher(context);
       context.subscriptions.push(this.outputChannel);
       Logger.info("\u2705 Extension activation completed successfully");
     } catch (error) {
       Logger.error("\u274C CRITICAL ERROR during extension activation:", error);
-      vscode12.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+      vscode14.window.showErrorMessage(`Erro cr\xEDtico ao ativar xCopilot: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
     }
   }
   /**
@@ -10181,7 +12347,7 @@ var ExtensionManager = class {
    */
   registerWebviewProvider(context) {
     Logger.info("\u{1F4DD} Registering WebviewViewProvider for xcopilotPanel...");
-    const mainDisposable = vscode12.window.registerWebviewViewProvider(
+    const mainDisposable = vscode14.window.registerWebviewViewProvider(
       "xcopilotPanel",
       this.chatProvider,
       {
@@ -10190,7 +12356,7 @@ var ExtensionManager = class {
         }
       }
     );
-    const sidebarDisposable = vscode12.window.registerWebviewViewProvider(
+    const sidebarDisposable = vscode14.window.registerWebviewViewProvider(
       "xcopilotChat",
       this.sidebarChatProvider,
       {
@@ -10223,63 +12389,138 @@ var ExtensionManager = class {
    * Registra comandos de explicação de código
    */
   registerCodeExplanationCommands(context) {
-    const commands5 = [
-      vscode12.commands.registerCommand("xcopilot.explainSelected", () => {
+    const commands8 = [
+      vscode14.commands.registerCommand("xcopilot.explainSelected", () => {
         this.codeExplanationService.explainSelectedCode();
       }),
-      vscode12.commands.registerCommand("xcopilot.explainFunction", () => {
+      vscode14.commands.registerCommand("xcopilot.explainFunction", () => {
         this.codeExplanationService.explainCurrentFunction();
       }),
-      vscode12.commands.registerCommand("xcopilot.explainFile", () => {
+      vscode14.commands.registerCommand("xcopilot.explainFile", () => {
         this.codeExplanationService.explainEntireFile();
       }),
-      vscode12.commands.registerCommand("xcopilot.acceptGhostText", () => {
+      vscode14.commands.registerCommand("xcopilot.acceptGhostText", () => {
         this.ghostTextService.acceptGhostText();
       }),
-      vscode12.commands.registerCommand("xcopilot.openChat", () => {
-        vscode12.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
-        vscode12.commands.executeCommand("setContext", "xcopilot.chatVisible", true);
+      vscode14.commands.registerCommand("xcopilot.openChat", () => {
+        vscode14.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+        vscode14.commands.executeCommand("setContext", "xcopilot.chatVisible", true);
       }),
-      vscode12.commands.registerCommand("xcopilot.closeChat", () => {
-        vscode12.commands.executeCommand("workbench.action.closePanel");
-        vscode12.commands.executeCommand("setContext", "xcopilot.chatVisible", false);
+      vscode14.commands.registerCommand("xcopilot.closeChat", () => {
+        vscode14.commands.executeCommand("workbench.action.closePanel");
+        vscode14.commands.executeCommand("setContext", "xcopilot.chatVisible", false);
       }),
-      vscode12.commands.registerCommand("xcopilot.toggleChat", () => {
-        vscode12.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
+      vscode14.commands.registerCommand("xcopilot.toggleChat", () => {
+        vscode14.commands.executeCommand("workbench.view.extension.xcopilot-sidebar");
       }),
-      vscode12.commands.registerCommand("xcopilot.openChatWithCode", () => {
-        const editor = vscode12.window.activeTextEditor;
+      vscode14.commands.registerCommand("xcopilot.openChatWithCode", () => {
+        const editor = vscode14.window.activeTextEditor;
         if (editor && !editor.selection.isEmpty) {
           const selectedCode = editor.document.getText(editor.selection);
-          vscode12.commands.executeCommand("xcopilot.openChat");
+          vscode14.commands.executeCommand("xcopilot.openChat");
           this.sidebarChatProvider.openWithSelectedCode(selectedCode);
         } else {
-          vscode12.window.showWarningMessage("Selecione c\xF3digo para explicar no chat");
+          vscode14.window.showWarningMessage("Selecione c\xF3digo para explicar no chat");
         }
       }),
-      vscode12.commands.registerCommand("xcopilot.toggleInlineCompletion", () => {
+      vscode14.commands.registerCommand("xcopilot.toggleInlineCompletion", () => {
         const currentState = this.inlineCompletionService.isServiceEnabled();
         this.inlineCompletionService.setEnabled(!currentState);
-        vscode12.window.showInformationMessage(
+        vscode14.window.showInformationMessage(
           `Inline Completion ${!currentState ? "habilitado" : "desabilitado"}`
         );
       }),
-      vscode12.commands.registerCommand("xcopilot.clearCompletionCache", () => {
+      vscode14.commands.registerCommand("xcopilot.clearCompletionCache", () => {
         this.inlineCompletionService.clearCache();
-        vscode12.window.showInformationMessage("Cache de completions limpo");
+        vscode14.window.showInformationMessage("Cache de completions limpo");
       }),
-      vscode12.commands.registerCommand("xcopilot.showCompletionStats", () => {
+      vscode14.commands.registerCommand("xcopilot.showCompletionStats", () => {
         const stats = this.inlineCompletionService.getStats();
         const message = `Estat\xEDsticas de Completion:
 Requisi\xE7\xF5es: ${stats.requestCount}
 Cache Hits: ${stats.cacheHits}
 Taxa de Cache: ${stats.cacheHitRate.toFixed(1)}%
 Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats.utilization.toFixed(1)}%)`;
-        vscode12.window.showInformationMessage(message);
+        vscode14.window.showInformationMessage(message);
       })
     ];
-    context.subscriptions.push(...commands5);
+    context.subscriptions.push(...commands8);
     Logger.info("\u2705 Code explanation commands registered");
+  }
+  /**
+   * Registra comandos context-aware
+   */
+  registerContextAwareCommands(context) {
+    const commands8 = [
+      // Analyze workspace
+      vscode14.commands.registerCommand("xcopilot.analyzeWorkspace", async () => {
+        try {
+          await vscode14.window.withProgress({
+            location: vscode14.ProgressLocation.Notification,
+            title: "Analisando workspace...",
+            cancellable: false
+          }, async () => {
+            await this.workspaceAnalysisService.analyzeWorkspace(true);
+          });
+          vscode14.window.showInformationMessage("An\xE1lise do workspace conclu\xEDda!");
+        } catch (error) {
+          vscode14.window.showErrorMessage("Erro ao analisar workspace");
+        }
+      }),
+      // Refresh workspace analysis
+      vscode14.commands.registerCommand("xcopilot.refreshWorkspaceAnalysis", async () => {
+        await this.contextAwareService.refreshWorkspaceAnalysis();
+      }),
+      // Show workspace stats
+      vscode14.commands.registerCommand("xcopilot.showWorkspaceStats", () => {
+        const analysis = this.workspaceAnalysisService.getCurrentAnalysis();
+        if (!analysis) {
+          vscode14.window.showWarningMessage('Nenhuma an\xE1lise do workspace dispon\xEDvel. Execute "Analisar Workspace" primeiro.');
+          return;
+        }
+        const message = `Estat\xEDsticas do Workspace:
+\u{1F4C1} Arquivos: ${analysis.projectStructure.totalFiles}
+\u{1F4DD} Linhas de c\xF3digo: ${analysis.projectStructure.totalLines.toLocaleString()}
+\u{1F3D7}\uFE0F Linguagem: ${analysis.architecture.language}
+\u{1F527} Frameworks: ${analysis.architecture.frameworks.join(", ") || "Nenhum detectado"}
+\u{1F4E6} Depend\xEAncias: ${analysis.dependencies.dependencies.length}
+\u{1F5C2}\uFE0F Diret\xF3rios: ${analysis.projectStructure.directories.length}
+\u{1F4C5} \xDAltima an\xE1lise: ${analysis.lastAnalyzed.toLocaleString()}`;
+        vscode14.window.showInformationMessage(message);
+      }),
+      // Show context stats
+      vscode14.commands.registerCommand("xcopilot.showContextStats", () => {
+        const stats = this.contextAwareService.getContextStats();
+        const cacheStats = this.semanticSearchService.getCacheStats();
+        const message = `Estat\xEDsticas de Contexto:
+\u{1F9E0} Inicializado: ${stats.isInitialized ? "Sim" : "N\xE3o"}
+\u{1F4CA} An\xE1lise dispon\xEDvel: ${stats.hasWorkspaceAnalysis ? "Sim" : "N\xE3o"}
+\u{1F4AC} Conversas: ${stats.conversationCount}
+\u{1F50D} Cache sem\xE2ntico: ${cacheStats.size} itens (${Math.round(cacheStats.memory / 1024)}KB)
+\u{1F4C5} \xDAltima an\xE1lise: ${stats.lastAnalysis?.toLocaleString() || "Nunca"}`;
+        vscode14.window.showInformationMessage(message);
+      }),
+      // Clear context cache
+      vscode14.commands.registerCommand("xcopilot.clearContextCache", () => {
+        this.workspaceAnalysisService.clearCache();
+        this.semanticSearchService.clearCache();
+        vscode14.window.showInformationMessage("Cache de contexto limpo");
+      })
+    ];
+    context.subscriptions.push(...commands8);
+    Logger.info("\u2705 Context-aware commands registered");
+  }
+  /**
+   * Inicializa funcionalidades context-aware de forma assíncrona
+   */
+  async initializeContextAwareFeatures() {
+    try {
+      Logger.info("\u{1F9E0} Initializing context-aware features...");
+      await this.contextAwareService.initialize();
+      Logger.info("\u2705 Context-aware features initialized successfully");
+    } catch (error) {
+      Logger.error("Error initializing context-aware features:", error);
+    }
   }
 };
 
