@@ -79,6 +79,74 @@
             {
                 "command": "xcopilot.analyzeDiff",
                 "title": "xCopilot: Analisar Diff"
+            },
+            {
+                "command": "xcopilot.refactorCode",
+                "title": "xCopilot: Refatorar Código"
+            },
+            {
+                "command": "xcopilot.extractFunction",
+                "title": "xCopilot: Extrair Função"
+            },
+            {
+                "command": "xcopilot.extractVariable",
+                "title": "xCopilot: Extrair Variável"
+            },
+            {
+                "command": "xcopilot.optimizeImports",
+                "title": "xCopilot: Otimizar Imports"
+            },
+            {
+                "command": "xcopilot.applyDesignPattern",
+                "title": "xCopilot: Aplicar Padrão de Design"
+            },
+            {
+                "command": "xcopilot.analyzePatterns",
+                "title": "xCopilot: Analisar Padrões"
+            },
+            {
+                "command": "xcopilot.analyzeWorkspacePatterns",
+                "title": "xCopilot: Analisar Padrões do Workspace"
+            },
+            {
+                "command": "xcopilot.togglePatternDetection",
+                "title": "xCopilot: Toggle Detecção de Padrões"
+            },
+            {
+                "command": "xcopilot.explainSelected",
+                "title": "xCopilot: Explicar Código Selecionado"
+            },
+            {
+                "command": "xcopilot.explainFunction",
+                "title": "xCopilot: Explicar Função Atual"
+            },
+            {
+                "command": "xcopilot.explainFile",
+                "title": "xCopilot: Explicar Arquivo Completo"
+            },
+            {
+                "command": "xcopilot.acceptGhostText",
+                "title": "xCopilot: Aceitar Sugestão Ghost Text"
+            },
+            {
+                "command": "xcopilot.openChat",
+                "title": "xCopilot: Abrir Chat Lateral",
+                "icon": "$(comment-discussion)"
+            },
+            {
+                "command": "xcopilot.closeChat",
+                "title": "xCopilot: Fechar Chat",
+                "icon": "$(close)"
+            },
+            {
+                "command": "xcopilot.toggleChat",
+                "title": "xCopilot: Toggle Chat",
+                "icon": "$(comment-discussion)"
+            },
+            {
+                "command": "xcopilot.openChatWithCode",
+                "title": "xCopilot: Abrir Chat com Código Selecionado",
+                "icon": "$(comment-discussion)"
             }
         ],
         "viewsContainers": {
@@ -86,6 +154,13 @@
                 {
                     "id": "xcopilot",
                     "title": "xCopilot",
+                    "icon": "media/icon.svg"
+                }
+            ],
+            "panel": [
+                {
+                    "id": "xcopilot-sidebar",
+                    "title": "xCopilot Chat",
                     "icon": "media/icon.svg"
                 }
             ]
@@ -96,6 +171,14 @@
                     "id": "xcopilotPanel",
                     "name": "Assistente",
                     "type": "webview"
+                }
+            ],
+            "xcopilot-sidebar": [
+                {
+                    "id": "xcopilotChat",
+                    "name": "Chat",
+                    "type": "webview",
+                    "when": "xcopilot.chatVisible"
                 }
             ]
         },
@@ -118,6 +201,55 @@
                 {
                     "command": "xcopilot.analyzeFile",
                     "group": "xcopilot@4"
+                },
+                {
+                    "command": "xcopilot.refactorCode",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-refactor@1"
+                },
+                {
+                    "command": "xcopilot.extractFunction",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-refactor@2"
+                },
+                {
+                    "command": "xcopilot.extractVariable",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-refactor@3"
+                },
+                {
+                    "command": "xcopilot.optimizeImports",
+                    "group": "xcopilot-refactor@4"
+                },
+                {
+                    "command": "xcopilot.applyDesignPattern",
+                    "group": "xcopilot-refactor@5"
+                },
+                {
+                    "command": "xcopilot.analyzePatterns",
+                    "group": "xcopilot-analysis@1"
+                },
+                {
+                    "command": "xcopilot.explainSelected",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-explain@1"
+                },
+                {
+                    "command": "xcopilot.explainFunction",
+                    "group": "xcopilot-explain@2"
+                },
+                {
+                    "command": "xcopilot.explainFile",
+                    "group": "xcopilot-explain@3"
+                },
+                {
+                    "command": "xcopilot.openChatWithCode",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-chat@1"
+                },
+                {
+                    "command": "xcopilot.toggleChat",
+                    "group": "xcopilot-chat@2"
                 }
             ],
             "explorer/context": [
@@ -137,7 +269,39 @@
                     "description": "Endpoint do backend xCopilot para geração de respostas"
                 }
             }
-        }
+        },
+        "keybindings": [
+            {
+                "command": "xcopilot.explainSelected",
+                "key": "ctrl+k ctrl+e",
+                "when": "editorTextFocus && editorHasSelection"
+            },
+            {
+                "command": "xcopilot.explainFunction",
+                "key": "ctrl+k ctrl+f",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.acceptGhostText",
+                "key": "tab",
+                "when": "editorTextFocus && xcopilot.ghostTextVisible"
+            },
+            {
+                "command": "xcopilot.refactorCode",
+                "key": "ctrl+k ctrl+r",
+                "when": "editorTextFocus && editorHasSelection"
+            },
+            {
+                "command": "xcopilot.toggleChat",
+                "key": "ctrl+k ctrl+c",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "xcopilot.openChat",
+                "key": "ctrl+shift+x",
+                "when": "editorTextFocus"
+            }
+        ]
     },
     "scripts": {
         "vscode:prepublish": "npm run build",

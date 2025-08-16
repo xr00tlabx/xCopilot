@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ConversationEntry, ConversationHistory, CodeContext } from '../types';
+import { CodeContext, ConversationEntry, ConversationHistory } from '../types';
 import { Logger } from '../utils/Logger';
 
 /**

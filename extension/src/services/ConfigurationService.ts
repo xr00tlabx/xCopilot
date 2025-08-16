@@ -23,11 +23,7 @@ export class ConfigurationService {
     getConfig(): ExtensionConfig {
         const config = vscode.workspace.getConfiguration('xcopilot');
         return {
-            backendUrl: config.get<string>('backendUrl') || 'http://localhost:3000',
-            enableAutoContext: config.get<boolean>('enableAutoContext') ?? true,
-            maxHistoryItems: config.get<number>('maxHistoryItems') || 100,
-            enableGitIntegration: config.get<boolean>('enableGitIntegration') ?? true,
-            customTemplates: config.get<any[]>('customTemplates') || []
+            backendUrl: config.get<string>('backendUrl') || 'http://localhost:3000'
         };
     }
 
