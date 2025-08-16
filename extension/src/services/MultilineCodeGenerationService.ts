@@ -158,7 +158,7 @@ export class MultilineCodeGenerationService {
                     selectedText: interfaceInfo.name
                 },
                 specification: `Implement interface ${interfaceInfo.name}`,
-                template: this.codeGeneration.getTemplate(`${language.substring(0, 2)}-interface`)
+                template: this.codeGeneration.getTemplate(`${MultilineCodeGenerationService.languageCodeMap[language] || language}-interface`)
             };
 
             const result = await this.codeGeneration.generateCode(request);
