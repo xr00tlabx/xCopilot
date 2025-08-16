@@ -261,7 +261,7 @@ Complete a linha atual:`;
      */
     private generateCacheKey(textBefore: string, textAfter: string, language: string): string {
         const key = `${language}:${textBefore.trim()}:${textAfter.trim()}`;
-        return Buffer.from(key).toString('base64').substring(0, 50); // Limit key length
+        return crypto.createHash('sha256').update(key).digest('hex').substring(0, 50); // Limit key length
     }
 
     /**
