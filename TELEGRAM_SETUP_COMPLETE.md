@@ -3,7 +3,7 @@
 ## 📱 Sistema Telegram Configurado com Sucesso!
 
 ### 🔧 **Configuração Atual:**
-- ✅ **Bot Token**: `7635832623:AAHSEq2p5OFDPKLl_kztVh4kCVQQ_pGv8UI`
+- ✅ **Bot Token**: `YOUR_TELEGRAM_BOT_TOKEN_HERE`
 - ✅ **Chat ID**: `-1002781291666`
 - ✅ **GitHub Workflows**: Configurados
 - ✅ **Scripts**: Funcionando
