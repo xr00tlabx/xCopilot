@@ -10,7 +10,8 @@ Vá em `Settings > Secrets and variables > Actions` no seu repositório GitHub e
 
 ```
 TELEGRAM_BOT_TOKEN = 7635832623:AAHSEq2p5OFDPKLl_kztVh4kCVQQ_pGv8UI
-TELEGRAM_CHAT_ID = -1002781291666
+TELEGRAM_BOT_TOKEN = YOUR_TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID = YOUR_TELEGRAM_CHAT_ID
 ```
 
 ### 2. Testar Localmente

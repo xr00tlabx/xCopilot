@@ -69,7 +69,20 @@ class ProjectMonitor {
         try {
             // Verificar se o backend está rodando
             try {
-                execSync('curl -f http://localhost:3000/health', { stdio: 'pipe' });
+                await new Promise((resolve, reject) => {
+                    const req = http.get('http://localhost:3000/health', (res) => {
+                        if (res.statusCode >= 200 && res.statusCode < 300) {
+                            resolve();
+                        } else {
+                            reject(new Error('Non-2xx status code: ' + res.statusCode));
+                        }
+                    });
+                    req.on('error', reject);
+                    req.setTimeout(5000, () => {
+                        req.abort();
+                        reject(new Error('Request timed out'));
+                    });
+                });
                 health.metrics.backend = 'online';
             } catch {
                 health.metrics.backend = 'offline';
@@ -81,7 +94,7 @@ class ProjectMonitor {
             const gitStatus = execSync('git status --porcelain', { encoding: 'utf8' });
             if (gitStatus.trim()) {
                 health.metrics.gitStatus = 'dirty';
-                health.issues.push(`📝 ${gitStatus.split('\\n').length} arquivos modificados`);
+                health.issues.push(`📝 ${gitStatus.split('\n').length} arquivos modificados`);
             } else {
                 health.metrics.gitStatus = 'clean';
             }
@@ -183,7 +196,7 @@ ${metrics.contributors.map(c => `• ${c.name}: ${c.commits} commits`).join('\\n
         const contributors = new Map();
         
         // Processar estatísticas
-        stats.split('\\n').forEach(line => {
+        stats.split('\n').forEach(line => {
             if (line.trim()) {
                 const [added, removed] = line.split('\\t');
                 if (added !== '-') linesAdded += parseInt(added) || 0;
@@ -194,7 +207,7 @@ ${metrics.contributors.map(c => `• ${c.name}: ${c.commits} commits`).join('\\n
 
         // Obter contribuidores
         const contributorList = execSync(`git log --since="${today}" --pretty=format:"%an" | sort | uniq -c`, { encoding: 'utf8' });
-        contributorList.split('\\n').forEach(line => {
+        contributorList.split('\n').forEach(line => {
             const match = line.trim().match(/(\\d+)\\s+(.+)/);
             if (match) {
                 contributors.set(match[2], parseInt(match[1]));
