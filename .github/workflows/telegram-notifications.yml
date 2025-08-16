@@ -30,43 +30,55 @@ jobs:
         id: msg
         run: |
           EVENT="${{ github.event_name }}"
-          MSG=""
+          
           if [ "$EVENT" = "push" ]; then
-            MSG="[xCopilot] PUSH\nBranch: ${{ steps.info.outputs.branch }}\nAutor: ${{ steps.info.outputs.actor }}\nCommit: ${{ steps.info.outputs.short_sha }}\nMensagem: ${{ github.event.head_commit.message }}"
+            TEXT="[xCopilot] PUSH na branch ${{ steps.info.outputs.branch }} por ${{ steps.info.outputs.actor }} (commit ${{ steps.info.outputs.short_sha }})"
           elif [ "$EVENT" = "pull_request" ]; then
             ACTION="${{ github.event.action }}"
             if [ "$ACTION" = "opened" ]; then
-              MSG="[xCopilot] PR ABERTO #${{ github.event.number }}\nAutor: ${{ github.event.pull_request.user.login }}\nDe: ${{ github.event.pull_request.head.ref }} -> ${{ github.event.pull_request.base.ref }}\nTitulo: ${{ github.event.pull_request.title }}"
+              TEXT="[xCopilot] PR #${{ github.event.number }} ABERTO por ${{ github.event.pull_request.user.login }}"
             elif [ "$ACTION" = "closed" ]; then
               if [ "${{ github.event.pull_request.merged }}" = "true" ]; then
-                MSG="[xCopilot] PR MERGED #${{ github.event.number }}\nAutor: ${{ github.event.pull_request.user.login }}\nTitulo: ${{ github.event.pull_request.title }}"
+                TEXT="[xCopilot] PR #${{ github.event.number }} MERGED por ${{ github.event.pull_request.user.login }}"
               else
-                MSG="[xCopilot] PR FECHADO #${{ github.event.number }}\nAutor: ${{ github.event.pull_request.user.login }}\nTitulo: ${{ github.event.pull_request.title }}"
+                TEXT="[xCopilot] PR #${{ github.event.number }} FECHADO por ${{ github.event.pull_request.user.login }}"
               fi
+            else
+              TEXT="[xCopilot] PR #${{ github.event.number }} atualizado por ${{ github.event.pull_request.user.login }}"
             fi
           elif [ "$EVENT" = "release" ]; then
-            MSG="[xCopilot] RELEASE ${{ github.event.release.tag_name }}\nNome: ${{ github.event.release.name }}\nAutor: ${{ github.event.release.author.login }}"
+            TEXT="[xCopilot] RELEASE ${{ github.event.release.tag_name }} por ${{ github.event.release.author.login }}"
           elif [ "$EVENT" = "workflow_run" ]; then
             if [ "${{ github.event.workflow_run.conclusion }}" = "success" ]; then
-              MSG="[xCopilot] BUILD OK\nWorkflow: ${{ github.event.workflow_run.name }}\nBranch: ${{ github.event.workflow_run.head_branch }}"
+              TEXT="[xCopilot] BUILD OK - ${{ github.event.workflow_run.name }} na branch ${{ github.event.workflow_run.head_branch }}"
             else
-              MSG="[xCopilot] BUILD FAIL\nWorkflow: ${{ github.event.workflow_run.name }}\nBranch: ${{ github.event.workflow_run.head_branch }}"
+              TEXT="[xCopilot] BUILD FAIL - ${{ github.event.workflow_run.name }} na branch ${{ github.event.workflow_run.head_branch }}"
             fi
+          else
+            TEXT="[xCopilot] Evento $EVENT detectado"
           fi
-          SAFE=$(printf '%s' "$MSG" | sed 's/"/\"/g')
-          echo "text=$SAFE" >> $GITHUB_OUTPUT
+          
+          echo "text=$TEXT" >> $GITHUB_OUTPUT
+          echo "Debug: MESSAGE='$TEXT'" # Para debug
 
       - name: Send Telegram
         if: steps.msg.outputs.text != ''
         run: |
+          MESSAGE="${{ steps.msg.outputs.text }}"
+          echo "Enviando: $MESSAGE"
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d "{\n  \"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",\n  \"text\": \"${{ steps.msg.outputs.text }}\"\n}"
+            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"$MESSAGE\"}"
 
       - name: Send Status
         if: always()
         run: |
-          STATUS="OK"; [ "${{ job.status }}" = "success" ] || STATUS="FALHA"
+          if [ "${{ job.status }}" = "success" ]; then
+            STATUS_MSG="[xCopilot] Notificacao enviada com sucesso"
+          else
+            STATUS_MSG="[xCopilot] Falha no envio da notificacao"
+          fi
+          echo "Status: $STATUS_MSG"
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d "{\n  \"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",\n  \"text\": \"[xCopilot] Status envio: $STATUS\"\n}"
+            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"$STATUS_MSG\"}"
