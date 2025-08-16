@@ -194,7 +194,7 @@ ${metrics.contributors.map(c => `• ${c.name}: ${c.commits} commits`).join('\\n
 
         // Obter contribuidores
         const contributorList = execSync(`git log --since="${today}" --pretty=format:"%an" | sort | uniq -c`, { encoding: 'utf8' });
-        contributorList.split('\\n').forEach(line => {
+        contributorList.split('\n').forEach(line => {
             const match = line.trim().match(/(\\d+)\\s+(.+)/);
             if (match) {
                 contributors.set(match[2], parseInt(match[1]));
