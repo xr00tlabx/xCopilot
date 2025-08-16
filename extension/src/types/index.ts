@@ -50,8 +50,6 @@ export interface ConversationEntry {
     timestamp: Date;
     userMessage: string;
     aiResponse: string;
-    prompt?: string;
-    response?: string;
     fileName?: string;
     fileType?: string;
     context?: CodeContext;
@@ -65,76 +63,23 @@ export interface ConversationHistory {
     lastUpdated?: Date;
 }
 
-export interface WorkspaceAnalysis {
-    projectStructure: ProjectStructure;
-    dependencies: DependencyInfo[];
-    patterns: PatternInfo[];
-    conventions: ConventionInfo[];
-    lastAnalyzed: Date;
-}
-
-export interface ProjectStructure {
-    rootPath: string;
-    packageInfo?: PackageInfo;
-    frameworks: string[];
-    languages: string[];
-    mainDirectories: string[];
-    entryPoints: string[];
-}
-
-export interface DependencyInfo {
-    name: string;
-    version?: string;
-    type: 'dependency' | 'devDependency' | 'peerDependency';
-    source: string; // package.json, requirements.txt, etc.
-}
-
-export interface PatternInfo {
-    type: 'architectural' | 'design' | 'coding';
-    name: string;
-    description: string;
-    files: string[];
-    confidence: number;
-}
-
-export interface ConventionInfo {
-    type: 'naming' | 'formatting' | 'structure';
-    rule: string;
-    examples: string[];
-    confidence: number;
-}
-
-export interface PackageInfo {
-    name: string;
-    version: string;
-    type: 'npm' | 'python' | 'maven' | 'composer' | 'other';
-    scripts?: Record<string, string>;
-}
-
-export interface VectorEmbedding {
-    id: string;
-    filePath: string;
-    content: string;
-    embeddings: number[];
-    metadata: {
-        fileType: string;
-        size: number;
-        lastModified: Date;
-        chunks?: string[];
-    };
-}
-
-export interface ContextRetrievalResult {
-    relevantFiles: string[];
-    relevantContent: string[];
-    embeddingScores: number[];
-    totalScore: number;
-}
-
 export interface GitInfo {
     branch?: string;
+    currentBranch?: string;
     hasChanges?: boolean;
+    hasUncommittedChanges?: boolean;
     diff?: string;
+    changedFiles?: string[];
+    lastCommitMessage?: string;
+    recentCommits?: GitCommit[];
+}
+
+export interface GitCommit {
+    hash: string;
+    message: string;
+    author: string;
+    date: Date;
+    files: string[];
 }
 
 export interface PromptTemplate {
@@ -144,4 +89,108 @@ export interface PromptTemplate {
     template: string;
     supportedFileTypes: string[];
     variables: string[];
+}
+
+// New interfaces for context-aware features
+export interface WorkspaceAnalysis {
+    projectStructure: ProjectStructure;
+    dependencies: DependencyInfo;
+    codePatterns: CodePattern[];
+    architecture: ArchitectureInfo;
+    fileTypes: FileTypeStats;
+    lastAnalyzed: Date;
+}
+
+export interface ProjectStructure {
+    totalFiles: number;
+    totalLines: number;
+    directories: DirectoryInfo[];
+    mainFiles: string[];
+    configFiles: string[];
+    testFiles: string[];
+}
+
+export interface DirectoryInfo {
+    path: string;
+    fileCount: number;
+    subDirectories: string[];
+    purpose?: string; // src, test, config, docs, etc.
+}
+
+export interface DependencyInfo {
+    packageJson?: any;
+    lockFile?: string;
+    dependencies: string[];
+    devDependencies: string[];
+    frameworks: string[];
+    languages: string[];
+}
+
+export interface CodePattern {
+    type: 'class' | 'function' | 'constant' | 'import' | 'export';
+    pattern: string;
+    frequency: number;
+    files: string[];
+    examples: string[];
+}
+
+export interface ArchitectureInfo {
+    pattern?: string; // MVC, Clean Architecture, etc.
+    frameworks: string[];
+    buildTool?: string;
+    language: string;
+    styleGuide?: CodeStyleGuide;
+}
+
+export interface CodeStyleGuide {
+    indentation: 'tabs' | 'spaces';
+    indentSize: number;
+    quotes: 'single' | 'double';
+    semicolons: boolean;
+    namingConvention: 'camelCase' | 'snake_case' | 'kebab-case' | 'PascalCase';
+    commonPatterns: string[];
+}
+
+export interface FileTypeStats {
+    [extension: string]: {
+        count: number;
+        totalLines: number;
+        avgLinesPerFile: number;
+    };
+}
+
+export interface ContextualSuggestion {
+    id: string;
+    type: 'refactor' | 'optimize' | 'test' | 'documentation' | 'pattern';
+    title: string;
+    description: string;
+    relevance: number; // 0-1 score
+    context: string; // what makes this relevant
+    action?: string; // command to execute
+}
+
+export interface ConversationContext {
+    workspaceAnalysis?: WorkspaceAnalysis;
+    currentFile?: CodeContext;
+    gitInfo?: GitInfo;
+    recentConversations: ConversationEntry[];
+    relevantCode: string[];
+    suggestions: ContextualSuggestion[];
+    memoryContext?: string; // RAG retrieved context
+}
+
+export interface SemanticSearchResult {
+    content: string;
+    similarity: number;
+    source: 'conversation' | 'code' | 'documentation';
+    metadata: any;
+}
+
+export interface ContextAwareConfig {
+    enableWorkspaceAnalysis: boolean;
+    enableSemanticSearch: boolean;
+    maxContextSize: number;
+    analysisDepth: 'shallow' | 'medium' | 'deep';
+    memorySessions: number;
+    autoSuggestions: boolean;
 }

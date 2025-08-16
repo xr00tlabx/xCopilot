@@ -1,604 +1,514 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
 import { 
-    WorkspaceAnalysis, 
-    ProjectStructure, 
-    DependencyInfo, 
-    PatternInfo, 
-    ConventionInfo, 
-    PackageInfo,
+    ConversationContext, 
+    ContextualSuggestion, 
+    WorkspaceAnalysis,
+    ConversationEntry,
     CodeContext,
-    ContextRetrievalResult
+    GitInfo,
+    ContextAwareConfig
 } from '../types';
 import { Logger } from '../utils/Logger';
-import { VectorEmbeddingService } from './VectorEmbeddingService';
+import { WorkspaceAnalysisService } from './WorkspaceAnalysisService';
 import { ConversationHistoryService } from './ConversationHistoryService';
 import { CodeContextService } from './CodeContextService';
+import { GitIntegrationService } from './GitIntegrationService';
 
 /**
- * Service for context-aware workspace analysis and smart context injection
+ * Serviço principal para gerenciar contexto consciente
  */
 export class ContextAwareService {
     private static instance: ContextAwareService;
-    private vectorEmbeddingService: VectorEmbeddingService;
+    private context: vscode.ExtensionContext;
+    private workspaceAnalysisService: WorkspaceAnalysisService;
     private conversationHistoryService: ConversationHistoryService;
     private codeContextService: CodeContextService;
-    private workspaceAnalysis: WorkspaceAnalysis | null = null;
-    private isAnalyzing: boolean = false;
+    private gitIntegrationService: GitIntegrationService;
+    private isInitialized = false;
 
-    private constructor() {
-        this.vectorEmbeddingService = VectorEmbeddingService.getInstance();
-        this.conversationHistoryService = ConversationHistoryService.getInstance();
+    private constructor(context: vscode.ExtensionContext) {
+        this.context = context;
+        this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance(context);
+        this.conversationHistoryService = ConversationHistoryService.getInstance(context);
         this.codeContextService = CodeContextService.getInstance();
+        this.gitIntegrationService = GitIntegrationService.getInstance();
     }
 
-    static getInstance(): ContextAwareService {
-        if (!ContextAwareService.instance) {
-            ContextAwareService.instance = new ContextAwareService();
+    static getInstance(context?: vscode.ExtensionContext): ContextAwareService {
+        if (!ContextAwareService.instance && context) {
+            ContextAwareService.instance = new ContextAwareService(context);
         }
         return ContextAwareService.instance;
     }
 
     /**
-     * Initialize the service and analyze workspace
-     */
-    async initialize(context: vscode.ExtensionContext): Promise<void> {
-        Logger.info('Initializing ContextAwareService');
-        
-        // Initialize conversation history service with context
-        this.conversationHistoryService = ConversationHistoryService.getInstance(context);
-        
-        // Start workspace analysis in background
-        this.analyzeWorkspace().catch(error => {
-            Logger.error('Error during workspace analysis:', error);
-        });
 
-        // Initialize vector embeddings
-        this.vectorEmbeddingService.initializeWorkspace().catch(error => {
-            Logger.error('Error during vector embedding initialization:', error);
-        });
+     * Inicializa o serviço com análise inicial do workspace
+     */
+    async initialize(): Promise<void> {
+        if (this.isInitialized) {
+            return;
+        }
+
+        Logger.info('Initializing Context-Aware Service...');
+
+        try {
+            // Show initialization progress
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: "xCopilot: Analisando workspace...",
+                cancellable: false
+            }, async (progress) => {
+                progress.report({ increment: 20, message: "Carregando configurações..." });
+                
+                progress.report({ increment: 40, message: "Analisando estrutura do projeto..." });
+                await this.workspaceAnalysisService.analyzeWorkspace();
+                
+                progress.report({ increment: 80, message: "Configurando contexto..." });
+                await this.setupContextWatchers();
+                
+                progress.report({ increment: 100, message: "Pronto!" });
+            });
+
+            this.isInitialized = true;
+            
+            // Set context for UI
+            vscode.commands.executeCommand('setContext', 'xcopilot.contextAware', true);
+            
+            Logger.info('Context-Aware Service initialized successfully');
+
+        } catch (error) {
+            Logger.error('Error initializing Context-Aware Service:', error);
+            vscode.window.showErrorMessage('Erro ao inicializar análise de contexto do xCopilot');
+        }
     }
 
     /**
-     * Analyze the workspace for architecture, patterns, and conventions
+     * Obtém contexto completo para uma conversa
      */
-    async analyzeWorkspace(): Promise<WorkspaceAnalysis> {
-        if (this.isAnalyzing) {
-            Logger.warn('Workspace analysis already in progress');
-            return this.workspaceAnalysis || this.createEmptyAnalysis();
+    async getConversationContext(userMessage: string): Promise<ConversationContext> {
+        const context: ConversationContext = {
+            recentConversations: [],
+            relevantCode: [],
+            suggestions: []
+        };
+
+        try {
+            // Get workspace analysis
+            const workspaceAnalysis = this.workspaceAnalysisService.getCurrentAnalysis();
+            if (workspaceAnalysis) {
+                context.workspaceAnalysis = workspaceAnalysis;
+            }
+
+            // Get current file context
+            const currentFile = this.codeContextService.getCurrentContext(true);
+            if (currentFile) {
+                context.currentFile = currentFile;
+            }
+
+            // Get Git information
+            const gitInfo = await this.gitIntegrationService.getGitInfo();
+            if (gitInfo) {
+                context.gitInfo = gitInfo;
+            }
+
+            // Get relevant conversations
+            context.recentConversations = this.getRelevantConversations(userMessage, currentFile);
+
+            // Get relevant code snippets
+            context.relevantCode = await this.getRelevantCode(userMessage, currentFile);
+
+            // Generate contextual suggestions
+            context.suggestions = await this.generateSuggestions(context);
+
+            // Get semantic context (simplified - would use vector search in full implementation)
+            context.memoryContext = this.getMemoryContext(userMessage, context);
+
+            Logger.debug('Generated conversation context', { 
+                hasWorkspace: !!context.workspaceAnalysis,
+                hasCurrentFile: !!context.currentFile,
+                hasGit: !!context.gitInfo,
+                conversationCount: context.recentConversations.length,
+                suggestionCount: context.suggestions.length
+            });
+
+            return context;
+
+        } catch (error) {
+            Logger.error('Error getting conversation context:', error);
+            return context;
+        }
+    }
+
+    /**
+     * Obtém conversas relevantes baseadas no contexto atual
+     */
+    private getRelevantConversations(userMessage: string, currentFile?: CodeContext): ConversationEntry[] {
+        const allEntries = this.conversationHistoryService.getRecentEntries(20);
+        const relevant: ConversationEntry[] = [];
+
+        // Get conversations from the same file
+        if (currentFile?.fileName) {
+            const sameFileConversations = allEntries.filter(entry => 
+                entry.fileName === currentFile.fileName
+            ).slice(0, 3);
+            relevant.push(...sameFileConversations);
         }
 
+        // Get conversations with similar topics (simple keyword matching)
+        const keywords = this.extractKeywords(userMessage);
+        const topicRelevant = allEntries.filter(entry => {
+            const entryKeywords = this.extractKeywords(entry.userMessage + ' ' + entry.aiResponse);
+            return keywords.some(keyword => entryKeywords.includes(keyword));
+        }).slice(0, 3);
+
+        // Merge and deduplicate
+        for (const entry of topicRelevant) {
+            if (!relevant.some(r => r.id === entry.id)) {
+                relevant.push(entry);
+            }
+        }
+
+        // Limit to most recent 5
+        return relevant.slice(0, 5);
+    }
+
+    /**
+     * Extrai palavras-chave simples de um texto
+     */
+    private extractKeywords(text: string): string[] {
+        const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by']);
+        return text.toLowerCase()
+            .split(/\W+/)
+            .filter(word => word.length > 2 && !stopWords.has(word))
+            .slice(0, 10); // Limit keywords
+    }
+
+    /**
+     * Obtém código relevante para o contexto
+     */
+    private async getRelevantCode(userMessage: string, currentFile?: CodeContext): Promise<string[]> {
+        const relevantCode: string[] = [];
+
+        try {
+            // Include current file context if available
+            if (currentFile?.selectedText) {
+                relevantCode.push(`Current selection in ${currentFile.fileName}:\n${currentFile.selectedText}`);
+            } else if (currentFile?.fullFileContent && currentFile.fullFileContent.length < 2000) {
+                relevantCode.push(`Current file ${currentFile.fileName}:\n${currentFile.fullFileContent}`);
+            }
+
+            // Get related files based on imports/references (simplified)
+            if (currentFile?.fileName) {
+                const relatedFiles = await this.findRelatedFiles(currentFile.fileName);
+                for (const file of relatedFiles.slice(0, 2)) {
+                    try {
+                        const uri = vscode.Uri.file(file);
+                        const document = await vscode.workspace.openTextDocument(uri);
+                        if (document.getText().length < 1000) {
+                            relevantCode.push(`Related file ${file}:\n${document.getText()}`);
+                        }
+                    } catch (error) {
+                        // Skip files that can't be read
+                    }
+                }
+            }
+
+        } catch (error) {
+            Logger.warn('Error getting relevant code:', error);
+        }
+
+        return relevantCode;
+    }
+
+    /**
+     * Encontra arquivos relacionados (simplificado)
+     */
+    private async findRelatedFiles(fileName: string): Promise<string[]> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || workspaceFolders.length === 0) {
-            Logger.warn('No workspace folders found');
-            return this.createEmptyAnalysis();
-        }
+        if (!workspaceFolders) return [];
 
-        this.isAnalyzing = true;
-        Logger.info('Starting comprehensive workspace analysis');
+        const related: string[] = [];
+        const baseName = fileName.replace(/\.[^/.]+$/, ''); // Remove extension
+        const baseNameWithoutPath = baseName.split('/').pop() || '';
 
         try {
-            const rootPath = workspaceFolders[0].uri.fsPath;
+            const pattern = `**/${baseNameWithoutPath}.*`;
+            const files = await vscode.workspace.findFiles(pattern, '**/node_modules/**', 10);
             
-            // Analyze project structure
-            const projectStructure = await this.analyzeProjectStructure(rootPath);
-            
-            // Analyze dependencies
-            const dependencies = await this.analyzeDependencies(rootPath);
-            
-            // Detect patterns
-            const patterns = await this.detectPatterns(rootPath);
-            
-            // Extract conventions
-            const conventions = await this.extractConventions(rootPath);
-
-            this.workspaceAnalysis = {
-                projectStructure,
-                dependencies,
-                patterns,
-                conventions,
-                lastAnalyzed: new Date()
-            };
-
-            Logger.info(`Workspace analysis completed. Found ${dependencies.length} dependencies, ${patterns.length} patterns, ${conventions.length} conventions`);
-            return this.workspaceAnalysis;
-
+            for (const file of files) {
+                const filePath = file.fsPath;
+                if (filePath !== fileName) {
+                    related.push(filePath);
+                }
+            }
         } catch (error) {
-            Logger.error('Error during workspace analysis:', error);
-            return this.createEmptyAnalysis();
-        } finally {
-            this.isAnalyzing = false;
+            Logger.warn('Error finding related files:', error);
         }
+
+        return related;
     }
 
     /**
-     * Analyze project structure
+     * Gera sugestões contextuais
      */
-    private async analyzeProjectStructure(rootPath: string): Promise<ProjectStructure> {
-        const structure: ProjectStructure = {
-            rootPath,
-            frameworks: [],
-            languages: [],
-            mainDirectories: [],
-            entryPoints: []
-        };
+    private async generateSuggestions(context: ConversationContext): Promise<ContextualSuggestion[]> {
+        const suggestions: ContextualSuggestion[] = [];
 
         try {
-            // Read root directory
-            const entries = await fs.promises.readdir(rootPath, { withFileTypes: true });
-            
-            // Detect package info
-            structure.packageInfo = await this.detectPackageInfo(rootPath);
-            
-            // Identify main directories
-            structure.mainDirectories = entries
-                .filter(entry => entry.isDirectory() && !['node_modules', '.git', 'dist', 'build'].includes(entry.name))
-                .map(entry => entry.name);
+            // Suggestions based on current file
+            if (context.currentFile) {
+                suggestions.push(...this.generateFileBasedSuggestions(context.currentFile));
+            }
 
-            // Detect frameworks and languages
-            const { frameworks, languages, entryPoints } = await this.detectFrameworksAndLanguages(rootPath, entries);
-            structure.frameworks = frameworks;
-            structure.languages = languages;
-            structure.entryPoints = entryPoints;
+            // Suggestions based on workspace analysis
+            if (context.workspaceAnalysis) {
+                suggestions.push(...this.generateWorkspaceBasedSuggestions(context.workspaceAnalysis));
+            }
+
+            // Suggestions based on Git status
+            if (context.gitInfo) {
+                suggestions.push(...this.generateGitBasedSuggestions(context.gitInfo));
+            }
+
+            // Sort by relevance
+            suggestions.sort((a, b) => b.relevance - a.relevance);
 
         } catch (error) {
-            Logger.error('Error analyzing project structure:', error);
+            Logger.warn('Error generating suggestions:', error);
         }
 
-        return structure;
+        return suggestions.slice(0, 5); // Limit to top 5
     }
 
     /**
-     * Detect package information
+     * Gera sugestões baseadas no arquivo atual
      */
-    private async detectPackageInfo(rootPath: string): Promise<PackageInfo | undefined> {
-        const packageFiles = [
-            { file: 'package.json', type: 'npm' as const },
-            { file: 'requirements.txt', type: 'python' as const },
-            { file: 'pom.xml', type: 'maven' as const },
-            { file: 'composer.json', type: 'composer' as const }
-        ];
+    private generateFileBasedSuggestions(fileContext: CodeContext): ContextualSuggestion[] {
+        const suggestions: ContextualSuggestion[] = [];
 
-        for (const { file, type } of packageFiles) {
-            const filePath = path.join(rootPath, file);
-            try {
-                if (await this.fileExists(filePath)) {
-                    const content = await fs.promises.readFile(filePath, 'utf-8');
-                    
-                    if (type === 'npm' || type === 'composer') {
-                        const json = JSON.parse(content);
-                        return {
-                            name: json.name || 'unknown',
-                            version: json.version || '0.0.0',
-                            type,
-                            scripts: json.scripts
-                        };
-                    } else if (type === 'python') {
-                        return {
-                            name: path.basename(rootPath),
-                            version: '0.0.0',
-                            type
-                        };
-                    }
-                }
-            } catch (error) {
-                Logger.warn(`Error reading ${file}:`, error);
+        if (fileContext.selectedText) {
+            suggestions.push({
+                id: 'explain-selection',
+                type: 'documentation',
+                title: 'Explicar código selecionado',
+                description: 'Obter explicação detalhada do código selecionado',
+                relevance: 0.9,
+                context: 'Código selecionado disponível',
+                action: 'xcopilot.explainSelected'
+            });
+
+            suggestions.push({
+                id: 'refactor-selection',
+                type: 'refactor',
+                title: 'Refatorar código selecionado',
+                description: 'Sugerir melhorias para o código selecionado',
+                relevance: 0.8,
+                context: 'Código selecionado disponível',
+                action: 'xcopilot.refactorCode'
+            });
+        }
+
+        if (fileContext.fileType === 'typescript' || fileContext.fileType === 'javascript') {
+            suggestions.push({
+                id: 'generate-tests',
+                type: 'test',
+                title: 'Gerar testes unitários',
+                description: 'Criar testes para este arquivo',
+                relevance: 0.7,
+                context: 'Arquivo JS/TS detectado',
+                action: 'xcopilot.generateTests'
+            });
+        }
+
+        return suggestions;
+    }
+
+    /**
+     * Gera sugestões baseadas na análise do workspace
+     */
+    private generateWorkspaceBasedSuggestions(analysis: WorkspaceAnalysis): ContextualSuggestion[] {
+        const suggestions: ContextualSuggestion[] = [];
+
+        // Suggest architecture documentation if project is large
+        if (analysis.projectStructure.totalFiles > 50) {
+            suggestions.push({
+                id: 'document-architecture',
+                type: 'documentation',
+                title: 'Documentar arquitetura',
+                description: 'Gerar documentação da arquitetura do projeto',
+                relevance: 0.6,
+                context: `Projeto com ${analysis.projectStructure.totalFiles} arquivos`,
+                action: 'xcopilot.generateArchitectureDoc'
+            });
+        }
+
+        // Suggest optimization if many dependencies
+        if (analysis.dependencies.dependencies.length > 20) {
+            suggestions.push({
+                id: 'optimize-deps',
+                type: 'optimize',
+                title: 'Otimizar dependências',
+                description: 'Analisar e otimizar dependências do projeto',
+                relevance: 0.5,
+                context: `${analysis.dependencies.dependencies.length} dependências encontradas`
+            });
+        }
+
+        return suggestions;
+    }
+
+    /**
+     * Gera sugestões baseadas no status do Git
+     */
+    private generateGitBasedSuggestions(gitInfo: GitInfo): ContextualSuggestion[] {
+        const suggestions: ContextualSuggestion[] = [];
+
+        if (gitInfo.hasUncommittedChanges) {
+            suggestions.push({
+                id: 'generate-commit',
+                type: 'documentation',
+                title: 'Gerar mensagem de commit',
+                description: 'Criar mensagem de commit baseada nas mudanças',
+                relevance: 0.8,
+                context: 'Mudanças não commitadas detectadas',
+                action: 'xcopilot.generateCommit'
+            });
+
+            suggestions.push({
+                id: 'review-changes',
+                type: 'documentation',
+                title: 'Revisar mudanças',
+                description: 'Analisar mudanças antes do commit',
+                relevance: 0.7,
+                context: 'Mudanças não commitadas detectadas',
+                action: 'xcopilot.analyzeDiff'
+            });
+        }
+
+        return suggestions;
+    }
+
+    /**
+     * Obtém contexto de memória (RAG simplificado)
+     */
+    private getMemoryContext(userMessage: string, context: ConversationContext): string {
+        const memoryParts: string[] = [];
+
+        // Include recent relevant conversations
+        if (context.recentConversations.length > 0) {
+            memoryParts.push('Conversas recentes relevantes:');
+            for (const conv of context.recentConversations.slice(0, 2)) {
+                memoryParts.push(`- ${conv.userMessage} -> ${conv.aiResponse.substring(0, 100)}...`);
             }
         }
 
-        return undefined;
+        // Include current project context
+        if (context.workspaceAnalysis) {
+            const analysis = context.workspaceAnalysis;
+            memoryParts.push(`\nContexto do projeto:`);
+            memoryParts.push(`- Linguagem: ${analysis.architecture.language}`);
+            memoryParts.push(`- Frameworks: ${analysis.architecture.frameworks.join(', ')}`);
+            memoryParts.push(`- ${analysis.projectStructure.totalFiles} arquivos, ${analysis.projectStructure.totalLines} linhas`);
+        }
+
+        // Include current file context
+        if (context.currentFile) {
+            memoryParts.push(`\nArquivo atual: ${context.currentFile.fileName} (${context.currentFile.fileType})`);
+        }
+
+        return memoryParts.join('\n');
     }
 
     /**
-     * Detect frameworks and languages
+     * Formata contexto para envio ao backend
      */
-    private async detectFrameworksAndLanguages(rootPath: string, entries: fs.Dirent[]): Promise<{frameworks: string[], languages: string[], entryPoints: string[]}> {
-        const frameworks: string[] = [];
-        const languages = new Set<string>();
-        const entryPoints: string[] = [];
+    formatContextForPrompt(userMessage: string, context: ConversationContext): string {
+        let formattedPrompt = userMessage;
 
-        // Check for common framework indicators
-        const frameworkIndicators = {
-            'react': ['package.json'],
-            'angular': ['angular.json'],
-            'vue': ['vue.config.js'],
-            'express': ['package.json'],
-            'django': ['manage.py'],
-            'flask': ['app.py'],
-            'spring': ['pom.xml'],
-            'dotnet': ['*.csproj']
+        // Add memory context
+        if (context.memoryContext) {
+            formattedPrompt += `\n\n**Contexto do projeto:**\n${context.memoryContext}`;
+        }
+
+        // Add current file context
+        if (context.currentFile?.selectedText) {
+            formattedPrompt += `\n\n**Código selecionado:**\n\`\`\`${context.currentFile.fileType}\n${context.currentFile.selectedText}\n\`\`\``;
+        }
+
+        // Add relevant code
+        if (context.relevantCode.length > 0) {
+            formattedPrompt += `\n\n**Código relacionado:**\n${context.relevantCode.join('\n\n')}`;
+        }
+
+        return formattedPrompt;
+    }
+
+    /**
+     * Configura watchers para mudanças de contexto
+     */
+    private async setupContextWatchers(): Promise<void> {
+        // Watch for file changes
+        vscode.workspace.onDidChangeTextDocument((event) => {
+            // Could trigger re-analysis for specific files
+        });
+
+        // Watch for file creation/deletion
+        vscode.workspace.onDidCreateFiles((event) => {
+            // Could trigger workspace re-analysis
+        });
+
+        vscode.workspace.onDidDeleteFiles((event) => {
+            // Could trigger workspace re-analysis
+        });
+
+        // Watch for active editor changes
+        vscode.window.onDidChangeActiveTextEditor((editor) => {
+            // Could update current context
+        });
+    }
+
+    /**
+     * Obtém configuração do context-aware
+     */
+    private getConfig(): ContextAwareConfig {
+        const config = vscode.workspace.getConfiguration('xcopilot.contextAware');
+        return {
+            enableWorkspaceAnalysis: config.get('enableWorkspaceAnalysis', true),
+            enableSemanticSearch: config.get('enableSemanticSearch', true),
+            maxContextSize: config.get('maxContextSize', 4000),
+            analysisDepth: config.get('analysisDepth', 'medium'),
+            memorySessions: config.get('memorySessions', 5),
+            autoSuggestions: config.get('autoSuggestions', true)
         };
+    }
 
-        // Scan files for language detection
-        for (const entry of entries) {
-            if (entry.isFile()) {
-                const ext = path.extname(entry.name);
-                const langMap: Record<string, string> = {
-                    '.js': 'JavaScript',
-                    '.ts': 'TypeScript',
-                    '.jsx': 'React',
-                    '.tsx': 'React TypeScript',
-                    '.py': 'Python',
-                    '.java': 'Java',
-                    '.cs': 'C#',
-                    '.cpp': 'C++',
-                    '.c': 'C',
-                    '.php': 'PHP',
-                    '.go': 'Go',
-                    '.rs': 'Rust',
-                    '.rb': 'Ruby',
-                    '.swift': 'Swift',
-                    '.kt': 'Kotlin'
-                };
+    /**
+     * Força re-análise do workspace
+     */
+    async refreshWorkspaceAnalysis(): Promise<void> {
+        Logger.info('Refreshing workspace analysis...');
+        await this.workspaceAnalysisService.analyzeWorkspace(true);
+        vscode.window.showInformationMessage('Análise do workspace atualizada!');
+    }
 
-                if (langMap[ext]) {
-                    languages.add(langMap[ext]);
-                }
-
-                // Check for entry points
-                if (['index.js', 'index.ts', 'main.js', 'main.ts', 'app.js', 'app.ts', 'server.js', 'server.ts'].includes(entry.name)) {
-                    entryPoints.push(entry.name);
-                }
-            }
-        }
-
-        // Check for frameworks
-        for (const [framework, indicators] of Object.entries(frameworkIndicators)) {
-            for (const indicator of indicators) {
-                if (indicator.includes('*')) {
-                    // Glob pattern check
-                    const pattern = indicator.replace('*', '');
-                    if (entries.some(entry => entry.name.endsWith(pattern))) {
-                        frameworks.push(framework);
-                        break;
-                    }
-                } else {
-                    const filePath = path.join(rootPath, indicator);
-                    if (await this.fileExists(filePath)) {
-                        // Additional checks for package.json
-                        if (indicator === 'package.json') {
-                            try {
-                                const content = await fs.promises.readFile(filePath, 'utf-8');
-                                const pkg = JSON.parse(content);
-                                if (pkg.dependencies || pkg.devDependencies) {
-                                    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-                                    if (deps.react) frameworks.push('react');
-                                    if (deps.express) frameworks.push('express');
-                                    if (deps['@angular/core']) frameworks.push('angular');
-                                    if (deps.vue) frameworks.push('vue');
-                                }
-                            } catch (error) {
-                                Logger.warn('Error parsing package.json:', error);
-                            }
-                        } else {
-                            frameworks.push(framework);
-                        }
-                        break;
-                    }
-                }
-            }
-        }
+    /**
+     * Obtém estatísticas do contexto
+     */
+    getContextStats(): { 
+        isInitialized: boolean;
+        hasWorkspaceAnalysis: boolean;
+        conversationCount: number;
+        lastAnalysis?: Date;
+    } {
+        const analysis = this.workspaceAnalysisService.getCurrentAnalysis();
+        const conversationCount = this.conversationHistoryService.getRecentEntries(100).length;
 
         return {
-            frameworks: [...new Set(frameworks)],
-            languages: Array.from(languages),
-            entryPoints
+            isInitialized: this.isInitialized,
+            hasWorkspaceAnalysis: !!analysis,
+            conversationCount,
+            lastAnalysis: analysis?.lastAnalyzed
         };
-    }
-
-    /**
-     * Analyze dependencies
-     */
-    private async analyzeDependencies(rootPath: string): Promise<DependencyInfo[]> {
-        const dependencies: DependencyInfo[] = [];
-
-        // Check package.json
-        const packageJsonPath = path.join(rootPath, 'package.json');
-        if (await this.fileExists(packageJsonPath)) {
-            try {
-                const content = await fs.promises.readFile(packageJsonPath, 'utf-8');
-                const pkg = JSON.parse(content);
-                
-                if (pkg.dependencies) {
-                    for (const [name, version] of Object.entries(pkg.dependencies)) {
-                        dependencies.push({
-                            name,
-                            version: version as string,
-                            type: 'dependency',
-                            source: 'package.json'
-                        });
-                    }
-                }
-
-                if (pkg.devDependencies) {
-                    for (const [name, version] of Object.entries(pkg.devDependencies)) {
-                        dependencies.push({
-                            name,
-                            version: version as string,
-                            type: 'devDependency',
-                            source: 'package.json'
-                        });
-                    }
-                }
-            } catch (error) {
-                Logger.warn('Error analyzing package.json dependencies:', error);
-            }
-        }
-
-        // Check requirements.txt
-        const requirementsPath = path.join(rootPath, 'requirements.txt');
-        if (await this.fileExists(requirementsPath)) {
-            try {
-                const content = await fs.promises.readFile(requirementsPath, 'utf-8');
-                const lines = content.split('\n').filter(line => line.trim() && !line.startsWith('#'));
-                
-                for (const line of lines) {
-                    const match = line.match(/^([a-zA-Z0-9\-_]+)([>=<!=]+)?(.+)?/);
-                    if (match) {
-                        dependencies.push({
-                            name: match[1],
-                            version: match[3],
-                            type: 'dependency',
-                            source: 'requirements.txt'
-                        });
-                    }
-                }
-            } catch (error) {
-                Logger.warn('Error analyzing requirements.txt:', error);
-            }
-        }
-
-        return dependencies;
-    }
-
-    /**
-     * Detect architectural and design patterns
-     */
-    private async detectPatterns(rootPath: string): Promise<PatternInfo[]> {
-        const patterns: PatternInfo[] = [];
-
-        try {
-            // Check for MVC pattern
-            const mvcDirs = ['models', 'views', 'controllers'];
-            const hasMVC = mvcDirs.every(dir => 
-                fs.existsSync(path.join(rootPath, dir)) || 
-                fs.existsSync(path.join(rootPath, 'src', dir))
-            );
-            
-            if (hasMVC) {
-                patterns.push({
-                    type: 'architectural',
-                    name: 'MVC (Model-View-Controller)',
-                    description: 'Separation of concerns with models, views, and controllers',
-                    files: mvcDirs.map(dir => path.join('src', dir)),
-                    confidence: 0.9
-                });
-            }
-
-            // Check for component-based architecture (React/Vue/Angular)
-            const componentDirs = await this.findDirectoriesMatching(rootPath, ['components', 'component']);
-            if (componentDirs.length > 0) {
-                patterns.push({
-                    type: 'architectural',
-                    name: 'Component-Based Architecture',
-                    description: 'UI built with reusable components',
-                    files: componentDirs,
-                    confidence: 0.8
-                });
-            }
-
-            // Check for service layer pattern
-            const serviceDirs = await this.findDirectoriesMatching(rootPath, ['services', 'service']);
-            if (serviceDirs.length > 0) {
-                patterns.push({
-                    type: 'architectural',
-                    name: 'Service Layer Pattern',
-                    description: 'Business logic encapsulated in service classes',
-                    files: serviceDirs,
-                    confidence: 0.7
-                });
-            }
-
-            // Check for repository pattern
-            const repoDirs = await this.findDirectoriesMatching(rootPath, ['repositories', 'repository', 'dao']);
-            if (repoDirs.length > 0) {
-                patterns.push({
-                    type: 'design',
-                    name: 'Repository Pattern',
-                    description: 'Data access abstraction layer',
-                    files: repoDirs,
-                    confidence: 0.8
-                });
-            }
-
-        } catch (error) {
-            Logger.error('Error detecting patterns:', error);
-        }
-
-        return patterns;
-    }
-
-    /**
-     * Extract coding conventions
-     */
-    private async extractConventions(rootPath: string): Promise<ConventionInfo[]> {
-        const conventions: ConventionInfo[] = [];
-
-        try {
-            // Check for naming conventions by analyzing file names
-            const files = await this.getFilesSample(rootPath, 20);
-            
-            // Analyze case conventions
-            const kebabCase = files.filter(f => /^[a-z]+(-[a-z]+)*\.[a-z]+$/.test(path.basename(f))).length;
-            const camelCase = files.filter(f => /^[a-z][a-zA-Z]*\.[a-z]+$/.test(path.basename(f))).length;
-            const pascalCase = files.filter(f => /^[A-Z][a-zA-Z]*\.[a-z]+$/.test(path.basename(f))).length;
-
-            const total = files.length;
-            if (kebabCase > total * 0.3) {
-                conventions.push({
-                    type: 'naming',
-                    rule: 'kebab-case for file names',
-                    examples: files.filter(f => /^[a-z]+(-[a-z]+)*\.[a-z]+$/.test(path.basename(f))).slice(0, 3),
-                    confidence: kebabCase / total
-                });
-            }
-
-            if (camelCase > total * 0.3) {
-                conventions.push({
-                    type: 'naming',
-                    rule: 'camelCase for file names',
-                    examples: files.filter(f => /^[a-z][a-zA-Z]*\.[a-z]+$/.test(path.basename(f))).slice(0, 3),
-                    confidence: camelCase / total
-                });
-            }
-
-            if (pascalCase > total * 0.3) {
-                conventions.push({
-                    type: 'naming',
-                    rule: 'PascalCase for file names',
-                    examples: files.filter(f => /^[A-Z][a-zA-Z]*\.[a-z]+$/.test(path.basename(f))).slice(0, 3),
-                    confidence: pascalCase / total
-                });
-            }
-
-        } catch (error) {
-            Logger.error('Error extracting conventions:', error);
-        }
-
-        return conventions;
-    }
-
-    /**
-     * Get enhanced context for chat with RAG
-     */
-    async getEnhancedContext(userMessage: string, includeHistory: boolean = true): Promise<{
-        currentContext: CodeContext | null;
-        retrievalContext: ContextRetrievalResult;
-        conversationContext: string;
-        workspaceContext: string;
-    }> {
-        // Get current file context
-        const currentContext = this.codeContextService.getContextWithFallback(10);
-
-        // Get relevant context using vector embeddings
-        const retrievalContext = await this.vectorEmbeddingService.retrieveRelevantContext(userMessage, 3);
-
-        // Get conversation context
-        let conversationContext = '';
-        if (includeHistory) {
-            const recentEntries = this.conversationHistoryService.getRecentEntries(5);
-            conversationContext = recentEntries.map(entry => 
-                `Q: ${entry.userMessage}\nA: ${entry.aiResponse}`
-            ).join('\n\n');
-        }
-
-        // Get workspace context
-        const workspaceContext = this.buildWorkspaceContextString();
-
-        return {
-            currentContext,
-            retrievalContext,
-            conversationContext,
-            workspaceContext
-        };
-    }
-
-    /**
-     * Build workspace context string
-     */
-    private buildWorkspaceContextString(): string {
-        if (!this.workspaceAnalysis) {
-            return 'Workspace analysis not available';
-        }
-
-        const { projectStructure, dependencies, patterns, conventions } = this.workspaceAnalysis;
-        
-        const context = [
-            `Project: ${projectStructure.packageInfo?.name || 'Unknown'}`,
-            `Languages: ${projectStructure.languages.join(', ')}`,
-            `Frameworks: ${projectStructure.frameworks.join(', ')}`,
-            `Main Dependencies: ${dependencies.filter(d => d.type === 'dependency').slice(0, 5).map(d => d.name).join(', ')}`,
-            `Architecture Patterns: ${patterns.map(p => p.name).join(', ')}`,
-            `Conventions: ${conventions.map(c => c.rule).join(', ')}`
-        ].join('\n');
-
-        return context;
-    }
-
-    /**
-     * Utility methods
-     */
-    private async fileExists(filePath: string): Promise<boolean> {
-        try {
-            await fs.promises.access(filePath);
-            return true;
-        } catch {
-            return false;
-        }
-    }
-
-    private async findDirectoriesMatching(rootPath: string, patterns: string[]): Promise<string[]> {
-        const found: string[] = [];
-        try {
-            const entries = await fs.promises.readdir(rootPath, { withFileTypes: true });
-            for (const entry of entries) {
-                if (entry.isDirectory()) {
-                    for (const pattern of patterns) {
-                        if (entry.name.toLowerCase().includes(pattern.toLowerCase())) {
-                            found.push(path.join(rootPath, entry.name));
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            Logger.warn(`Error finding directories in ${rootPath}:`, error);
-        }
-        return found;
-    }
-
-    private async getFilesSample(rootPath: string, limit: number): Promise<string[]> {
-        const files: string[] = [];
-        try {
-            const entries = await fs.promises.readdir(rootPath, { withFileTypes: true });
-            for (const entry of entries) {
-                if (entry.isFile() && files.length < limit) {
-                    files.push(path.join(rootPath, entry.name));
-                }
-            }
-        } catch (error) {
-            Logger.warn(`Error getting files sample from ${rootPath}:`, error);
-        }
-        return files;
-    }
-
-    private createEmptyAnalysis(): WorkspaceAnalysis {
-        return {
-            projectStructure: {
-                rootPath: '',
-                frameworks: [],
-                languages: [],
-                mainDirectories: [],
-                entryPoints: []
-            },
-            dependencies: [],
-            patterns: [],
-            conventions: [],
-            lastAnalyzed: new Date()
-        };
-    }
-
-    /**
-     * Get workspace analysis
-     */
-    getWorkspaceAnalysis(): WorkspaceAnalysis | null {
-        return this.workspaceAnalysis;
-    }
-
-    /**
-     * Check if analysis is ready
-     */
-    isAnalysisReady(): boolean {
-        return this.workspaceAnalysis !== null && !this.isAnalyzing;
     }
 }
