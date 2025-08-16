@@ -22,6 +22,10 @@ export interface ExtensionConfig {
         cacheSize: number;
         maxContextLines: number;
     };
+    ghostText: {
+        enabled: boolean;
+        throttleMs: number;
+    };
 }
 
 export interface BackendError {
