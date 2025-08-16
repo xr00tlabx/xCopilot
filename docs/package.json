@@ -1,0 +1,12 @@
+{
+    "name": "xcopilot-docs",
+    "version": "1.0.0",
+    "description": "Documentation for xCopilot project",
+    "private": true,
+    "scripts": {},
+    "keywords": [
+        "documentation"
+    ],
+    "author": "xr00tlabx",
+    "license": "MIT"
+}

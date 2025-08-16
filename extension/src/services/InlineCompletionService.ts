@@ -1,10 +1,10 @@
-import * as vscode from 'vscode';
 import * as crypto from 'crypto';
+import * as vscode from 'vscode';
 import { Logger } from '../utils/Logger';
+import { LRUCache } from '../utils/LRUCache';
 import { BackendService } from './BackendService';
 import { CodeContextService } from './CodeContextService';
 import { ConfigurationService } from './ConfigurationService';
-import { LRUCache } from '../utils/LRUCache';
 
 interface CompletionCacheKey {
     textBefore: string;
@@ -76,7 +76,7 @@ export class InlineCompletionService implements vscode.InlineCompletionItemProvi
     /**
      * Update settings from configuration
      */
-    private updateFromConfig(): void {
+    updateFromConfig(): void {
         const config = this.configService.getConfig();
         this.isEnabled = config.inlineCompletion.enabled;
         this.throttleMs = config.inlineCompletion.throttleMs;

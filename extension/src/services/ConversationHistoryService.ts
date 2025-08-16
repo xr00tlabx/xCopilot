@@ -21,6 +21,9 @@ export class ConversationHistoryService {
         if (!ConversationHistoryService.instance && context) {
             ConversationHistoryService.instance = new ConversationHistoryService(context);
         }
+        if (!ConversationHistoryService.instance) {
+            throw new Error('ConversationHistoryService must be initialized with context first');
+        }
         return ConversationHistoryService.instance;
     }
 

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { BackendService } from '../services/BackendService';
-import { WorkspaceAnalysisService } from '../services/WorkspaceAnalysisService';
 import { ConversationHistoryService } from '../services/ConversationHistoryService';
+import { WorkspaceAnalysisService } from '../services/WorkspaceAnalysisService';
 import { ChatMessage } from '../types';
 import { Logger } from '../utils/Logger';
 import { getChatHtml } from './WebviewHtml';
@@ -63,12 +63,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
                 const contextualPrompt = this.workspaceAnalysisService.formatContextForPrompt(message.prompt);
                 
                 // Adicionar contexto de conversas anteriores (últimas 5)
-                const recentConversations = this.conversationHistoryService.getRecentConversations(5);
+                const recentConversations = this.conversationHistoryService.getRecentEntries(5);
                 let finalPrompt = contextualPrompt;
                 
                 if (recentConversations.length > 0) {
                     const conversationContext = recentConversations.map(conv => 
-                        `Q: ${conv.prompt}\nA: ${conv.response.substring(0, 200)}...`
+                        `Q: ${conv.userMessage}\nA: ${conv.aiResponse.substring(0, 200)}...`
                     ).join('\n\n');
                     
                     finalPrompt = `[CONVERSATION HISTORY]\n${conversationContext}\n\n${contextualPrompt}`;
@@ -77,13 +77,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
                 const answer = await this.backendService.askQuestion(finalPrompt);
                 
                 // Salvar conversa no histórico
-                this.conversationHistoryService.addConversation({
-                    id: Date.now().toString(),
-                    prompt: message.prompt,
-                    response: answer,
-                    timestamp: new Date(),
-                    context: 'chat'
-                });
+                this.conversationHistoryService.addEntry(message.prompt, answer);
                 
                 this.sendMessage({ type: 'answer', text: answer });
             } catch (error) {

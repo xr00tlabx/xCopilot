@@ -4,6 +4,7 @@ import {
     CodeExplanationService,
     CodeSuggestionsService,
     ConfigurationService,
+    ConversationHistoryService,
     GhostTextService,
     InlineCompletionService,
     MultilineGenerationService,
@@ -22,6 +23,7 @@ export class ExtensionManager {
     private sidebarChatProvider!: SidebarChatProvider;
     private chatCommands!: ChatCommands;
     private configService: ConfigurationService;
+    private conversationHistoryService!: ConversationHistoryService;
     private codeSuggestionsService!: CodeSuggestionsService;
     private codeExplanationService!: CodeExplanationService;
     private ghostTextService!: GhostTextService;
@@ -48,8 +50,11 @@ export class ExtensionManager {
         Logger.info('🚀 xCopilot extension is now active!');
 
         try {
+            // Inicializar serviços que precisam do contexto primeiro
+            this.conversationHistoryService = ConversationHistoryService.getInstance(context);
+
             // Inicializar providers com contexto
-            this.chatProvider = new ChatWebviewProvider(context);
+            this.chatProvider = new ChatWebviewProvider();
             this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
             this.chatCommands = new ChatCommands(this.chatProvider);
 
@@ -209,6 +214,29 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
 
         context.subscriptions.push(...commands);
         Logger.info('✅ Code explanation commands registered');
+    }
+
+    /**
+     * Configura monitoramento de mudanças na configuração
+     */
+    private setupConfigurationWatcher(context: vscode.ExtensionContext): void {
+        // Monitorar mudanças na configuração da extensão
+        const configWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
+            if (event.affectsConfiguration('xcopilot')) {
+                Logger.info('Configuration changed, updating services...');
+
+    // Atualizar configurações dos serviços
+                try {
+                    this.inlineCompletionService?.updateFromConfig();
+                    Logger.info('Services updated with new configuration');
+                } catch (error) {
+                    Logger.error('Error updating services configuration:', error);
+                }
+            }
+        });
+
+        context.subscriptions.push(configWatcher);
+        Logger.info('✅ Configuration watcher setup completed');
     }
 
     /**
