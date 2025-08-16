@@ -575,7 +575,7 @@ export class RefactoringService {
         try {
             const selection = editor.selection;
             if (selection.isEmpty) {
-                vscode.window.showWarningMessage('Selecione o método para mover');
+                vscode.window.showWarningMessage('Select the method to move');
                 return;
             }
 
