@@ -81,7 +81,7 @@ class ProjectMonitor {
             const gitStatus = execSync('git status --porcelain', { encoding: 'utf8' });
             if (gitStatus.trim()) {
                 health.metrics.gitStatus = 'dirty';
-                health.issues.push(`📝 ${gitStatus.split('\\n').length} arquivos modificados`);
+                health.issues.push(`📝 ${gitStatus.split('\n').length} arquivos modificados`);
             } else {
                 health.metrics.gitStatus = 'clean';
             }
