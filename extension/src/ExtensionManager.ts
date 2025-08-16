@@ -9,8 +9,8 @@ import {
     InlineCompletionService,
     MultilineGenerationService,
     PatternDetectionService,
-    RefactoringService,
     RefactoringCodeLensProvider,
+    RefactoringService,
     WorkspaceAnalysisService
 } from './services';
 import { Logger } from './utils';
