@@ -48,16 +48,87 @@ export interface CodeContext {
 export interface ConversationEntry {
     id: string;
     timestamp: Date;
-    prompt: string;
-    response: string;
+    userMessage: string;
+    aiResponse: string;
+    prompt?: string;
+    response?: string;
     fileName?: string;
     fileType?: string;
     context?: CodeContext;
+    relevantFiles?: string[];
+    embeddingScore?: number;
 }
 
 export interface ConversationHistory {
     entries: ConversationEntry[];
     totalEntries: number;
+    lastUpdated?: Date;
+}
+
+export interface WorkspaceAnalysis {
+    projectStructure: ProjectStructure;
+    dependencies: DependencyInfo[];
+    patterns: PatternInfo[];
+    conventions: ConventionInfo[];
+    lastAnalyzed: Date;
+}
+
+export interface ProjectStructure {
+    rootPath: string;
+    packageInfo?: PackageInfo;
+    frameworks: string[];
+    languages: string[];
+    mainDirectories: string[];
+    entryPoints: string[];
+}
+
+export interface DependencyInfo {
+    name: string;
+    version?: string;
+    type: 'dependency' | 'devDependency' | 'peerDependency';
+    source: string; // package.json, requirements.txt, etc.
+}
+
+export interface PatternInfo {
+    type: 'architectural' | 'design' | 'coding';
+    name: string;
+    description: string;
+    files: string[];
+    confidence: number;
+}
+
+export interface ConventionInfo {
+    type: 'naming' | 'formatting' | 'structure';
+    rule: string;
+    examples: string[];
+    confidence: number;
+}
+
+export interface PackageInfo {
+    name: string;
+    version: string;
+    type: 'npm' | 'python' | 'maven' | 'composer' | 'other';
+    scripts?: Record<string, string>;
+}
+
+export interface VectorEmbedding {
+    id: string;
+    filePath: string;
+    content: string;
+    embeddings: number[];
+    metadata: {
+        fileType: string;
+        size: number;
+        lastModified: Date;
+        chunks?: string[];
+    };
+}
+
+export interface ContextRetrievalResult {
+    relevantFiles: string[];
+    relevantContent: string[];
+    embeddingScores: number[];
+    totalScore: number;
 }
 
 export interface GitInfo {

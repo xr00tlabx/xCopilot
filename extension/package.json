@@ -159,6 +159,18 @@
             {
                 "command": "xcopilot.showCompletionStats",
                 "title": "xCopilot: Mostrar Estatísticas de Completion"
+            },
+            {
+                "command": "xcopilot.analyzeWorkspace",
+                "title": "xCopilot: Analisar Workspace"
+            },
+            {
+                "command": "xcopilot.reindexWorkspace",
+                "title": "xCopilot: Re-indexar Workspace"
+            },
+            {
+                "command": "xcopilot.showWorkspaceInsights",
+                "title": "xCopilot: Mostrar Insights do Workspace"
             }
         ],
         "viewsContainers": {

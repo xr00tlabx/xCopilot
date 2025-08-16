@@ -7,9 +7,9 @@ let extensionManager: ExtensionManager;
 /**
  * Função chamada quando a extensão é ativada
  */
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
     extensionManager = new ExtensionManager();
-    extensionManager.activate(context);
+    await extensionManager.activate(context);
 }
 
 /**

@@ -4,6 +4,9 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Import routes
+const contextChatRoutes = require('./routes/context-chat');
+
 // Centralização de configurações
 const config = {
     openaiApiKey: process.env.OPENAI_API_KEY,
@@ -12,6 +15,9 @@ const config = {
 };
 
 app.use(express.json());
+
+// Use context-aware chat routes
+app.use('/api', contextChatRoutes);
 
 // Healthcheck
 app.get('/health', (_req, res) => {
