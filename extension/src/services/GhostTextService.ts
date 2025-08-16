@@ -241,6 +241,7 @@ Complete:`,
         } catch (error) {
             Logger.error('Error generating ghost text suggestion:', error);
             // Fallback to pattern-based suggestions for demo
+            Logger.info(`Fallback suggestion activated for language "${document.languageId}" with input: "${textBeforeCursor.trim().substring(0, 50)}..."`);
             return this.generateFallbackSuggestion(textBeforeCursor, document.languageId);
         }
     }
