@@ -7592,8 +7592,14 @@ var GhostTextService = class _GhostTextService {
    */
   determineSuggestionType(currentText, language) {
     const trimmed = currentText.trim();
+    if (trimmed.includes("class ") || trimmed.includes("interface ") || trimmed.includes("struct ") || trimmed.includes("enum ")) {
+      return "multi-line";
+    }
+    if (trimmed.includes("if ") || trimmed.includes("for ") || trimmed.includes("while ") || trimmed.includes("try ") || trimmed.includes("{") && !trimmed.includes("function ") && !trimmed.includes("class ")) {
+      return "block";
+    }
     if (language === "javascript" || language === "typescript") {
-      if (trimmed.includes("function ") || trimmed.includes("=> {") || trimmed.endsWith(") {")) {
+      if (trimmed.includes("function ") || trimmed.includes("=> {") || trimmed.endsWith(") {") && trimmed.includes("function")) {
         return "function";
       }
     }
@@ -7602,11 +7608,8 @@ var GhostTextService = class _GhostTextService {
         return "function";
       }
     }
-    if (trimmed.endsWith("{") || trimmed.endsWith(":") || trimmed.includes("if ") || trimmed.includes("for ") || trimmed.includes("while ") || trimmed.includes("try")) {
+    if (trimmed.endsWith("{") || trimmed.endsWith(":")) {
       return "block";
-    }
-    if (trimmed.includes("class ") || trimmed.includes("interface ") || trimmed.includes("struct ") || trimmed.includes("enum ")) {
-      return "multi-line";
     }
     return "single-line";
   }

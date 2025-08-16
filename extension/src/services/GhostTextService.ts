@@ -253,9 +253,23 @@ export class GhostTextService implements vscode.InlineCompletionItemProvider {
     private determineSuggestionType(currentText: string, language: string): GhostTextSuggestion['type'] {
         const trimmed = currentText.trim();
 
+        // Multi-line patterns (check first for classes, interfaces)
+        if (trimmed.includes('class ') || trimmed.includes('interface ') || 
+            trimmed.includes('struct ') || trimmed.includes('enum ')) {
+            return 'multi-line';
+        }
+
+        // Check for block statements  
+        if (trimmed.includes('if ') || trimmed.includes('for ') || 
+            trimmed.includes('while ') || trimmed.includes('try ') ||
+            (trimmed.includes('{') && !trimmed.includes('function ') && !trimmed.includes('class '))) {
+            return 'block';
+        }
+
         // Function declarations
         if (language === 'javascript' || language === 'typescript') {
-            if (trimmed.includes('function ') || trimmed.includes('=> {') || trimmed.endsWith(') {')) {
+            if (trimmed.includes('function ') || trimmed.includes('=> {') || 
+                (trimmed.endsWith(') {') && trimmed.includes('function'))) {
                 return 'function';
             }
         }
@@ -266,17 +280,9 @@ export class GhostTextService implements vscode.InlineCompletionItemProvider {
             }
         }
 
-        // Block statements
-        if (trimmed.endsWith('{') || trimmed.endsWith(':') || 
-            trimmed.includes('if ') || trimmed.includes('for ') || 
-            trimmed.includes('while ') || trimmed.includes('try')) {
+        // Check for block endings
+        if (trimmed.endsWith('{') || trimmed.endsWith(':')) {
             return 'block';
-        }
-
-        // Multi-line patterns
-        if (trimmed.includes('class ') || trimmed.includes('interface ') || 
-            trimmed.includes('struct ') || trimmed.includes('enum ')) {
-            return 'multi-line';
         }
 
         return 'single-line';
