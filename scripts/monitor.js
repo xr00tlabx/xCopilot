@@ -183,7 +183,7 @@ ${metrics.contributors.map(c => `• ${c.name}: ${c.commits} commits`).join('\\n
         const contributors = new Map();
         
         // Processar estatísticas
-        stats.split('\\n').forEach(line => {
+        stats.split('\n').forEach(line => {
             if (line.trim()) {
                 const [added, removed] = line.split('\\t');
                 if (added !== '-') linesAdded += parseInt(added) || 0;
