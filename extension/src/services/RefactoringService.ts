@@ -385,7 +385,7 @@ export class RefactoringService {
         }
 
         if (!selection || selection.isEmpty) {
-            vscode.window.showWarningMessage('Selecione o código para extrair em método');
+            vscode.window.showWarningMessage('Select code to extract into method');
             return;
         }
 
