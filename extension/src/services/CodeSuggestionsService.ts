@@ -220,45 +220,58 @@ Analise o código ${language} abaixo e detecte padrões, problemas potenciais e 
 ${code}
 \`\`\`
 
-Retorne sugestões no formato JSON:
+IMPORTANTE: Retorne APENAS um array JSON válido, sem texto adicional ou comentários. Exemplo:
 [
   {
-    "line": número_da_linha,
-    "message": "descrição do problema/sugestão",
-    "severity": "warning|info",
-    "code": "código_identificador",
-    "suggestion": "sugestão de melhoria"
+    "line": 1,
+    "message": "Variável pode ter nome mais descritivo",
+    "severity": "info",
+    "code": "naming",
+    "suggestion": "Use um nome mais específico para a variável"
   }
 ]
 
-Foque em:
-- Código duplicado
-- Funções muito longas
-- Variáveis mal nomeadas
-- Padrões ineficientes
-- Oportunidades de refatoração
-- Boas práticas da linguagem
+Use apenas estes valores para severity: "warning", "info"
+Mantenha message e suggestion como strings simples sem caracteres especiais.
 `;
 
             const response = await this.backendService.askQuestion(prompt);
 
-            // Extrair JSON da resposta
-            const jsonMatch = response.match(/\[[\s\S]*\]/);
+            // Extrair JSON da resposta com tratamento mais robusto
+            const jsonMatch = response.match(/\[[\s\S]*?\]/);
             if (jsonMatch) {
-                const patterns = JSON.parse(jsonMatch[0]);
-
-                return patterns.map((pattern: any) => ({
-                    range: new vscode.Range(
-                        Math.max(0, pattern.line - 1),
-                        0,
-                        Math.max(0, pattern.line - 1),
-                        100
-                    ),
-                    message: pattern.message,
-                    severity: pattern.severity as 'warning' | 'info',
-                    code: pattern.code,
-                    suggestion: pattern.suggestion
-                }));
+                try {
+                    // Tentar parsing direto primeiro
+                    const patterns = JSON.parse(jsonMatch[0]);
+                    return this.mapPatterns(patterns);
+                } catch (parseError) {
+                    Logger.debug('Direct parsing failed, attempting JSON cleanup');
+                    
+                    // Tentar corrigir JSON malformado
+                    let jsonString = jsonMatch[0];
+                    
+                    // Corrigir propriedades sem aspas
+                    jsonString = jsonString.replace(/(\w+):/g, '"$1":');
+                    
+                    // Corrigir aspas simples
+                    jsonString = jsonString.replace(/'/g, '"');
+                    
+                    // Remover comentários que podem quebrar o JSON
+                    jsonString = jsonString.replace(/\/\/.*$/gm, '');
+                    jsonString = jsonString.replace(/\/\*[\s\S]*?\*\//g, '');
+                    
+                    // Corrigir vírgulas problemáticas
+                    jsonString = jsonString.replace(/,(\s*])/g, '$1'); // Remove vírgula antes de ]
+                    jsonString = jsonString.replace(/,(\s*})/g, '$1'); // Remove vírgula antes de }
+                    
+                    try {
+                        const patterns = JSON.parse(jsonString);
+                        return this.mapPatterns(patterns);
+                    } catch (secondError) {
+                        Logger.error('Failed to parse corrected JSON:', secondError);
+                        return [];
+                    }
+                }
             }
 
             return [];
@@ -269,6 +282,28 @@ Foque em:
     }
 
     /**
+     * Mapeia os padrões para o formato esperado
+     */
+    private mapPatterns(patterns: any[]): Array<{
+        range: vscode.Range,
+        message: string,
+        severity: 'error' | 'warning' | 'info',
+        code: string,
+        suggestion?: string
+    }> {
+        return patterns.map((pattern: any) => ({
+            range: new vscode.Range(
+                Math.max(0, (pattern.line || 1) - 1),
+                0,
+                Math.max(0, (pattern.line || 1) - 1),
+                100
+            ),
+            message: pattern.message || 'Pattern detected',
+            severity: pattern.severity as 'warning' | 'info' || 'info',
+            code: pattern.code || 'general',
+            suggestion: pattern.suggestion
+        }));
+    }    /**
      * Verifica se a linguagem é suportada
      */
     private isSupportedLanguage(languageId: string): boolean {

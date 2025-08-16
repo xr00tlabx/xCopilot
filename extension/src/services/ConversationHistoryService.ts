@@ -21,6 +21,9 @@ export class ConversationHistoryService {
         if (!ConversationHistoryService.instance && context) {
             ConversationHistoryService.instance = new ConversationHistoryService(context);
         }
+        if (!ConversationHistoryService.instance) {
+            throw new Error('ConversationHistoryService must be initialized with context first');
+        }
         return ConversationHistoryService.instance;
     }
 
@@ -92,6 +95,13 @@ export class ConversationHistoryService {
     }
 
     /**
+     * Obtém entradas recentes (alias for getRecent)
+     */
+    getRecentEntries(limit: number = 10): ConversationEntry[] {
+        return this.getRecent(limit);
+    }
+
+    /**
      * Obtém entrada por ID
      */
     getById(id: string): ConversationEntry | undefined {
@@ -118,6 +128,7 @@ export class ConversationHistoryService {
     clearHistory(): void {
         this.history = {
             entries: [],
+            totalEntries: 0,
             lastUpdated: new Date()
         };
         this.saveHistory();
@@ -215,6 +226,7 @@ export class ConversationHistoryService {
 
         return {
             entries: [],
+            totalEntries: 0,
             lastUpdated: new Date()
         };
     }

@@ -4,11 +4,14 @@ import {
     CodeExplanationService,
     CodeSuggestionsService,
     ConfigurationService,
+    ConversationHistoryService,
     GhostTextService,
     InlineCompletionService,
+    MultilineGenerationService,
     PatternDetectionService,
+    RefactoringService,
     RefactoringCodeLensProvider,
-    RefactoringService
+    WorkspaceAnalysisService
 } from './services';
 import { Logger } from './utils';
 import { ChatWebviewProvider, SidebarChatProvider } from './views';
@@ -21,13 +24,16 @@ export class ExtensionManager {
     private sidebarChatProvider!: SidebarChatProvider;
     private chatCommands!: ChatCommands;
     private configService: ConfigurationService;
+    private conversationHistoryService!: ConversationHistoryService;
     private codeSuggestionsService!: CodeSuggestionsService;
     private codeExplanationService!: CodeExplanationService;
     private ghostTextService!: GhostTextService;
     private inlineCompletionService!: InlineCompletionService;
+    private multilineGenerationService!: MultilineGenerationService;
     private refactoringService!: RefactoringService;
     private patternDetectionService!: PatternDetectionService;
     private refactoringCodeLensProvider!: RefactoringCodeLensProvider;
+    private workspaceAnalysisService!: WorkspaceAnalysisService;
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
@@ -46,19 +52,25 @@ export class ExtensionManager {
         Logger.info('🚀 xCopilot extension is now active!');
 
         try {
+            // Inicializar serviços que precisam do contexto primeiro
+            this.conversationHistoryService = ConversationHistoryService.getInstance(context);
+
             // Inicializar providers com contexto
-            this.chatProvider = new ChatWebviewProvider(context);
+            this.chatProvider = new ChatWebviewProvider();
             this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
             this.chatCommands = new ChatCommands(this.chatProvider);
 
             // Inicializar todos os serviços IA
+            this.conversationHistoryService = ConversationHistoryService.getInstance();
             this.codeSuggestionsService = CodeSuggestionsService.getInstance();
             this.codeExplanationService = CodeExplanationService.getInstance();
             this.ghostTextService = GhostTextService.getInstance();
             this.inlineCompletionService = InlineCompletionService.getInstance();
+            this.multilineGenerationService = MultilineGenerationService.getInstance();
             this.refactoringService = RefactoringService.getInstance();
             this.patternDetectionService = PatternDetectionService.getInstance();
             this.refactoringCodeLensProvider = RefactoringCodeLensProvider.getInstance();
+            this.workspaceAnalysisService = WorkspaceAnalysisService.getInstance();
 
             // Registrar o provider da webview
             this.registerWebviewProvider(context);
@@ -77,6 +89,9 @@ export class ExtensionManager {
 
             // Configurar monitoramento de configuração
             this.setupConfigurationWatcher(context);
+
+            // Iniciar análise do workspace
+            this.startWorkspaceAnalysis();
 
             // Adicionar output channel aos subscriptions
             context.subscriptions.push(this.outputChannel);
@@ -208,18 +223,40 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
     }
 
     /**
-     * Configura o monitoramento de mudanças de configuração
+     * Configura monitoramento de mudanças na configuração
      */
     private setupConfigurationWatcher(context: vscode.ExtensionContext): void {
-        const configWatcher = vscode.workspace.onDidChangeConfiguration(event => {
+        // Monitorar mudanças na configuração da extensão
+        const configWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
             if (event.affectsConfiguration('xcopilot')) {
-                Logger.info('🔄 Configuration changed, refreshing CodeLens provider...');
-                // Recarregar configurações dos serviços se necessário
-                this.refactoringCodeLensProvider.refresh();
+                Logger.info('🔄 Configuration changed, updating services...');
+                
+                // Atualizar configurações dos serviços
+                try {
+                    this.inlineCompletionService?.updateFromConfig();
+                    this.refactoringCodeLensProvider?.refresh();
+                    Logger.info('Services updated with new configuration');
+                } catch (error) {
+                    Logger.error('Error updating services configuration:', error);
+                }
             }
         });
 
         context.subscriptions.push(configWatcher);
-        Logger.info('✅ Configuration watcher setup complete');
+        Logger.info('✅ Configuration watcher setup completed');
+    }
+
+    /**
+     * Inicia análise do workspace
+     */
+    private startWorkspaceAnalysis(): void {
+        // Executar análise em background após um delay
+        setTimeout(async () => {
+            try {
+                await this.workspaceAnalysisService.analyzeWorkspaceOnStartup();
+            } catch (error) {
+                Logger.error('Error during workspace analysis startup:', error);
+            }
+        }, 3000); // 3 segundos de delay para não interferir na inicialização
     }
 }
