@@ -18,7 +18,11 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
 }
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID || 7335391186;
+const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+if (!CHAT_ID) {
+    console.error('Error: TELEGRAM_CHAT_ID environment variable must be set.');
+    process.exit(1);
+}
 
 class TelegramNotifier {
     constructor() {
