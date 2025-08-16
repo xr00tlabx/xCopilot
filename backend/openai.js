@@ -177,4 +177,109 @@ Complete the code:`;
     }
 }
 
-module.exports = { gerarResposta, gerarCompletion, client, OpenAIError };
+// Multi-line code generation function for complex implementations
+async function gerarMultilineCode({ prompt, type, language, context, maxTokens = 300, temperature = 0.4 }) {
+    try {
+        // Build specialized system prompt based on generation type
+        let systemPrompt = `You are an expert ${language || 'code'} developer. Generate complete, production-ready code implementations.`;
+        
+        switch (type) {
+            case 'function':
+                systemPrompt += `\n\nRules for function generation:
+1. Implement complete function body based on JSDoc/comments
+2. Include proper error handling
+3. Use appropriate data types and return values
+4. Follow best practices for ${language}
+5. Include helpful comments for complex logic`;
+                break;
+                
+            case 'implementation':
+                systemPrompt += `\n\nRules for TODO/FIXME implementation:
+1. Analyze the TODO/FIXME comment thoroughly
+2. Implement the missing functionality completely
+3. Consider edge cases and error conditions
+4. Use existing code patterns from context
+5. Maintain code style consistency`;
+                break;
+                
+            case 'interface':
+                systemPrompt += `\n\nRules for interface implementation:
+1. Implement all required interface methods
+2. Provide meaningful default implementations
+3. Include proper type annotations
+4. Follow interface contracts strictly
+5. Add documentation for each method`;
+                break;
+                
+            case 'class':
+                systemPrompt += `\n\nRules for class implementation:
+1. Generate complete class skeleton with constructor
+2. Include common methods (toString, equals if applicable)
+3. Add proper access modifiers
+4. Include instance variables as needed
+5. Follow ${language} class conventions`;
+                break;
+                
+            default:
+                systemPrompt += `\n\nGenerate complete, working code that fulfills the requirements.`;
+        }
+
+        systemPrompt += `\n\nLanguage: ${language || 'unknown'}
+Context: ${context ? 'Available' : 'Limited'}
+
+IMPORTANT: 
+- Return ONLY the code implementation, no explanations
+- Ensure code is properly formatted and indented
+- Include only necessary comments
+- Code should be ready to use immediately`;
+
+        const userPrompt = `Generate ${type} implementation for:\n\n${prompt}\n\n${context ? `Context:\n${context}\n\n` : ''}Generate the code:`;
+
+        const completion = await callChatWithFallback(
+            [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ],
+            {
+                max_tokens: maxTokens,
+                temperature: temperature,
+                top_p: 0.95,
+                frequency_penalty: 0.2,
+                presence_penalty: 0.1
+            }
+        );
+
+        let result = completion.choices?.[0]?.message?.content || '';
+        
+        // Clean up the response
+        result = result.trim();
+        
+        // Remove code blocks if present
+        result = result.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
+        
+        // Ensure proper indentation (basic cleanup)
+        const lines = result.split('\n');
+        const cleanedLines = lines.map(line => line.trimEnd());
+        result = cleanedLines.join('\n');
+        
+        return result;
+
+    } catch (err) {
+        // Same error handling as other functions
+        const status = err.status || err.response?.status || 500;
+        const code = err.error?.type || err.code || (status === 401 ? 'AUTH_ERROR' : 'OPENAI_ERROR');
+        let message;
+        if (status === 401) {
+            message = 'Falha de autenticação com OpenAI (verifique API key).';
+        } else if (status === 429) {
+            message = 'Limite de requisições atingido (rate limit).';
+        } else if (status >= 500) {
+            message = 'Serviço OpenAI indisponível no momento.';
+        } else {
+            message = 'Erro ao consultar OpenAI.';
+        }
+        throw new OpenAIError(message, status, code);
+    }
+}
+
+module.exports = { gerarResposta, gerarCompletion, gerarMultilineCode, client, OpenAIError };

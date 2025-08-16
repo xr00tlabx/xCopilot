@@ -1,0 +1,17 @@
+{
+    "name": "xcopilot-scripts",
+    "version": "1.0.0",
+    "description": "Utility scripts for xCopilot project",
+    "private": true,
+    "scripts": {
+        "monitor": "node monitor.js",
+        "telegram": "node telegram-bot.js"
+    },
+    "dependencies": {},
+    "keywords": [
+        "scripts",
+        "utilities"
+    ],
+    "author": "xr00tlabx",
+    "license": "MIT"
+}

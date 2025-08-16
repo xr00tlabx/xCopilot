@@ -4,12 +4,15 @@ import {
     CodeExplanationService,
     CodeSuggestionsService,
     ConfigurationService,
+    ConversationHistoryService,
     GhostTextService,
     InlineCompletionService,
+    MultilineGenerationService,
     PatternDetectionService,
-    RefactoringService,
-    MultilineCodeGenerationService
+    RefactoringCodeLensProvider,
+    RefactoringService
 } from './services';
+import { WorkspaceAnalysisService } from './services/WorkspaceAnalysisService';
 import { Logger } from './utils';
 import { ChatWebviewProvider, SidebarChatProvider } from './views';
 
@@ -22,13 +25,15 @@ export class ExtensionManager {
     private chatCommands!: ChatCommands;
     private codeGenerationCommands!: CodeGenerationCommands;
     private configService: ConfigurationService;
+    private conversationHistoryService!: ConversationHistoryService;
     private codeSuggestionsService!: CodeSuggestionsService;
     private codeExplanationService!: CodeExplanationService;
     private ghostTextService!: GhostTextService;
     private inlineCompletionService!: InlineCompletionService;
+    private multilineGenerationService!: MultilineGenerationService;
     private refactoringService!: RefactoringService;
+    private refactoringCodeLensProvider!: RefactoringCodeLensProvider;
     private patternDetectionService!: PatternDetectionService;
-    private multilineCodeGenerationService!: MultilineCodeGenerationService;
     private outputChannel: vscode.OutputChannel;
 
     constructor() {
@@ -47,20 +52,28 @@ export class ExtensionManager {
         Logger.info('🚀 xCopilot extension is now active!');
 
         try {
+            // Inicializar serviços que precisam do contexto primeiro
+            this.conversationHistoryService = ConversationHistoryService.getInstance(context);
+
             // Inicializar providers com contexto
-            this.chatProvider = new ChatWebviewProvider(context);
+            this.chatProvider = new ChatWebviewProvider();
             this.sidebarChatProvider = new SidebarChatProvider(context, this.chatProvider);
             this.chatCommands = new ChatCommands(this.chatProvider);
             this.codeGenerationCommands = new CodeGenerationCommands();
 
             // Inicializar todos os serviços IA
+            this.conversationHistoryService = ConversationHistoryService.getInstance();
             this.codeSuggestionsService = CodeSuggestionsService.getInstance();
             this.codeExplanationService = CodeExplanationService.getInstance();
             this.ghostTextService = GhostTextService.getInstance();
             this.inlineCompletionService = InlineCompletionService.getInstance();
+            this.multilineGenerationService = MultilineGenerationService.getInstance();
             this.refactoringService = RefactoringService.getInstance();
             this.patternDetectionService = PatternDetectionService.getInstance();
-            this.multilineCodeGenerationService = MultilineCodeGenerationService.getInstance();
+
+            // Initialize CodeLens provider instance
+            // (constructed lazily via singleton getter)
+            this.refactoringCodeLensProvider = RefactoringCodeLensProvider.getInstance();
 
             // Registrar o provider da webview
             this.registerWebviewProvider(context);
@@ -73,11 +86,16 @@ export class ExtensionManager {
             this.registerCodeExplanationCommands(context);
 
             // Registrar providers de código
-            // Registrar providers de código
             this.registerCodeProviders(context);
+
+            // Registrar CodeLens provider
+            this.refactoringCodeLensProvider.register(context);
 
             // Configurar monitoramento de configuração
             this.setupConfigurationWatcher(context);
+
+            // Iniciar análise do workspace
+            this.startWorkspaceAnalysis();
 
             // Adicionar output channel aos subscriptions
             context.subscriptions.push(this.outputChannel);
@@ -209,26 +227,36 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
     }
 
     /**
-     * Configura monitoramento de mudanças na configuração
+     * Configura observadores para alterações de configuração relevantes
      */
     private setupConfigurationWatcher(context: vscode.ExtensionContext): void {
-        const configWatcher = vscode.workspace.onDidChangeConfiguration((event) => {
-            if (event.affectsConfiguration('xcopilot')) {
-                Logger.info('⚙️ Configuration changed, reloading services...');
-                this.configService.reload();
+        const disposable = vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('xcopilot')) {
+                Logger.info('xcopilot configuration changed; services may need to refresh');
+                try {
+                    if (this.inlineCompletionService && typeof (this.inlineCompletionService as any).refreshConfiguration === 'function') {
+                        (this.inlineCompletionService as any).refreshConfiguration();
+                    }
+                } catch (err) {
+                    Logger.debug('Error while handling configuration change:', err);
+                }
             }
         });
 
-        context.subscriptions.push(configWatcher);
-        Logger.info('✅ Configuration watcher setup complete');
+        context.subscriptions.push(disposable);
     }
 
     /**
-     * Desativa a extensão
+     * Inicia a análise do workspace de forma assíncrona (não bloqueante)
      */
-    deactivate(): void {
-        Logger.info('🔄 xCopilot extension is being deactivated...');
-        // Cleanup será feito automaticamente pelos subscriptions
-        Logger.info('✅ Extension deactivated successfully');
+    private async startWorkspaceAnalysis(): Promise<void> {
+        try {
+            const wsService = WorkspaceAnalysisService.getInstance();
+            wsService.analyzeWorkspaceOnStartup().catch(err => {
+                Logger.error('Error during workspace analysis startup:', err);
+            });
+        } catch (err) {
+            Logger.error('Failed to start workspace analysis:', err);
+        }
     }
 }

@@ -101,6 +101,38 @@
                 "title": "xCopilot: Aplicar Padrão de Design"
             },
             {
+                "command": "xcopilot.extractMethod",
+                "title": "xCopilot: Extrair Método"
+            },
+            {
+                "command": "xcopilot.extractClass",
+                "title": "xCopilot: Extrair Classe"
+            },
+            {
+                "command": "xcopilot.extractDuplicatedCode",
+                "title": "xCopilot: Extrair Código Duplicado"
+            },
+            {
+                "command": "xcopilot.convertToAsyncAwait",
+                "title": "xCopilot: Converter para Async/Await"
+            },
+            {
+                "command": "xcopilot.convertToArrowFunction",
+                "title": "xCopilot: Converter para Arrow Function"
+            },
+            {
+                "command": "xcopilot.applyDestructuring",
+                "title": "xCopilot: Aplicar Destructuring"
+            },
+            {
+                "command": "xcopilot.moveMethod",
+                "title": "xCopilot: Mover Método"
+            },
+            {
+                "command": "xcopilot.refactorWorkspace",
+                "title": "xCopilot: Refatorar Workspace"
+            },
+            {
                 "command": "xcopilot.analyzePatterns",
                 "title": "xCopilot: Analisar Padrões"
             },
@@ -127,6 +159,10 @@
             {
                 "command": "xcopilot.acceptGhostText",
                 "title": "xCopilot: Aceitar Sugestão Ghost Text"
+            },
+            {
+                "command": "xcopilot.dismissGhostText",
+                "title": "xCopilot: Descartar Sugestão Ghost Text"
             },
             {
                 "command": "xcopilot.openChat",
@@ -162,27 +198,23 @@
             },
             {
                 "command": "xcopilot.generateFromComments",
-                "title": "xCopilot: Gerar Código de Comentários"
+                "title": "xCopilot: Gerar a partir de Coment\u00e1rios"
             },
             {
                 "command": "xcopilot.implementInterfaces",
-                "title": "xCopilot: Implementar Interfaces Vazias"
+                "title": "xCopilot: Implementar Interfaces"
             },
             {
                 "command": "xcopilot.generateFunction",
-                "title": "xCopilot: Gerar Função Completa"
+                "title": "xCopilot: Gerar Fun\u00e7\u00e3o"
             },
             {
                 "command": "xcopilot.generatePattern",
-                "title": "xCopilot: Gerar Código de Padrão"
-            },
-            {
-                "command": "xcopilot.analyzePatterns",
-                "title": "xCopilot: Analisar Padrões do Código"
+                "title": "xCopilot: Gerar Padr\u00e3o"
             },
             {
                 "command": "xcopilot.scanTodoComments",
-                "title": "xCopilot: Escanear Comentários TODO/FIXME"
+                "title": "xCopilot: Escanear Coment\u00e1rios TODO"
             }
         ],
         "viewsContainers": {
@@ -262,6 +294,37 @@
                     "group": "xcopilot-refactor@5"
                 },
                 {
+                    "command": "xcopilot.extractMethod",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-refactor@6"
+                },
+                {
+                    "command": "xcopilot.extractClass",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-refactor@7"
+                },
+                {
+                    "command": "xcopilot.convertToAsyncAwait",
+                    "group": "xcopilot-modernize@1"
+                },
+                {
+                    "command": "xcopilot.convertToArrowFunction",
+                    "group": "xcopilot-modernize@2"
+                },
+                {
+                    "command": "xcopilot.applyDestructuring",
+                    "group": "xcopilot-modernize@3"
+                },
+                {
+                    "command": "xcopilot.moveMethod",
+                    "when": "editorHasSelection",
+                    "group": "xcopilot-refactor@8"
+                },
+                {
+                    "command": "xcopilot.refactorWorkspace",
+                    "group": "xcopilot-workspace@1"
+                },
+                {
                     "command": "xcopilot.analyzePatterns",
                     "group": "xcopilot-analysis@1"
                 },
@@ -309,6 +372,11 @@
                     "command": "xcopilot.analyzeFile",
                     "when": "resourceExtname =~ /\\.(js|ts|py|java|cpp|c|cs|php|go|rs|rb|swift|kt)$/",
                     "group": "xcopilot@1"
+                },
+                {
+                    "command": "xcopilot.refactorWorkspace",
+                    "when": "explorerResourceIsFolder",
+                    "group": "xcopilot@2"
                 }
             ]
         },
@@ -345,6 +413,57 @@
                     "minimum": 5,
                     "maximum": 50,
                     "description": "Máximo de linhas de contexto para enviar à IA"
+                },
+                "xcopilot.ghostText.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Habilita sugestões de Ghost Text em tempo real"
+                },
+                "xcopilot.ghostText.throttleMs": {
+                    "type": "number",
+                    "default": 300,
+                    "minimum": 100,
+                    "maximum": 1000,
+                    "description": "Tempo de espera entre solicitações de Ghost Text (ms)"
+                },
+                "xcopilot.contextAware.enableWorkspaceAnalysis": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Habilita análise completa do workspace para contexto"
+                },
+                "xcopilot.contextAware.enableSemanticSearch": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Habilita busca semântica em conversas anteriores"
+                },
+                "xcopilot.contextAware.maxContextSize": {
+                    "type": "number",
+                    "default": 4000,
+                    "minimum": 1000,
+                    "maximum": 8000,
+                    "description": "Tamanho máximo do contexto enviado para a IA (caracteres)"
+                },
+                "xcopilot.contextAware.analysisDepth": {
+                    "type": "string",
+                    "default": "medium",
+                    "enum": [
+                        "shallow",
+                        "medium",
+                        "deep"
+                    ],
+                    "description": "Profundidade da análise do workspace"
+                },
+                "xcopilot.contextAware.memorySessions": {
+                    "type": "number",
+                    "default": 5,
+                    "minimum": 1,
+                    "maximum": 20,
+                    "description": "Número de conversas anteriores para incluir na memória"
+                },
+                "xcopilot.contextAware.autoSuggestions": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Habilita sugestões automáticas baseadas no contexto"
                 }
             }
         },
@@ -365,6 +484,11 @@
                 "when": "editorTextFocus && xcopilot.ghostTextVisible"
             },
             {
+                "command": "xcopilot.dismissGhostText",
+                "key": "escape",
+                "when": "editorTextFocus && xcopilot.ghostTextVisible"
+            },
+            {
                 "command": "xcopilot.refactorCode",
                 "key": "ctrl+k ctrl+r",
                 "when": "editorTextFocus && editorHasSelection"
@@ -382,26 +506,6 @@
             {
                 "command": "xcopilot.toggleInlineCompletion",
                 "key": "ctrl+alt+i",
-                "when": "editorTextFocus"
-            },
-            {
-                "command": "xcopilot.generateFromComments",
-                "key": "ctrl+k ctrl+g",
-                "when": "editorTextFocus"
-            },
-            {
-                "command": "xcopilot.implementInterfaces",
-                "key": "ctrl+k ctrl+i",
-                "when": "editorTextFocus"
-            },
-            {
-                "command": "xcopilot.generateFunction",
-                "key": "ctrl+k ctrl+n",
-                "when": "editorTextFocus"
-            },
-            {
-                "command": "xcopilot.generatePattern",
-                "key": "ctrl+k ctrl+p",
                 "when": "editorTextFocus"
             }
         ]
