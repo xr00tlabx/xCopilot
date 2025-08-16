@@ -712,7 +712,7 @@ export class RefactoringService {
             );
 
             if (files.length === 0) {
-                vscode.window.showInformationMessage('Nenhum arquivo de código encontrado no workspace');
+                vscode.window.showInformationMessage('No code files found in workspace');
                 return;
             }
 
