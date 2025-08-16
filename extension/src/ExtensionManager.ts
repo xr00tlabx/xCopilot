@@ -199,26 +199,6 @@ export class ExtensionManager {
                 } else {
                     vscode.window.showWarningMessage('Selecione código para explicar no chat');
                 }
-            }),
-            vscode.commands.registerCommand('xcopilot.toggleInlineCompletion', () => {
-                const currentState = this.inlineCompletionService.isServiceEnabled();
-                this.inlineCompletionService.setEnabled(!currentState);
-                vscode.window.showInformationMessage(
-                    `Inline Completion ${!currentState ? 'habilitado' : 'desabilitado'}`
-                );
-            }),
-            vscode.commands.registerCommand('xcopilot.clearCompletionCache', () => {
-                this.inlineCompletionService.clearCache();
-                vscode.window.showInformationMessage('Cache de completions limpo');
-            }),
-            vscode.commands.registerCommand('xcopilot.showCompletionStats', () => {
-                const stats = this.inlineCompletionService.getStats();
-                const message = `Estatísticas de Completion:
-Requisições: ${stats.requestCount}
-Cache Hits: ${stats.cacheHits}
-Taxa de Cache: ${stats.cacheHitRate.toFixed(1)}%
-Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats.utilization.toFixed(1)}%)`;
-                vscode.window.showInformationMessage(message);
             })
         ];
 
@@ -315,5 +295,13 @@ Cache: ${stats.cacheStats.size}/${stats.cacheStats.capacity} (${stats.cacheStats
             Logger.error('Error initializing context-aware features:', error);
             // Don't show error to user as this is not critical for basic functionality
         }
+    }
+
+    /**
+     * Desativa a extensão
+     */
+    deactivate(): void {
+        Logger.info('🔄 xCopilot extension is being deactivated...');
+        this.outputChannel.dispose();
     }
 }

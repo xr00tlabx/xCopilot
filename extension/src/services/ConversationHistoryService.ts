@@ -125,6 +125,7 @@ export class ConversationHistoryService {
     clearHistory(): void {
         this.history = {
             entries: [],
+            totalEntries: 0,
             lastUpdated: new Date()
         };
         this.saveHistory();
@@ -222,6 +223,7 @@ export class ConversationHistoryService {
 
         return {
             entries: [],
+            totalEntries: 0,
             lastUpdated: new Date()
         };
     }
